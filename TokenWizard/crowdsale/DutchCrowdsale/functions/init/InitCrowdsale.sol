@@ -224,8 +224,8 @@ library InitCrowdsale {
   @return max_sellable: The total number of tokens that can be sold in the crowdsale
   */
   function isCrowdsaleFull(address _storage, bytes32 _exec_id) public view returns (bool is_crowdsale_full, uint max_sellable) {
-    // Create 'read' calldata buffer in memory
-    uint ptr = ReadFromBuffers.cdBuff(RD_SING);
+    // Create 'readMulti' calldata buffer in memory
+    uint ptr = ReadFromBuffers.cdBuff(RD_MULTI);
     // Push exec id, data read offset, and read size to buffer
     ptr.cdPush(_exec_id);
     ptr.cdPush(0x40);
