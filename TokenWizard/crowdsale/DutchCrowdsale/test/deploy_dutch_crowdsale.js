@@ -21,6 +21,7 @@ let RegistryGetters = artifacts.require('./utils/RegistryGetters')
 
 contract('RegistryApps-TokenWizard', function(accounts) {
   let storage
+  let exec
 
   let initRegistry
   let initRegistryCalldata = '0xe1c7392a' // sha3('init()')
@@ -81,8 +82,15 @@ contract('RegistryApps-TokenWizard', function(accounts) {
 
   // 'after' hook - displays information about script registry and storage contracts
   after(async () => {
+    let providerHash = await registryUtils.getProviderHash(scriptUpdater)
+    exec = await ScriptExec.new(
+      scriptUpdater, storage.address, providerHash
+    ).should.be.fulfilled
+    await exec.changeRegistryExecId(providerHash).should.be.fulfilled
+
     console.log("=====================================")
     console.log("Storage address: " + storage.address)
+    console.log("Script Exec address: " + exec.address)
     console.log("=====================================")
     console.log("Registry App: ")
     console.log("Exec ID: " + registryExecId)

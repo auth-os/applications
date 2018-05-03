@@ -11,6 +11,10 @@ contract RegistryUtils {
     }
   }
 
+  function getProviderHash(address _in) public pure returns (bytes32 provider) {
+    provider = keccak256(_in);
+  }
+
   function registerApp(bytes32, address, bytes memory, bytes memory)
   public pure returns (bytes memory) {
     return msg.data;
