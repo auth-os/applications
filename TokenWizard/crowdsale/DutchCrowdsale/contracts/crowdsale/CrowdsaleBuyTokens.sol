@@ -331,6 +331,10 @@ library CrowdsaleBuyTokens {
       spend_amount_remaining: (_sale_is_whitelisted ? spend_info[4] : 0)
     });
 
+    // If the sender has already purchased tokens, they no longer have a minimum cap
+    if (spend_stat.sender_has_contributed)
+      spend_stat.minimum_contribution_amount = 0;
+
     // If the crowdsale is whitelisted and the sender has no remaining spend amount, revert
     if (_sale_is_whitelisted && spend_stat.spend_amount_remaining == 0)
       bytes32("SpendAmountExceeded").trigger();

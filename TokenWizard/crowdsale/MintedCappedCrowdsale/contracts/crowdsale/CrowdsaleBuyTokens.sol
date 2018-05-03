@@ -407,6 +407,10 @@ library CrowdsaleBuyTokens {
         amount_spent: 0
       });
 
+      // If the sender has contributed, they no longer have a minimum contribution amount
+      if (sale_stat.sender_has_contributed)
+        spend_stat.minimum_purchase_amount = 0;
+
       // Ensure team wallet and token decimal count are valid -
       if (
         sale_stat.team_wallet == address(0)          // Invalid team wallet address
