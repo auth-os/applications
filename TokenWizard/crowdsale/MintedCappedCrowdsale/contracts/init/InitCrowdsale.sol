@@ -652,6 +652,10 @@ library InitCrowdsale {
     // Read from storage and get returned tier whitelist length
     num_whitelisted = uint(ptr.readSingleFrom(_storage));
 
+    // If there are no whitelisted addresses, return
+    if (num_whitelisted == 0)
+      return;
+
     // Overwrite previous buffer and loop through the whitelist number to get each whitelisted address
     ptr.cdOverwrite(RD_MULTI);
     // Push exec id, data read offset, and read size to buffer

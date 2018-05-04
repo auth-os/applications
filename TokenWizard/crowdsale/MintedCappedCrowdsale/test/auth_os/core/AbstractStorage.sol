@@ -168,11 +168,15 @@ contract AbstractStorage {
 
     uint size;
     // Execute application init call
+    bool success;
     assembly {
-      let ret := staticcall(gas, _init, add(0x20, _init_calldata), mload(_init_calldata), 0, 0)
-      // Check return value - if zero, call failed
-      if iszero(ret) { revert (0, 0) }
+      success := staticcall(gas, _init, add(0x20, _init_calldata), mload(_init_calldata), 0, 0)
       size := returndatasize
+    }
+    // If the call failed, emit an event with an error message
+    if (!success) {
+      handleException(_init, bytes32(0));
+      return bytes32(0);
     }
     // Store returned init app data
     if (size > 0) storeReturned(exec_id);
@@ -218,6 +222,8 @@ contract AbstractStorage {
   */
   function initAndFinalize(address _updater, bool _is_payable, address _init, bytes _init_calldata, address[] _allowed) public returns (bytes32 exec_id) {
     exec_id = initAppInstance(_updater, _is_payable, _init, _init_calldata, _allowed);
+    if (exec_id == bytes32(0))
+      return exec_id;
     finalizeAppInstance(exec_id);
     assert(exec_id != bytes32(0));
   }
