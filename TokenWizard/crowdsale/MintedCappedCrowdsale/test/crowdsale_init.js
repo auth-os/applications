@@ -9,7 +9,7 @@ let MintedCappedTokenTransfer = artifacts.require('./TokenTransfer')
 let MintedCappedTokenTransferFrom = artifacts.require('./TokenTransferFrom')
 let MintedCappedTokenApprove = artifacts.require('./TokenApprove')
 // Utils
-let MintedCappedCrowdsaleTestUtils = artifacts.require('./MintedCappedCrowdsaleUtils')
+let TestUtils = artifacts.require('./RegistryUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')
@@ -58,7 +58,7 @@ contract('#MintedCappedInit', function (accounts) {
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
-    testUtils = await MintedCappedCrowdsaleTestUtils.new().should.be.fulfilled
+    testUtils = await TestUtils.new().should.be.fulfilled
 
     initCrowdsale = await InitMintedCapped.new().should.be.fulfilled
     crowdsaleBuy = await MintedCappedBuy.new().should.be.fulfilled
@@ -75,7 +75,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get valid init calldata
-      initCalldata = await testUtils.getInitCalldata(
+      initCalldata = await testUtils.init(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -435,7 +435,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata(
+      invalidInitCalldata = await testUtils.init(
         invalidWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -491,7 +491,7 @@ contract('#MintedCappedInit', function (accounts) {
     beforeEach(async () => {
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata(
+      invalidInitCalldata = await testUtils.init(
         teamWallet, invalidStartTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -545,7 +545,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata.call(
+      invalidInitCalldata = await testUtils.init(
         teamWallet, startTime, initialTierName,
         invalidTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -599,7 +599,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata(
+      invalidInitCalldata = await testUtils.init(
         teamWallet, startTime, initialTierName,
         initialTierPrice, invalidDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -653,7 +653,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata(
+      invalidInitCalldata = await testUtils.init(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, invalidSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -707,7 +707,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.getInitCalldata(
+      invalidInitCalldata = await testUtils.init(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, invalidAdmin
