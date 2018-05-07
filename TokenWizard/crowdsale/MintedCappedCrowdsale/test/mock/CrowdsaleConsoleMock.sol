@@ -605,6 +605,7 @@ contract CrowdsaleConsoleMock {
   struct TierUpdate {
     uint crowdsale_starts_at;
     uint total_duration;
+    uint cur_tier_index;
     uint cur_tier_end_time;
     uint prev_duration;
   }
@@ -659,6 +660,7 @@ contract CrowdsaleConsoleMock {
     TierUpdate memory tier_update = TierUpdate({
       crowdsale_starts_at: uint(read_values[2]),
       total_duration: uint(read_values[3]),
+      cur_tier_index: uint(read_values[5]),
       cur_tier_end_time: uint(read_values[6]),
       prev_duration: uint(read_values[7])
     });
@@ -670,25 +672,25 @@ contract CrowdsaleConsoleMock {
     if (tier_update.total_duration < tier_update.prev_duration)
       bytes32("TotalDurationInvalid").trigger();
     // Indices are off-by-one in storage - so the stored current tier index should never be 0
-    if (read_values[5] == bytes32(0))
+    if (tier_update.cur_tier_index == 0)
       bytes32("InvalidCrowdsaleSetup").trigger();
 
     // Normalize returned current tier index
-    read_values[5] = bytes32(uint(read_values[5]) - 1);
+    tier_update.cur_tier_index--;
 
     // Check returned values for valid crowdsale and tier status -
     if (
       read_values[0] != bytes32(sender)                   // Sender is not the crowdsale admin
       || read_values[1] != 0                              // Crowdsale is already finalized
       || uint(read_values[4]) <= _tier_index              // Passed-in tier index is out of range
-      || uint(read_values[5]) > _tier_index               // Current crowdsale tier is already past requested index (trying to modify a previous tier)
-      || (uint(read_values[5]) == _tier_index             // Trying to modify the current tier, when the current tier is not the first tier
+      || tier_update.cur_tier_index > _tier_index         // Current crowdsale tier is already past requested index (trying to modify a previous tier)
+      || (tier_update.cur_tier_index == _tier_index       // Trying to modify the current tier, when the current tier is not the first tier
          && _tier_index != 0)
       || read_values[8] == 0                              // Requested crowdsale tier was not set as 'modifiable'
     ) bytes32("InvalidCrowdsaleStatus").trigger();
 
-    /// If the tier to update is tier 0, and the current tier index is 0, tier can be updated iff crowdsale has not yet begun - check start time
-    if (_tier_index == 0 && read_values[5] == bytes32(0)) {
+    /// If the tier to update is tier 0, and the normalized current tier index is 0, tier can be updated iff crowdsale has not yet begun - check start time
+    if (_tier_index == 0 && tier_update.cur_tier_index == 0) {
       if (getTime() >= tier_update.crowdsale_starts_at) // If the crowdsale has already begun, the first tier's duration cannot be updated
         bytes32("CannotModifyCurrentTier").trigger();
 
@@ -698,10 +700,10 @@ contract CrowdsaleConsoleMock {
       ptr.stPush(CURRENT_TIER_ENDS_AT, bytes32(_new_duration + tier_update.crowdsale_starts_at));
 
     /// If the tier to update is not the current tier, but it is beyond the end time of the current tier, current tier may need updating -
-    } else if (_tier_index > uint(read_values[5]) && getTime() >= tier_update.cur_tier_end_time) {
+    } else if (_tier_index > tier_update.cur_tier_index && getTime() >= tier_update.cur_tier_end_time) {
       // If it is past the current stored tier's end time, and the tier to update is the tier directly after the current stored tier,
       // then the tier to update has already started and cannot be updated
-      if (_tier_index - uint(read_values[5]) == 1)
+      if (_tier_index - tier_update.cur_tier_index == 1)
         bytes32("CannotModifyCurrentTier").trigger();
 
       /// Loop through tiers between 'current tier' and _tier_index, and add their durations to a new 'readMulti' buffer - to get the requested tier to update's start time
@@ -711,15 +713,15 @@ contract CrowdsaleConsoleMock {
       // Push exec id, data read offset, and read size to buffer
       ptr.cdPush(exec_id);
       ptr.cdPush(0x40);
-      ptr.cdPush(bytes32(_tier_index - uint(read_values[5])));
+      ptr.cdPush(bytes32(_tier_index - tier_update.cur_tier_index));
 
       // Loop through the difference in the returned 'current' index and the requested update index, and push the location of each in-between tier's duration to the buffer
-      for (uint i = uint(read_values[5]); i < _tier_index; i++)
+      for (uint i = tier_update.cur_tier_index; i < _tier_index; i++)
         ptr.cdPush(bytes32(128 + (192 * i) + uint(CROWDSALE_TIERS)));
 
       // Read from storage, and store return to buffer
       uint[] memory read_durations = ptr.readMulti().toUintArr();
-      assert(read_durations.length == _tier_index - uint(read_values[5])); // Ensure valid returned array size
+      assert(read_durations.length == _tier_index - tier_update.cur_tier_index); // Ensure valid returned array size
 
       // Loop through returned durations, and add each to 'cur tier end time'
       for (i = 0; i < read_durations.length; i++)
@@ -733,7 +735,7 @@ contract CrowdsaleConsoleMock {
       ptr.stOverwrite(0, 0);
 
     /// If the tier to be updated is not the current tier, but the current tier is still in progress, update the requested tier -
-    } else if (_tier_index > uint(read_values[5]) && getTime() < tier_update.cur_tier_end_time) {
+    } else if (_tier_index > tier_update.cur_tier_index && getTime() < tier_update.cur_tier_end_time) {
       // Overwrite previous buffer with storage buffer
       ptr.stOverwrite(0, 0);
     } else {

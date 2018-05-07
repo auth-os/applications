@@ -161,6 +161,44 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     let initTokenCalldata
     let initTokenEvent
 
+    describe('crowdsale storage with no initialized token', async () => {
+
+      it('should not have information about the token', async () => {
+        let tokenInfo = await initCrowdsale.getTokenInfo(
+          storage.address, executionID
+        ).should.be.fulfilled
+        tokenInfo.length.should.be.eq(4)
+
+        web3.toDecimal(tokenInfo[0]).should.be.eq(0)
+        web3.toDecimal(tokenInfo[1]).should.be.eq(0)
+        tokenInfo[2].toNumber().should.be.eq(0)
+        tokenInfo[3].toNumber().should.be.eq(0)
+      })
+
+      it('should not have values for maximum raise amount', async () => {
+        let raiseInfo = await initCrowdsale.getCrowdsaleMaxRaise(
+          storage.address, executionID
+        ).should.be.fulfilled
+        raiseInfo.length.should.be.eq(2)
+
+        raiseInfo[0].toNumber().should.be.eq(0)
+        raiseInfo[1].toNumber().should.be.eq(0)
+      })
+
+      it('should not allow an initialized crowdsale', async () => {
+        let saleInfo = await initCrowdsale.getCrowdsaleInfo(
+          storage.address, executionID
+        ).should.be.fulfilled
+        saleInfo.length.should.be.eq(5)
+
+        saleInfo[0].toNumber().should.be.eq(0)
+        saleInfo[1].should.be.eq(teamWallet)
+        saleInfo[2].toNumber().should.be.eq(0)
+        saleInfo[3].should.be.eq(false)
+        saleInfo[4].should.be.eq(false)
+      })
+    })
+
     context('when the token is initialized with an invalid parameter', async () => {
 
       let invalidCalldata
@@ -452,6 +490,23 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
 
           it('should have a total supply of 0', async () => {
             tokenInfo[3].toNumber().should.be.eq(0)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have valid raise information', async () => {
+            let raiseInfo = await initCrowdsale.getCrowdsaleMaxRaise(
+              storage.address, executionID
+            ).should.be.fulfilled
+            raiseInfo.length.should.be.eq(2)
+
+            let price = web3.toBigNumber(initialTierPrice).toNumber()
+            let supply = web3.toBigNumber(initialTierTokenSellCap).toNumber()
+            raiseInfo[0].toNumber().should.be.eq(
+               (price * supply) / (10 ** tokenDecimals)
+            )
+            web3.fromWei(raiseInfo[1].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
           })
         })
       })
@@ -876,6 +931,7 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     })
   })
 
+  // TODO add isCrowdsaleFull and getCrowdsaleMaxRaise checks for creating tiers
   describe('#createCrowdsaleTiers', async () => {
 
     let updateTierCalldata
@@ -2152,7 +2208,6 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     })
   })
 
-  // TODO - finish
   describe('#updateTierDuration', async () => {
 
     let initMockCalldata
@@ -2172,7 +2227,6 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
       web3.toWei('20', 'ether')
     ]
     let tierAllModifiable = [true, true]
-    let tierNoModifiable = [false, false]
     let tierMixedModifiable = [false, true]
     let multiTierWhitelistStat = [true, false]
 
@@ -2180,9 +2234,8 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     let initialEndTime
 
     // Tiers will be updated with the following durations
-    let longerTierDurations = [4000, 1500, 2750]
-    let shorterTierDurations = [3000, 750, 1000]
     let newDuration = 2500
+    let zeroDuration = 0
 
     context('when the tier to update is a previous tier', async () => {
 
@@ -2415,56 +2468,1159 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
 
     context('when the tier to update is the current tier', async () => {
 
+      beforeEach(async () => {
+        initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+
+        let createTiersCalldata = await consoleUtils.createCrowdsaleTiers(
+          tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+          multiTierWhitelistStat, mockAdminContext
+        ).should.be.fulfilled
+        createTiersCalldata.should.not.eq('0x')
+
+        let events = await storage.exec(
+          crowdsaleConsoleMock.address, mockExecutionID, createTiersCalldata,
+          { from: exec }
+        ).then((tx) => {
+          return tx.logs
+        })
+        events.should.not.eq(null)
+        events.length.should.be.eq(1)
+        events[0].event.should.be.eq('ApplicationExecution')
+
+        // Check start and end time
+        let timeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+          storage.address, mockExecutionID
+        ).should.be.fulfilled
+        timeInfo.length.should.be.eq(2)
+        timeInfo[0].toNumber().should.be.eq(startTime)
+        timeInfo[1].toNumber().should.be.eq(initialEndTime)
+      })
+
+      describe('crowdsale storage - pre tier updates', async () => {
+
+        it('should match the set admin address', async () => {
+          let adminInfo = await initCrowdsale.getAdmin(
+            storage.address, mockExecutionID
+          ).should.be.fulfilled
+          adminInfo.should.be.eq(crowdsaleAdmin)
+        })
+
+        it('should have correctly set start and end times for the crowdsale', async () => {
+          let saleDates = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+            storage.address, mockExecutionID
+          ).should.be.fulfilled
+          saleDates.length.should.be.eq(2)
+
+          saleDates[0].toNumber().should.be.eq(startTime)
+          saleDates[1].toNumber().should.be.eq(
+            startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+          )
+        })
+
+        it('should currently be tier 0', async () => {
+          let curTierInfo = await initCrowdsale.getCurrentTierInfo(
+            storage.address, mockExecutionID
+          ).should.be.fulfilled
+          curTierInfo.length.should.be.eq(7)
+
+          hexStrEquals(curTierInfo[0], initialTierName).should.be.eq(true)
+          curTierInfo[1].toNumber().should.be.eq(0)
+          curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
+          web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
+          web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
+          curTierInfo[5].should.be.eq(true)
+          curTierInfo[6].should.be.eq(true)
+        })
+
+        it('should currently have 3 tiers', async () => {
+          let tiersInfo = await initCrowdsale.getCrowdsaleTierList(
+            storage.address, mockExecutionID
+          ).should.be.fulfilled
+          tiersInfo.length.should.be.eq(3)
+
+          hexStrEquals(tiersInfo[0], initialTierName).should.be.eq(true)
+          hexStrEquals(tiersInfo[1], tierNames[0]).should.be.eq(true)
+          hexStrEquals(tiersInfo[2], tierNames[1]).should.be.eq(true)
+        })
+
+        it('should have the correct start and end dates for each tier', async () => {
+          let tierOneDates = await initCrowdsale.getTierStartAndEndDates(
+            storage.address, mockExecutionID, 0
+          ).should.be.fulfilled
+          tierOneDates.length.should.be.eq(2)
+
+          let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+            storage.address, mockExecutionID, 1
+          ).should.be.fulfilled
+          tierTwoDates.length.should.be.eq(2)
+
+          let tierThreeDates = await initCrowdsale.getTierStartAndEndDates(
+            storage.address, mockExecutionID, 2
+          ).should.be.fulfilled
+          tierThreeDates.length.should.be.eq(2)
+
+          tierOneDates[0].toNumber().should.be.eq(startTime)
+          tierOneDates[1].toNumber().should.be.eq(startTime + initialTierDuration)
+          tierOneDates[1].toNumber().should.be.eq(tierTwoDates[0].toNumber())
+          tierTwoDates[1].toNumber().should.be.eq(
+            startTime + initialTierDuration + tierDurations[0]
+          )
+          tierTwoDates[1].toNumber().should.be.eq(tierThreeDates[0].toNumber())
+          tierThreeDates[1].toNumber().should.be.eq(
+            startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+          )
+        })
+      })
+
       context('and the current tier is tier 0', async () => {
 
         context('and the crowdsale has started', async () => {
 
+          let invalidCalldata
+          let invalidEvent
+
+          beforeEach(async () => {
+            invalidCalldata = await consoleUtils.updateTierDuration(
+              0, newDuration, mockAdminContext
+            ).should.be.fulfilled
+            invalidCalldata.should.not.eq('0x')
+
+            await crowdsaleConsoleMock.setTime(startTime).should.be.fulfilled
+            let storedTime = await crowdsaleConsoleMock.getTime().should.be.fulfilled
+            storedTime.toNumber().should.be.eq(startTime)
+
+            let events = await storage.exec(
+              crowdsaleConsoleMock.address, mockExecutionID, invalidCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+
+            invalidEvent = events[0]
+          })
+
+          it('should emit an ApplicationException event', async () => {
+            invalidEvent.event.should.be.eq('ApplicationException')
+          })
+
+          describe('the ApplicationException event', async () => {
+
+            it('should match the used execution id', async () => {
+              let emittedExecID = invalidEvent.args['execution_id']
+              emittedExecID.should.be.eq(mockExecutionID)
+            })
+
+            it('should match the CrowdsaleConsole address', async () => {
+              let emittedAppAddr = invalidEvent.args['application_address']
+              emittedAppAddr.should.be.eq(crowdsaleConsoleMock.address)
+            })
+
+            it('should contain the error message \'CannotModifyCurrentTier\'', async () => {
+              let emittedMessage = invalidEvent.args['message']
+              hexStrEquals(emittedMessage, 'CannotModifyCurrentTier').should.be.eq(true)
+            })
+          })
+
+          describe('the resulting crowdsale storage', async () => {
+
+            it('should have unchanged start and end times', async () => {
+              let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+                storage.address, mockExecutionID
+              ).should.be.fulfilled
+              newTimeInfo.length.should.be.eq(2)
+
+              newTimeInfo[0].toNumber().should.be.eq(startTime)
+              newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+            })
+
+            it('should have unchanged duration for tier 0', async () => {
+              let tierZeroInfo = await initCrowdsale.getCrowdsaleTier(
+                storage.address, mockExecutionID, 0
+              ).should.be.fulfilled
+              tierZeroInfo.length.should.be.eq(6)
+
+              hexStrEquals(tierZeroInfo[0], initialTierName).should.be.eq(true)
+              web3.fromWei(tierZeroInfo[1].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
+              web3.fromWei(tierZeroInfo[2].toNumber(), 'wei').should.be.eq(initialTierPrice)
+              tierZeroInfo[3].toNumber().should.be.eq(initialTierDuration)
+              tierZeroInfo[4].should.be.eq(initialTierDurIsModifiable)
+              tierZeroInfo[5].should.be.eq(initialTierIsWhitelisted)
+            })
+
+            it('should have unchanged start and end dates for tier 0', async () => {
+              let tierZeroDates = await initCrowdsale.getTierStartAndEndDates(
+                storage.address, mockExecutionID, 0
+              ).should.be.fulfilled
+              tierZeroDates.length.should.be.eq(2)
+
+              tierZeroDates[0].toNumber().should.be.eq(startTime)
+              tierZeroDates[1].toNumber().should.be.eq(startTime + initialTierDuration)
+            })
+
+            it('should have unchanged start and end dates for tier 1', async () => {
+              let tierOneDates = await initCrowdsale.getTierStartAndEndDates(
+                storage.address, mockExecutionID, 1
+              ).should.be.fulfilled
+              tierOneDates.length.should.be.eq(2)
+
+              tierOneDates[0].toNumber().should.be.eq(
+                startTime + initialTierDuration
+              )
+              tierOneDates[1].toNumber().should.be.eq(
+                startTime + initialTierDuration + tierDurations[0]
+              )
+            })
+          })
         })
 
         context('and the crowdsale has not started', async () => {
 
           context('and tier 0 was set to not-modifiable', async () => {
 
+            let invalidCalldata
+            let invalidEvent
+
+            let initTierDurMod = false
+            let noModStartTime
+            let noModExecID
+
+            let noModAdminContext
+
+            beforeEach(async () => {
+              // Initialize a new crowdsale application through storage with a non-modifiable first tier
+              noModStartTime = getTime() + 3600
+
+              let noModInitCalldata = await testUtils.init(
+                teamWallet, noModStartTime, initialTierName, initialTierPrice,
+                initialTierDuration, initialTierTokenSellCap, initialTierIsWhitelisted,
+                initTierDurMod, crowdsaleAdmin
+              ).should.be.fulfilled
+              noModInitCalldata.should.not.eq('0x')
+
+              let events = await storage.initAndFinalize(
+                updater, true, initCrowdsale.address, noModInitCalldata, [
+                  crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
+                  tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
+                ],
+                { from: exec }
+              ).then((tx) => {
+                return tx.logs
+              })
+              events.should.not.eq(null)
+              events.length.should.be.eq(2)
+
+              events[0].event.should.be.eq('ApplicationInitialized')
+              events[1].event.should.be.eq('ApplicationFinalization')
+              noModExecID = events[0].args['execution_id']
+              web3.toDecimal(noModExecID).should.not.eq(0)
+
+              noModAdminContext = await testUtils.getContext(
+                noModExecID, crowdsaleAdmin, 0
+              ).should.be.fulfilled
+              noModAdminContext.should.not.eq('0x')
+
+              initialEndTime = noModStartTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+
+              // Create tiers for the initialized crowdsale
+              let createTiersCalldata = await consoleUtils.createCrowdsaleTiers(
+                tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+                multiTierWhitelistStat, noModAdminContext
+              ).should.be.fulfilled
+              createTiersCalldata.should.not.eq('0x')
+
+              events = await storage.exec(
+                crowdsaleConsole.address, noModExecID, createTiersCalldata,
+                { from: exec }
+              ).then((tx) => {
+                return tx.logs
+              })
+              events.should.not.eq(null)
+              events.length.should.be.eq(1)
+              events[0].event.should.be.eq('ApplicationExecution')
+
+              // Check start and end time
+              let timeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+                storage.address, noModExecID
+              ).should.be.fulfilled
+              timeInfo.length.should.be.eq(2)
+              timeInfo[0].toNumber().should.be.eq(noModStartTime)
+              timeInfo[1].toNumber().should.be.eq(initialEndTime)
+
+              // Attempt to update tier 0's duration
+              invalidCalldata = await consoleUtils.updateTierDuration(
+                0, newDuration, noModAdminContext
+              ).should.be.fulfilled
+              invalidCalldata.should.not.eq('0x')
+
+              events = await storage.exec(
+                crowdsaleConsole.address, noModExecID, invalidCalldata,
+                { from: exec }
+              ).then((tx) => {
+                return tx.logs
+              })
+              events.should.not.eq(null)
+              events.length.should.be.eq(1)
+
+              invalidEvent = events[0]
+            })
+
+            it('should emit an ApplicationException event', async () => {
+              invalidEvent.event.should.be.eq('ApplicationException')
+            })
+
+            describe('the ApplicationException event', async () => {
+
+              it('should match the used execution id', async () => {
+                let emittedExecID = invalidEvent.args['execution_id']
+                emittedExecID.should.be.eq(noModExecID)
+              })
+
+              it('should match the CrowdsaleConsole address', async () => {
+                let emittedAppAddr = invalidEvent.args['application_address']
+                emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+              })
+
+              it('should contain the error message \'InvalidCrowdsaleStatus\'', async () => {
+                let emittedMessage = invalidEvent.args['message']
+                hexStrEquals(emittedMessage, 'InvalidCrowdsaleStatus').should.be.eq(true)
+              })
+            })
+
+            describe('the resulting crowdsale storage', async () => {
+
+              it('should have unchanged start and end times', async () => {
+                let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+                  storage.address, noModExecID
+                ).should.be.fulfilled
+                newTimeInfo.length.should.be.eq(2)
+
+                newTimeInfo[0].toNumber().should.be.eq(noModStartTime)
+                newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+              })
+
+              it('should have unchanged duration for tier 0', async () => {
+                let tierZeroInfo = await initCrowdsale.getCrowdsaleTier(
+                  storage.address, noModExecID, 0
+                ).should.be.fulfilled
+                tierZeroInfo.length.should.be.eq(6)
+
+                hexStrEquals(tierZeroInfo[0], initialTierName).should.be.eq(true)
+                web3.fromWei(tierZeroInfo[1].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
+                web3.fromWei(tierZeroInfo[2].toNumber(), 'wei').should.be.eq(initialTierPrice)
+                tierZeroInfo[3].toNumber().should.be.eq(initialTierDuration)
+                tierZeroInfo[4].should.be.eq(initTierDurMod)
+                tierZeroInfo[5].should.be.eq(initialTierIsWhitelisted)
+              })
+
+              it('should have unchanged start and end dates for tier 0', async () => {
+                let tierZeroDates = await initCrowdsale.getTierStartAndEndDates(
+                  storage.address, noModExecID, 0
+                ).should.be.fulfilled
+                tierZeroDates.length.should.be.eq(2)
+
+                tierZeroDates[0].toNumber().should.be.eq(noModStartTime)
+                tierZeroDates[1].toNumber().should.be.eq(noModStartTime + initialTierDuration)
+              })
+
+              it('should have unchanged start and end dates for tier 1', async () => {
+                let tierOneDates = await initCrowdsale.getTierStartAndEndDates(
+                  storage.address, noModExecID, 1
+                ).should.be.fulfilled
+                tierOneDates.length.should.be.eq(2)
+
+                tierOneDates[0].toNumber().should.be.eq(
+                  noModStartTime + initialTierDuration
+                )
+                tierOneDates[1].toNumber().should.be.eq(
+                  noModStartTime + initialTierDuration + tierDurations[0]
+                )
+              })
+            })
           })
 
           context('and tier 0 was set to is-modifiable', async () => {
 
+            beforeEach(async () => {
+              updateTierCalldata = await consoleUtils.updateTierDuration(
+                0, newDuration, mockAdminContext
+              ).should.be.fulfilled
+              updateTierCalldata.should.not.eq('0x')
+
+              await crowdsaleConsoleMock.resetTime().should.be.fulfilled
+              let storedTime = await crowdsaleConsoleMock.set_time().should.be.fulfilled
+              storedTime.toNumber().should.be.eq(0)
+
+              let events = await storage.exec(
+                crowdsaleConsoleMock.address, mockExecutionID, updateTierCalldata,
+                { from: exec }
+              ).then((tx) => {
+                return tx.logs
+              })
+              events.should.not.eq(null)
+              events.length.should.be.eq(1)
+
+              updateTierEvent = events[0]
+            })
+
+            it('should emit an ApplicationExecution event', async () => {
+              updateTierEvent.event.should.be.eq('ApplicationExecution')
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              it('should match the used execution id', async () => {
+                let emittedExecID = updateTierEvent.args['execution_id']
+                emittedExecID.should.be.eq(mockExecutionID)
+              })
+
+              it('should match the CrowdsaleConsole address', async () => {
+                let emittedAppAddr = updateTierEvent.args['script_target']
+                emittedAppAddr.should.be.eq(crowdsaleConsoleMock.address)
+              })
+            })
+
+            describe('the resulting crowdsale storage', async () => {
+
+              it('should have a new crowdsale end time', async () => {
+                let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+                  storage.address, mockExecutionID
+                ).should.be.fulfilled
+                newTimeInfo.length.should.be.eq(2)
+
+                newTimeInfo[0].toNumber().should.be.eq(startTime)
+                newTimeInfo[1].toNumber().should.be.eq(
+                  initialEndTime - (initialTierDuration - newDuration)
+                )
+              })
+
+              it('should have correctly updated tier 0 duration', async () => {
+                let tierZeroInfo = await initCrowdsale.getCrowdsaleTier(
+                  storage.address, mockExecutionID, 0
+                ).should.be.fulfilled
+                tierZeroInfo.length.should.be.eq(6)
+
+                hexStrEquals(tierZeroInfo[0], initialTierName).should.be.eq(true)
+                web3.fromWei(tierZeroInfo[1].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
+                web3.fromWei(tierZeroInfo[2].toNumber(), 'wei').should.be.eq(initialTierPrice)
+                tierZeroInfo[3].toNumber().should.be.eq(newDuration)
+                tierZeroInfo[4].should.be.eq(initialTierDurIsModifiable)
+                tierZeroInfo[5].should.be.eq(initialTierIsWhitelisted)
+              })
+
+              it('should have correctly updated the end date for tier 0', async () => {
+                let tierZeroDates = await initCrowdsale.getTierStartAndEndDates(
+                  storage.address, mockExecutionID, 0
+                ).should.be.fulfilled
+                tierZeroDates.length.should.be.eq(2)
+
+                tierZeroDates[0].toNumber().should.be.eq(startTime)
+                tierZeroDates[1].toNumber().should.be.eq(startTime + newDuration)
+              })
+
+              describe('Tier 1', async () => {
+
+                it('should have correctly changed start and end dates for tier 1', async () => {
+                  let tierOneDates = await initCrowdsale.getTierStartAndEndDates(
+                    storage.address, mockExecutionID, 1
+                  ).should.be.fulfilled
+                  tierOneDates.length.should.be.eq(2)
+
+                  tierOneDates[0].toNumber().should.be.eq(
+                    startTime + newDuration
+                  )
+                  tierOneDates[1].toNumber().should.be.eq(
+                    startTime + newDuration + tierDurations[0]
+                  )
+                })
+
+                it('should not have changed the duration of tier 1', async () => {
+                  let tierOneInfo = await initCrowdsale.getCrowdsaleTier(
+                    storage.address, mockExecutionID, 1
+                  ).should.be.fulfilled
+                  tierOneInfo.length.should.be.eq(6)
+
+                  hexStrEquals(tierOneInfo[0], tierNames[0]).should.be.eq(true)
+                  web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[0])
+                  web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[0])
+                  tierOneInfo[3].toNumber().should.be.eq(tierDurations[0])
+                  tierOneInfo[4].should.be.eq(tierAllModifiable[0])
+                  tierOneInfo[5].should.be.eq(multiTierWhitelistStat[0])
+                })
+              })
+
+              describe('Tier 2', async () => {
+
+                it('should have correctly changed start and end dates for tier 2', async () => {
+                  let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+                    storage.address, mockExecutionID, 2
+                  ).should.be.fulfilled
+                  tierTwoDates.length.should.be.eq(2)
+
+                  tierTwoDates[0].toNumber().should.be.eq(
+                    startTime + newDuration + tierDurations[0]
+                  )
+                  tierTwoDates[1].toNumber().should.be.eq(
+                    startTime + newDuration + tierDurations[0] + tierDurations[1]
+                  )
+                })
+
+                it('should not have changed the duration of tier 2', async () => {
+                  let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+                    storage.address, mockExecutionID, 2
+                  ).should.be.fulfilled
+                  tierTwoInfo.length.should.be.eq(6)
+
+                  hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+                  web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+                  web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+                  tierTwoInfo[3].toNumber().should.be.eq(tierDurations[1])
+                  tierTwoInfo[4].should.be.eq(tierAllModifiable[1])
+                  tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+                })
+              })
+            })
           })
         })
       })
 
       context('and the current tier is not tier 0', async () => {
 
+        let invalidCalldata
+        let invalidEvent
+
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.updateTierDuration(
+            2, newDuration, mockAdminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          await crowdsaleConsoleMock.setTime(
+            startTime + initialTierDuration + tierDurations[0] + (tierDurations[1] / 2)
+          ).should.be.fulfilled
+          let storedTime = await crowdsaleConsoleMock.getTime().should.be.fulfilled
+          storedTime.toNumber().should.be.eq(
+            startTime + initialTierDuration + tierDurations[0] + (tierDurations[1] / 2)
+          )
+
+          let events = await storage.exec(
+            crowdsaleConsoleMock.address, mockExecutionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(mockExecutionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsoleMock.address)
+          })
+
+          it('should contain the error message \'CannotModifyCurrentTier\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'CannotModifyCurrentTier').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have unchanged start and end times', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, mockExecutionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+          })
+
+          it('should have unchanged duration for tier 2', async () => {
+            let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+              storage.address, mockExecutionID, 2
+            ).should.be.fulfilled
+            tierTwoInfo.length.should.be.eq(6)
+
+            hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+            web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+            web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+            tierTwoInfo[3].toNumber().should.be.eq(tierDurations[1])
+            tierTwoInfo[4].should.be.eq(tierAllModifiable[1])
+            tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+          })
+
+          it('should have unchanged start and end dates for tier 2', async () => {
+            let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+              storage.address, mockExecutionID, 2
+            ).should.be.fulfilled
+            tierTwoDates.length.should.be.eq(2)
+
+            tierTwoDates[0].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+            )
+            tierTwoDates[1].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+              + tierDurations[1]
+            )
+          })
+        })
       })
     })
 
     context('when the input parameters are invalid', async () => {
 
+      let invalidCalldata
+      let invalidEvent
+
+      beforeEach(async () => {
+        initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+
+        let createTiersCalldata = await consoleUtils.createCrowdsaleTiers(
+          tierNames, tierDurations, tierPrices, tierCaps, tierMixedModifiable,
+          multiTierWhitelistStat, adminContext
+        ).should.be.fulfilled
+        createTiersCalldata.should.not.eq('0x')
+
+        let events = await storage.exec(
+          crowdsaleConsole.address, executionID, createTiersCalldata,
+          { from: exec }
+        ).then((tx) => {
+          return tx.logs
+        })
+        events.should.not.eq(null)
+        events.length.should.be.eq(1)
+        events[0].event.should.be.eq('ApplicationExecution')
+
+        // Check start and end time
+        let timeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+          storage.address, executionID
+        ).should.be.fulfilled
+        timeInfo.length.should.be.eq(2)
+        timeInfo[0].toNumber().should.be.eq(startTime)
+        timeInfo[1].toNumber().should.be.eq(initialEndTime)
+      })
+
       context('such as the new duration being 0', async () => {
 
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.updateTierDuration(
+            2, zeroDuration, adminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'InvalidDuration\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'InvalidDuration').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have unchanged start and end times', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, executionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+          })
+
+          it('should have unchanged duration for tier 2', async () => {
+            let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoInfo.length.should.be.eq(6)
+
+            hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+            web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+            web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+            tierTwoInfo[3].toNumber().should.be.eq(tierDurations[1])
+            tierTwoInfo[4].should.be.eq(tierMixedModifiable[1])
+            tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+          })
+
+          it('should have unchanged start and end dates for tier 2', async () => {
+            let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoDates.length.should.be.eq(2)
+
+            tierTwoDates[0].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+            )
+            tierTwoDates[1].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+            )
+          })
+        })
       })
 
       context('such as the new duration being the same as the old duration', async () => {
 
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.updateTierDuration(
+            2, tierDurations[1], adminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'DurationUnchanged\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'DurationUnchanged').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have unchanged start and end times', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, executionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+          })
+
+          it('should have unchanged duration for tier 2', async () => {
+            let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoInfo.length.should.be.eq(6)
+
+            hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+            web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+            web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+            tierTwoInfo[3].toNumber().should.be.eq(tierDurations[1])
+            tierTwoInfo[4].should.be.eq(tierMixedModifiable[1])
+            tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+          })
+
+          it('should have unchanged start and end dates for tier 2', async () => {
+            let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoDates.length.should.be.eq(2)
+
+            tierTwoDates[0].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+            )
+            tierTwoDates[1].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+            )
+          })
+        })
       })
 
       context('such as the tier to update being out-of-range of the tier list', async () => {
 
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.updateTierDuration(
+            3, newDuration, adminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'InvalidCrowdsaleStatus\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'InvalidCrowdsaleStatus').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have unchanged start and end times', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, executionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+          })
+        })
       })
 
       context('such as the tier to update having been set as \'not modifiable\'', async () => {
 
+        context('when the tier to update is not tier 0', async () => {
+
+          beforeEach(async () => {
+            invalidCalldata = await consoleUtils.updateTierDuration(
+              1, newDuration, adminContext
+            ).should.be.fulfilled
+            invalidCalldata.should.not.eq('0x')
+
+            let events = await storage.exec(
+              crowdsaleConsole.address, executionID, invalidCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+
+            invalidEvent = events[0]
+          })
+
+          it('should emit an ApplicationException event', async () => {
+            invalidEvent.event.should.be.eq('ApplicationException')
+          })
+
+          describe('the ApplicationException event', async () => {
+
+            it('should match the used execution id', async () => {
+              let emittedExecID = invalidEvent.args['execution_id']
+              emittedExecID.should.be.eq(executionID)
+            })
+
+            it('should match the CrowdsaleConsole address', async () => {
+              let emittedAppAddr = invalidEvent.args['application_address']
+              emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+            })
+
+            it('should contain the error message \'InvalidCrowdsaleStatus\'', async () => {
+              let emittedMessage = invalidEvent.args['message']
+              hexStrEquals(emittedMessage, 'InvalidCrowdsaleStatus').should.be.eq(true)
+            })
+          })
+
+          describe('the resulting crowdsale storage', async () => {
+
+            it('should have unchanged start and end times', async () => {
+              let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+                storage.address, executionID
+              ).should.be.fulfilled
+              newTimeInfo.length.should.be.eq(2)
+
+              newTimeInfo[0].toNumber().should.be.eq(startTime)
+              newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+            })
+
+            it('should have unchanged duration for tier 1', async () => {
+              let tierOneInfo = await initCrowdsale.getCrowdsaleTier(
+                storage.address, executionID, 1
+              ).should.be.fulfilled
+              tierOneInfo.length.should.be.eq(6)
+
+              hexStrEquals(tierOneInfo[0], tierNames[0]).should.be.eq(true)
+              web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[0])
+              web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[0])
+              tierOneInfo[3].toNumber().should.be.eq(tierDurations[0])
+              tierOneInfo[4].should.be.eq(tierMixedModifiable[0])
+              tierOneInfo[5].should.be.eq(multiTierWhitelistStat[0])
+            })
+
+            it('should have unchanged start and end dates for tier 1', async () => {
+              let tierOneDates = await initCrowdsale.getTierStartAndEndDates(
+                storage.address, executionID, 1
+              ).should.be.fulfilled
+              tierOneDates.length.should.be.eq(2)
+
+              tierOneDates[0].toNumber().should.be.eq(startTime + initialTierDuration)
+              tierOneDates[1].toNumber().should.be.eq(
+                startTime + initialTierDuration + tierDurations[0]
+              )
+            })
+          })
+        })
       })
     })
 
     context('when the input parameters are valid', async () => {
 
+      beforeEach(async () => {
+        initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+
+        let createTiersCalldata = await consoleUtils.createCrowdsaleTiers(
+          tierNames, tierDurations, tierPrices, tierCaps, tierMixedModifiable,
+          multiTierWhitelistStat, adminContext
+        ).should.be.fulfilled
+        createTiersCalldata.should.not.eq('0x')
+
+        let events = await storage.exec(
+          crowdsaleConsole.address, executionID, createTiersCalldata,
+          { from: exec }
+        ).then((tx) => {
+          return tx.logs
+        })
+        events.should.not.eq(null)
+        events.length.should.be.eq(1)
+        events[0].event.should.be.eq('ApplicationExecution')
+
+        // Check start and end time
+        let timeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+          storage.address, executionID
+        ).should.be.fulfilled
+        timeInfo.length.should.be.eq(2)
+        timeInfo[0].toNumber().should.be.eq(startTime)
+        timeInfo[1].toNumber().should.be.eq(initialEndTime)
+      })
+
       context('but the sender is not the admin', async () => {
 
+        let invalidCalldata
+        let invalidEvent
+
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.updateTierDuration(
+            2, newDuration, otherContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'InvalidCrowdsaleStatus\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'InvalidCrowdsaleStatus').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have unchanged start and end times', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, executionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(initialEndTime)
+          })
+
+          it('should have unchanged duration for tier 2', async () => {
+            let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoInfo.length.should.be.eq(6)
+
+            hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+            web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+            web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+            tierTwoInfo[3].toNumber().should.be.eq(tierDurations[1])
+            tierTwoInfo[4].should.be.eq(tierMixedModifiable[1])
+            tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+          })
+
+          it('should have unchanged start and end dates for tier 2', async () => {
+            let tierTwoDates = await initCrowdsale.getTierStartAndEndDates(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoDates.length.should.be.eq(2)
+
+            tierTwoDates[0].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+            )
+            tierTwoDates[1].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
+            )
+          })
+        })
       })
 
       context('and the sender is the admin', async () => {
 
+        beforeEach(async () => {
+          updateTierCalldata = await consoleUtils.updateTierDuration(
+            2, newDuration, adminContext
+          ).should.be.fulfilled
+          updateTierCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, updateTierCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          updateTierEvent = events[0]
+        })
+
+        it('should emit an ApplicationExecution event', async () => {
+          updateTierEvent.event.should.be.eq('ApplicationExecution')
+        })
+
+        describe('the ApplicationExecution event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = updateTierEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = updateTierEvent.args['script_target']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have a new crowdsale end time', async () => {
+            let newTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes(
+              storage.address, executionID
+            ).should.be.fulfilled
+            newTimeInfo.length.should.be.eq(2)
+
+            newTimeInfo[0].toNumber().should.be.eq(startTime)
+            newTimeInfo[1].toNumber().should.be.eq(
+              initialEndTime - (tierDurations[1] - newDuration)
+            )
+          })
+
+          it('should have correctly updated tier 2 duration', async () => {
+            let tierTwoInfo = await initCrowdsale.getCrowdsaleTier(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierTwoInfo.length.should.be.eq(6)
+
+            hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
+            web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
+            web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
+            tierTwoInfo[3].toNumber().should.be.eq(newDuration)
+            tierTwoInfo[4].should.be.eq(tierMixedModifiable[1])
+            tierTwoInfo[5].should.be.eq(multiTierWhitelistStat[1])
+          })
+
+          it('should have correctly updated the end date for tier 2', async () => {
+            let tierZeroDates = await initCrowdsale.getTierStartAndEndDates(
+              storage.address, executionID, 2
+            ).should.be.fulfilled
+            tierZeroDates.length.should.be.eq(2)
+
+            tierZeroDates[0].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0]
+            )
+            tierZeroDates[1].toNumber().should.be.eq(
+              startTime + initialTierDuration + tierDurations[0] + newDuration
+            )
+          })
+        })
       })
     })
   })
@@ -2508,7 +3664,6 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
   //     })
   //   })
   // })
-
 
   describe('#initializeCrowdsale', async () => {
 
