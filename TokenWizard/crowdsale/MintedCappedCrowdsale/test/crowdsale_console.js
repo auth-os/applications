@@ -931,7 +931,6 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     })
   })
 
-  // TODO add isCrowdsaleFull and getCrowdsaleMaxRaise checks for creating tiers
   describe('#createCrowdsaleTiers', async () => {
 
     let updateTierCalldata
@@ -2204,6 +2203,108 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
             })
           })
         })
+      })
+    })
+
+    describe('contract storage once token is initialized', async () => {
+
+      context('where only one tier was added', async () => {
+
+        beforeEach(async () => {
+          updateTierCalldata = await consoleUtils.createCrowdsaleTiers(
+            singleTierNames, singleTierDuration, singleTierPrice,
+            singleTierCap, singleTierModStatus, singleTierWhitelistStat, adminContext
+          ).should.be.fulfilled
+          updateTierCalldata.should.not.eq('0x')
+
+          let initTokenCalldata = await consoleUtils.initCrowdsaleToken(
+            tokenName, tokenSymbol, tokenDecimals, adminContext
+          ).should.be.fulfilled
+          initTokenCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, initTokenCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+          events[0].event.should.be.eq('ApplicationExecution')
+
+          events = await storage.exec(
+            crowdsaleConsole.address, executionID, updateTierCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+          events[0].event.should.be.eq('ApplicationExecution')
+        })
+
+        describe('the resulting crowdsale storage', async () => {
+
+          it('should have an initialized token', async () => {
+            let tokenInfo = await initCrowdsale.getTokenInfo(
+              storage.address, executionID
+            ).should.be.fulfilled
+            tokenInfo.length.should.be.eq(4)
+
+            hexStrEquals(tokenInfo[0], tokenName).should.be.eq(true)
+            hexStrEquals(tokenInfo[1], tokenSymbol).should.be.eq(true)
+            tokenInfo[2].toNumber().should.be.eq(18)
+            tokenInfo[3].toNumber().should.be.eq(0)
+          })
+
+          it('should have a tier list length of 2', async () => {
+            let tierInfo = await initCrowdsale.getCrowdsaleTierList(
+              storage.address, executionID
+            ).should.be.fulfilled
+            tierInfo.length.should.be.eq(2)
+
+            hexStrEquals(tierInfo[0], initialTierName).should.be.eq(true)
+            hexStrEquals(tierInfo[1], singleTierNames[0]).should.be.eq(true)
+          })
+
+          it('should correctly calculate the maximum raise amount', async () => {
+            let raiseInfo = await initCrowdsale.getCrowdsaleMaxRaise(
+              storage.address, executionID
+            ).should.be.fulfilled
+            raiseInfo.length.should.be.eq(2)
+
+            let priceOne =
+                web3.toBigNumber(initialTierPrice).toNumber()
+            let capOne =
+                web3.toBigNumber(initialTierTokenSellCap).toNumber()
+
+            let raiseOne =
+              (priceOne * capOne) / (10 ** tokenDecimals)
+
+            let priceTwo =
+                web3.toBigNumber(singleTierPrice[0]).toNumber()
+            let capTwo =
+                web3.toBigNumber(singleTierCap[0]).toNumber()
+
+            let raiseTwo =
+              (priceTwo * capTwo) / (10 ** tokenDecimals)
+
+            let totalSupply = capOne + capTwo
+
+            raiseInfo[0].toNumber().should.be.eq(
+              raiseOne + raiseTwo
+            )
+            raiseInfo[1].toNumber().should.be.eq(totalSupply)
+          })
+
+          it('should correctly calculate maximum sellable number of tokens', async () => {
+
+          })
+        })
+      })
+
+      context('where multiple tiers were added', async () => {
+
       })
     })
   })
