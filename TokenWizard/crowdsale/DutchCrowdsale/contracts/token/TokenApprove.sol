@@ -33,9 +33,6 @@ library TokenApprove {
   */
   function approve(address _spender, uint _amt, bytes memory _context) public pure
   returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0))
-      bytes32("InvalidSpender").trigger();
 
     address sender;
     bytes32 exec_id;
@@ -67,9 +64,6 @@ library TokenApprove {
   */
   function increaseApproval(address _spender, uint _amt, bytes memory _context) public view
   returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0) || _amt == 0)
-      bytes32("InvalidSpenderOrAmt").trigger();
 
     address sender;
     bytes32 exec_id;
@@ -113,9 +107,6 @@ library TokenApprove {
   */
   function decreaseApproval(address _spender, uint _amt, bytes memory _context) public view
   returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0) || _amt == 0)
-      bytes32("InvalidSpenderOrAmt").trigger();
 
     address sender;
     bytes32 exec_id;

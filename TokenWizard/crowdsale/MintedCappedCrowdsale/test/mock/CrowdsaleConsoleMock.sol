@@ -13,7 +13,6 @@ library Exceptions {
       revert(0, 0x20)
     }
   }
-
 }
 
 library ArrayUtils {

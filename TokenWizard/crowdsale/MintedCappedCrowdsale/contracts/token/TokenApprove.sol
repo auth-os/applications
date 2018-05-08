@@ -3,7 +3,7 @@ pragma solidity ^0.4.23;
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
 
-library TokenApprove { 
+library TokenApprove {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
@@ -33,9 +33,6 @@ library TokenApprove {
   */
   function approve(address _spender, uint _amt, bytes memory _context) public pure
   returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0))
-      bytes32("InvalidSpender").trigger();
 
     address sender;
     bytes32 exec_id;
@@ -66,9 +63,6 @@ library TokenApprove {
   @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
   */
   function increaseApproval(address _spender, uint _amt, bytes memory _context) public view returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0) || _amt == 0)
-      bytes32("InvalidSpenderOrAmt").trigger();
 
     address sender;
     bytes32 exec_id;
@@ -111,9 +105,6 @@ library TokenApprove {
   @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
   */
   function decreaseApproval(address _spender, uint _amt, bytes memory _context) public view returns (bytes32[] memory store_data) {
-    // Ensure valid inputs
-    if (_spender == address(0) || _amt == 0)
-      bytes32("InvalidSpenderOrAmt").trigger();
 
     address sender;
     bytes32 exec_id;
