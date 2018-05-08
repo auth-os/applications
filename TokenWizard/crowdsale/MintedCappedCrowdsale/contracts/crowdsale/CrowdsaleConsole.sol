@@ -231,7 +231,7 @@ library CrowdsaleConsole {
       ptr.stPush(bytes32(32 + uint(whitelist_status_loc)), bytes32(_max_spend_amt[i]));
 
       // Push whitelisted address to end of tier whitelist array, unless the values being pushed are zero
-      if (_minimum_contribution[i] != 0 && _max_spend_amt[i] != 0) {
+      if (_minimum_contribution[i] != 0 || _max_spend_amt[i] != 0) {
         ptr.stPush(
           bytes32(32 + (32 * tier_whitelist_length) + uint(keccak256(_tier_index, SALE_WHITELIST))),
           bytes32(_to_update[i])

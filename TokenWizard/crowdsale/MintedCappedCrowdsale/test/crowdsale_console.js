@@ -3726,45 +3726,514 @@ contract('#MintedCappedCrowdsaleConsole', function (accounts) {
     })
   })
 
-  // TODO
-  // describe('#whitelistMultiForTier', async () => {
-  //
-  //
-  //   context('when the admin attempts to whitelist with invalid parameters', async () => {
-  //
-  //     let invalidCalldata
-  //     let invalidEvent
-  //
-  //     context('such as mismatched input lengths', async () => {
-  //
-  //       beforeEach(async () => {
-  //
-  //       })
-  //     })
-  //
-  //     context('such as input lengths of 0', async () => {
-  //
-  //     })
-  //   })
-  //
-  //   context('when the input parameters are valid', async () => {
-  //
-  //     context('when the sender is the admin', async () => {
-  //
-  //       context('when the tier being updater is tier 0', async () => {
-  //
-  //       })
-  //
-  //       context('when the tier being updated is not tier 0', async () => {
-  //
-  //       })
-  //     })
-  //
-  //     context('when the sender is not the admin', async () => {
-  //
-  //     })
-  //   })
-  // })
+  describe('#whitelistMultiForTier', async () => {
+
+    let whitelistCalldata
+    let whitelistEvent
+
+    let multiWhitelist = [
+      accounts[accounts.length - 1],
+      accounts[accounts.length - 2],
+      accounts[accounts.length - 3]
+    ]
+    let multiMinimum = [
+      web3.toWei('1', 'ether'),
+      0,
+      web3.toWei('2', 'ether')
+    ]
+    let multiMaximum = [
+      web3.toWei('0.001', 'ether'),
+      web3.toWei('0.002', 'ether'),
+      0
+    ]
+
+    let singleWhitelist = [accounts[accounts.length - 4]]
+    let singleMinimumNonZero = [web3.toWei('3', 'ether')]
+    let singleMinimumZero = [0]
+    let singleMaximumNonZero = [web3.toWei('0.003', 'ether')]
+    let singleMaximumZero = [0]
+
+    context('when the admin attempts to whitelist with invalid parameters', async () => {
+
+      let invalidCalldata
+      let invalidEvent
+
+      context('such as mismatched input lengths', async () => {
+
+        let invalidMultiMinimum = singleMinimumNonZero
+
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.whitelistMultiForTier(
+            1, multiWhitelist, invalidMultiMinimum, multiMaximum, adminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'MismatchedInputLengths\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'MismatchedInputLengths').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting whitelist storage', async () => {
+
+          it('should have a whitelist of length 0 for tier 1', async () => {
+            let whitelistInfo = await initCrowdsale.getTierWhitelist(
+              storage.address, executionID, 1
+            ).should.be.fulfilled
+            whitelistInfo.length.should.be.eq(2)
+
+            whitelistInfo[0].toNumber().should.be.eq(0)
+            whitelistInfo[1].length.should.be.eq(0)
+          })
+
+          it('should not have whitelist information for the passed in accounts', async () => {
+            let whitelistInfoOne = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[0]
+            ).should.be.fulfilled
+            whitelistInfoOne.length.should.be.eq(2)
+
+            let whitelistInfoTwo = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[1]
+            ).should.be.fulfilled
+            whitelistInfoTwo.length.should.be.eq(2)
+
+            let whitelistInfoThree = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[2]
+            ).should.be.fulfilled
+            whitelistInfoThree.length.should.be.eq(2)
+
+            whitelistInfoOne[0].toNumber().should.be.eq(0)
+            whitelistInfoOne[1].toNumber().should.be.eq(0)
+            whitelistInfoTwo[0].toNumber().should.be.eq(0)
+            whitelistInfoTwo[1].toNumber().should.be.eq(0)
+            whitelistInfoThree[0].toNumber().should.be.eq(0)
+            whitelistInfoThree[1].toNumber().should.be.eq(0)
+          })
+        })
+      })
+
+      context('such as input lengths of 0', async () => {
+
+        let invalidMultiWhitelist = []
+
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.whitelistMultiForTier(
+            1, invalidMultiWhitelist, multiMinimum, multiMaximum, adminContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'MismatchedInputLengths\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'MismatchedInputLengths').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting whitelist storage', async () => {
+
+          it('should have a whitelist of length 0 for tier 1', async () => {
+            let whitelistInfo = await initCrowdsale.getTierWhitelist(
+              storage.address, executionID, 1
+            ).should.be.fulfilled
+            whitelistInfo.length.should.be.eq(2)
+
+            whitelistInfo[0].toNumber().should.be.eq(0)
+            whitelistInfo[1].length.should.be.eq(0)
+          })
+        })
+      })
+    })
+
+    context('when the input parameters are valid', async () => {
+
+      context('when the sender is the admin', async () => {
+
+        context('when the tier being updated is tier 0', async () => {
+
+          beforeEach(async () => {
+            whitelistCalldata = await consoleUtils.whitelistMultiForTier(
+              0, multiWhitelist, multiMinimum, multiMaximum, adminContext
+            ).should.be.fulfilled
+            whitelistCalldata.should.not.eq('0x')
+
+            let events = await storage.exec(
+              crowdsaleConsole.address, executionID, whitelistCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+
+            whitelistEvent = events[0]
+          })
+
+          it('should emit an ApplicationExecution event', async () => {
+            whitelistEvent.event.should.be.eq('ApplicationExecution')
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            it('should match the used execution id', async () => {
+              let emittedExecID = whitelistEvent.args['execution_id']
+              emittedExecID.should.be.eq(executionID)
+            })
+
+            it('should match the CrowdsaleConsole address', async () => {
+              let emittedAppAddr = whitelistEvent.args['script_target']
+              emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+            })
+          })
+
+          describe('the resulting whitelist storage', async () => {
+
+            it('should have a whitelist of length 3 for tier 0', async () => {
+              let whitelistInfo = await initCrowdsale.getTierWhitelist(
+                storage.address, executionID, 0
+              ).should.be.fulfilled
+              whitelistInfo.length.should.be.eq(2)
+
+              whitelistInfo[0].toNumber().should.be.eq(3)
+              whitelistInfo[1].length.should.be.eq(3)
+              whitelistInfo[1][0].should.be.eq(multiWhitelist[0])
+              whitelistInfo[1][1].should.be.eq(multiWhitelist[1])
+              whitelistInfo[1][2].should.be.eq(multiWhitelist[2])
+            })
+
+            it('should have correct whitelist information for each account', async () => {
+              let whitelistOneInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 0, multiWhitelist[0]
+              ).should.be.fulfilled
+              whitelistOneInfo.length.should.be.eq(2)
+
+              let whitelistTwoInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 0, multiWhitelist[1]
+              ).should.be.fulfilled
+              whitelistTwoInfo.length.should.be.eq(2)
+
+              let whitelistThreeInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 0, multiWhitelist[2]
+              ).should.be.fulfilled
+              whitelistThreeInfo.length.should.be.eq(2)
+
+              whitelistOneInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[0]).toNumber()
+              )
+              whitelistOneInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[0]).toNumber()
+              )
+              whitelistTwoInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[1]).toNumber()
+              )
+              whitelistTwoInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[1]).toNumber()
+              )
+              whitelistThreeInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[2]).toNumber()
+              )
+              whitelistThreeInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[2]).toNumber()
+              )
+            })
+          })
+        })
+
+        context('when the tier being updated is not tier 0', async () => {
+
+          beforeEach(async () => {
+            whitelistCalldata = await consoleUtils.whitelistMultiForTier(
+              1, multiWhitelist, multiMinimum, multiMaximum, adminContext
+            ).should.be.fulfilled
+            whitelistCalldata.should.not.eq('0x')
+
+            let events = await storage.exec(
+              crowdsaleConsole.address, executionID, whitelistCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+
+            whitelistEvent = events[0]
+          })
+
+          it('should emit an ApplicationExecution event', async () => {
+            whitelistEvent.event.should.be.eq('ApplicationExecution')
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            it('should match the used execution id', async () => {
+              let emittedExecID = whitelistEvent.args['execution_id']
+              emittedExecID.should.be.eq(executionID)
+            })
+
+            it('should match the CrowdsaleConsole address', async () => {
+              let emittedAppAddr = whitelistEvent.args['script_target']
+              emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+            })
+          })
+
+          describe('the resulting whitelist storage', async () => {
+
+            it('should have a whitelist of length 3 for tier 1', async () => {
+              let whitelistInfo = await initCrowdsale.getTierWhitelist(
+                storage.address, executionID, 1
+              ).should.be.fulfilled
+              whitelistInfo.length.should.be.eq(2)
+
+              whitelistInfo[0].toNumber().should.be.eq(3)
+              whitelistInfo[1].length.should.be.eq(3)
+              whitelistInfo[1][0].should.be.eq(multiWhitelist[0])
+              whitelistInfo[1][1].should.be.eq(multiWhitelist[1])
+              whitelistInfo[1][2].should.be.eq(multiWhitelist[2])
+            })
+
+            it('should have correct whitelist information for each account', async () => {
+              let whitelistOneInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 1, multiWhitelist[0]
+              ).should.be.fulfilled
+              whitelistOneInfo.length.should.be.eq(2)
+
+              let whitelistTwoInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 1, multiWhitelist[1]
+              ).should.be.fulfilled
+              whitelistTwoInfo.length.should.be.eq(2)
+
+              let whitelistThreeInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 1, multiWhitelist[2]
+              ).should.be.fulfilled
+              whitelistThreeInfo.length.should.be.eq(2)
+
+              whitelistOneInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[0]).toNumber()
+              )
+              whitelistOneInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[0]).toNumber()
+              )
+              whitelistTwoInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[1]).toNumber()
+              )
+              whitelistTwoInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[1]).toNumber()
+              )
+              whitelistThreeInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(multiMinimum[2]).toNumber()
+              )
+              whitelistThreeInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(multiMaximum[2]).toNumber()
+              )
+            })
+          })
+        })
+
+        context('when only one address is whitelisted', async () => {
+
+          beforeEach(async () => {
+            whitelistCalldata = await consoleUtils.whitelistMultiForTier(
+              1, singleWhitelist, singleMinimumNonZero, singleMaximumNonZero, adminContext
+            ).should.be.fulfilled
+            whitelistCalldata.should.not.eq('0x')
+
+            let events = await storage.exec(
+              crowdsaleConsole.address, executionID, whitelistCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+
+            whitelistEvent = events[0]
+          })
+
+          it('should emit an ApplicationExecution event', async () => {
+            whitelistEvent.event.should.be.eq('ApplicationExecution')
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            it('should match the used execution id', async () => {
+              let emittedExecID = whitelistEvent.args['execution_id']
+              emittedExecID.should.be.eq(executionID)
+            })
+
+            it('should match the CrowdsaleConsole address', async () => {
+              let emittedAppAddr = whitelistEvent.args['script_target']
+              emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+            })
+          })
+
+          describe('the resulting whitelist storage', async () => {
+
+            it('should have a whitelist of length 1 for tier 1', async () => {
+              let whitelistInfo = await initCrowdsale.getTierWhitelist(
+                storage.address, executionID, 1
+              ).should.be.fulfilled
+              whitelistInfo.length.should.be.eq(2)
+
+              whitelistInfo[0].toNumber().should.be.eq(1)
+              whitelistInfo[1].length.should.be.eq(1)
+              whitelistInfo[1][0].should.be.eq(singleWhitelist[0])
+            })
+
+            it('should have correct whitelist information for the whitelisted account', async () => {
+              let whitelistOneInfo = await initCrowdsale.getWhitelistStatus(
+                storage.address, executionID, 1, singleWhitelist[0]
+              ).should.be.fulfilled
+              whitelistOneInfo.length.should.be.eq(2)
+
+              whitelistOneInfo[0].toNumber().should.be.eq(
+                web3.toBigNumber(singleMinimumNonZero[0]).toNumber()
+              )
+              whitelistOneInfo[1].toNumber().should.be.eq(
+                web3.toBigNumber(singleMaximumNonZero[0]).toNumber()
+              )
+            })
+          })
+        })
+      })
+
+      context('when the sender is not the admin', async () => {
+
+        let invalidCalldata
+        let invalidEvent
+
+        beforeEach(async () => {
+          invalidCalldata = await consoleUtils.whitelistMultiForTier(
+            1, multiWhitelist, multiMinimum, multiMaximum, otherContext
+          ).should.be.fulfilled
+          invalidCalldata.should.not.eq('0x')
+
+          let events = await storage.exec(
+            crowdsaleConsole.address, executionID, invalidCalldata,
+            { from: exec }
+          ).then((tx) => {
+            return tx.logs
+          })
+          events.should.not.eq(null)
+          events.length.should.be.eq(1)
+
+          invalidEvent = events[0]
+        })
+
+        it('should emit an ApplicationException event', async () => {
+          invalidEvent.event.should.be.eq('ApplicationException')
+        })
+
+        describe('the ApplicationException event', async () => {
+
+          it('should match the used execution id', async () => {
+            let emittedExecID = invalidEvent.args['execution_id']
+            emittedExecID.should.be.eq(executionID)
+          })
+
+          it('should match the CrowdsaleConsole address', async () => {
+            let emittedAppAddr = invalidEvent.args['application_address']
+            emittedAppAddr.should.be.eq(crowdsaleConsole.address)
+          })
+
+          it('should contain the error message \'SenderIsNotAdmin\'', async () => {
+            let emittedMessage = invalidEvent.args['message']
+            hexStrEquals(emittedMessage, 'SenderIsNotAdmin').should.be.eq(true)
+          })
+        })
+
+        describe('the resulting whitelist storage', async () => {
+
+          it('should have a whitelist of length 0 for tier 1', async () => {
+            let whitelistInfo = await initCrowdsale.getTierWhitelist(
+              storage.address, executionID, 1
+            ).should.be.fulfilled
+            whitelistInfo.length.should.be.eq(2)
+
+            whitelistInfo[0].toNumber().should.be.eq(0)
+            whitelistInfo[1].length.should.be.eq(0)
+          })
+
+          it('should not have whitelist information for the passed in accounts', async () => {
+            let whitelistInfoOne = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[0]
+            ).should.be.fulfilled
+            whitelistInfoOne.length.should.be.eq(2)
+
+            let whitelistInfoTwo = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[1]
+            ).should.be.fulfilled
+            whitelistInfoTwo.length.should.be.eq(2)
+
+            let whitelistInfoThree = await initCrowdsale.getWhitelistStatus(
+              storage.address, executionID, 1, multiWhitelist[2]
+            ).should.be.fulfilled
+            whitelistInfoThree.length.should.be.eq(2)
+
+            whitelistInfoOne[0].toNumber().should.be.eq(0)
+            whitelistInfoOne[1].toNumber().should.be.eq(0)
+            whitelistInfoTwo[0].toNumber().should.be.eq(0)
+            whitelistInfoTwo[1].toNumber().should.be.eq(0)
+            whitelistInfoThree[0].toNumber().should.be.eq(0)
+            whitelistInfoThree[1].toNumber().should.be.eq(0)
+          })
+        })
+      })
+    })
+  })
 
   describe('#initializeCrowdsale', async () => {
 

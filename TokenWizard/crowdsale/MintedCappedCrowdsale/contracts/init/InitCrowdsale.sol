@@ -3,7 +3,7 @@ pragma solidity ^0.4.23;
 import "../lib/ReadFromBuffers.sol";
 import "../lib/ArrayUtils.sol";
 
-library InitCrowdsale { 
+library InitCrowdsale {
 
   using ReadFromBuffers for uint;
   using ArrayUtils for bytes32[];
