@@ -2,7 +2,7 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
- 
+
 library TokenConsole {
 
   using MemoryBuffers for uint;
@@ -355,6 +355,10 @@ library TokenConsole {
     uint total_supply = uint(initial_read_values[2]);
     uint num_destinations = uint(initial_read_values[3]);
 
+    // If no destinations remain to be distributed to, revert
+    if (num_destinations == 0)
+      bytes32("NoRemainingDestinations").trigger();
+
     // If _amt is greater than the reserved destinations list length, set amt equal to the list length
     if (_amt > num_destinations)
       _amt = num_destinations;
@@ -386,7 +390,7 @@ library TokenConsole {
     // For each address returned, place the locations of their balance, reserved tokens, reserved percents, and percent's precision in 'readMulti' buffer
     for (i = 0; i < _amt; i++) {
       // Destination balance location
-      ptr.cdPush(keccak256(keccak256(initial_read_values[i]), TOKEN_BALANCES));
+      ptr.cdPush(keccak256(keccak256(address(initial_read_values[i])), TOKEN_BALANCES));
       // Number of tokens reserved
       ptr.cdPush(
         bytes32(

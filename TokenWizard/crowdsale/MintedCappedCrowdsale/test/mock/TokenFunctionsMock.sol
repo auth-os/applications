@@ -236,6 +236,14 @@ library TokenFunctionsMock {
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
 
+  /// CROWDSALE STORAGE ///
+
+  // Storage location for token totalSupply
+  bytes32 internal constant TOKEN_TOTAL_SUPPLY = keccak256("token_total_supply");
+
+  // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
+  bytes32 internal constant CROWDSALE_TOKENS_SOLD = keccak256("crowdsale_tokens_sold");
+
   /// TOKEN STORAGE ///
 
   // Storage seed for user balances mapping
@@ -247,6 +255,16 @@ library TokenFunctionsMock {
 
   // Whether or not the token is unlocked for transfers
   bytes32 internal constant TOKENS_ARE_UNLOCKED = keccak256("tokens_are_unlocked");
+
+  // MOCK FUNCTION - sets the total number of tokens sold in the crowdsale
+  function setTotalSold(uint _amt) public pure returns (bytes32[] memory store_data) {
+    uint ptr = MemoryBuffers.stBuff(0, 0);
+    ptr.stPush(TOKEN_TOTAL_SUPPLY, bytes32(_amt));
+    ptr.stPush(CROWDSALE_TOKENS_SOLD, bytes32(_amt));
+
+    // Get bytes32[] representation of storage buffer
+    store_data = ptr.getBuffer();
+  }
 
   // MOCK FUNCTION - sets the transfer agent status of the passed in address
   function setTransferAgentStatus(address _agent, bool _is_transfer_agent) public pure returns (bytes32[] memory store_data) {
