@@ -36,7 +36,6 @@ library ArrayUtils {
   }
 }
 
-
 library MemoryBuffers {
 
   using Exceptions for bytes32;
