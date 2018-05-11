@@ -155,7 +155,7 @@ library CrowdsaleConsole {
     // Create memory buffer for return data
     uint ptr = MemoryBuffers.stBuff(0, 0);
 
-    // Place new crowdsale minimum wei contribution cap and min cap storage location in buffer
+    // Place new crowdsale minimum token purchase cap and min cap storage location in buffer
     ptr.stPush(CROWDSALE_MINIMUM_CONTRIBUTION, bytes32(_new_min_contribution));
 
     // Get bytes32[] storage request array from buffer
