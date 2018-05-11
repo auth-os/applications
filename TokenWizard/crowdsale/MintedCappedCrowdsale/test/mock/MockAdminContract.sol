@@ -238,6 +238,37 @@ contract MockAdminContract {
   // Storage location of the minimum amount of tokens allowed to be purchased
   bytes32 internal constant CROWDSALE_MINIMUM_CONTRIBUTION = keccak256("crowdsale_min_cap");
 
+  // Storage location of the CROWDSALE_TIERS index (-1) of the current tier. If zero, no tier is currently active
+  bytes32 internal constant CROWDSALE_CURRENT_TIER = keccak256("crowdsale_current_tier");
+
+  // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
+  bytes32 internal constant CURRENT_TIER_ENDS_AT = keccak256("crowdsale_tier_ends_at");
+
+  // Storage location of the total number of tokens remaining for purchase in the current tier
+  bytes32 internal constant CURRENT_TIER_TOKENS_REMAINING = keccak256("crowdsale_tier_tokens_remaining");
+
+  // MOCK FUNCTION - used to advance the 'current' stored tier to another tier
+  function advanceToTier(uint _tier_index) public pure returns (bytes32[] memory store_data) {
+    // Create memory buffer for return data
+    uint ptr = MemoryBuffers.stBuff(0, 0);
+
+    ptr.stPush(CROWDSALE_CURRENT_TIER, bytes32(_tier_index));
+
+    // Get bytes32[] storage request array from buffer
+    store_data = ptr.getBuffer();
+  }
+
+  // MOCK FUNCTION - used to set the current tier's remaining tokens
+  function setTierTokensRemaining(uint _val) public pure returns (bytes32[] memory store_data) {
+    // Create memory buffer for return data
+    uint ptr = MemoryBuffers.stBuff(0, 0);
+
+    ptr.stPush(CURRENT_TIER_TOKENS_REMAINING, bytes32(_val));
+
+    // Get bytes32[] storage request array from buffer
+    store_data = ptr.getBuffer();
+  }
+
   function updateGlobalMin(uint _new_min_contribution) public pure returns (bytes32[] memory store_data) {
     // Create memory buffer for return data
     uint ptr = MemoryBuffers.stBuff(0, 0);

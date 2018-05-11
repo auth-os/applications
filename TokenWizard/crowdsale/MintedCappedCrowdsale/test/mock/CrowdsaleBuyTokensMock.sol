@@ -353,14 +353,6 @@ contract CrowdsaleBuyTokensMock {
     uint amount_spent;
   }
 
-  function () public payable {
-    bytes32 message = bytes32('FALLBACK');
-    assembly {
-      mstore(0, message)
-      revert(0, 0x20)
-    }
-  }
-
   /*
   Allows the sender to purchase tokens from the crowdsale, if it is active
 
@@ -371,7 +363,6 @@ contract CrowdsaleBuyTokensMock {
   @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
   */
   function buy(bytes memory _context) public view returns (bytes32[] memory store_data) {
-    bytes32('shouldfail').trigger();
     // Get original sender address, execution id, and wei sent from context array
     address sender;
     bytes32 exec_id;
