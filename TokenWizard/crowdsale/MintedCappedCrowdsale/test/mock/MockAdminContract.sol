@@ -269,6 +269,7 @@ contract MockAdminContract {
     store_data = ptr.getBuffer();
   }
 
+  // MOCK FUNCTION - used to update the global minimum contribution of a sale
   function updateGlobalMin(uint _new_min_contribution) public pure returns (bytes32[] memory store_data) {
     // Create memory buffer for return data
     uint ptr = MemoryBuffers.stBuff(0, 0);
@@ -279,6 +280,4 @@ contract MockAdminContract {
     // Get bytes32[] storage request array from buffer
     store_data = ptr.getBuffer();
   }
-
-
 }

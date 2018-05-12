@@ -1356,7 +1356,5 @@ contract('#MintableToken', function (accounts) {
         })
       })
     })
-
   })
-
 })
