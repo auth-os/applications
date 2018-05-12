@@ -300,7 +300,7 @@ library InitCrowdsale {
   @return tokens_remaining: The amount of tokens still available to be sold
   */
   function getCrowdsaleStatus(address _storage, bytes32 _exec_id) public view
-  returns (uint current_rate, uint time_remaining, uint tokens_remaining) {
+  returns (uint start_rate, uint end_rate, uint current_rate, uint sale_duration, uint time_remaining, uint tokens_remaining) {
     // Create 'readMulti' calldata buffer in memory
     uint ptr = ReadFromBuffers.cdBuff(RD_MULTI);
     // Push exec id, data read offset, and read size to buffer
@@ -318,10 +318,10 @@ library InitCrowdsale {
     uint[] memory read_values = ptr.readMultiFrom(_storage).toUintArr();
 
     // Get return values -
-    uint start_rate = read_values[0];
-    uint end_rate = read_values[1];
+    start_rate = read_values[0];
+    end_rate = read_values[1];
     uint start_time = read_values[2];
-    uint sale_duration = read_values[3];
+    sale_duration = read_values[3];
     tokens_remaining = read_values[4];
 
     /// Get current token sale rate and time remaining -
@@ -343,7 +343,7 @@ library InitCrowdsale {
   returns (uint current_rate, uint time_remaining) {
     // If the sale has not started, return 0
     if (now <= _start_time)
-      return (0, (_duration + _start_time - now));
+      return (_start_rate, (_duration + _start_time - now));
 
     uint time_elapsed = now - _start_time;
     // If the sale has ended, return 0
