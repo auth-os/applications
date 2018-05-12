@@ -9,7 +9,7 @@ let MintedCappedTokenTransfer = artifacts.require('./TokenTransfer')
 let MintedCappedTokenTransferFrom = artifacts.require('./TokenTransferFrom')
 let MintedCappedTokenApprove = artifacts.require('./TokenApprove')
 // Utils
-let TestUtils = artifacts.require('./RegistryUtils')
+let TestUtils = artifacts.require('./TestUtils')
 let TokenConsoleUtils = artifacts.require('./TokenConsoleUtils')
 let CrowdsaleConsoleUtils = artifacts.require('./CrowdsaleConsoleUtils')
 let BuyTokensUtil = artifacts.require('./BuyTokensUtil')

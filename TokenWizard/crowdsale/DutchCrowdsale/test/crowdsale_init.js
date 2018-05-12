@@ -9,7 +9,7 @@ let DutchTokenTransfer = artifacts.require('./TokenTransfer')
 let DutchTokenTransferFrom = artifacts.require('./TokenTransferFrom')
 let DutchTokenApprove = artifacts.require('./TokenApprove')
 // Utils
-let TestUtils = artifacts.require('./RegistryUtils')
+let TestUtils = artifacts.require('./TestUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')

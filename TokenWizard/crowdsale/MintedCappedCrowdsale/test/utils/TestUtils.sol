@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-contract RegistryUtils {
+contract TestUtils {
 
   function getContext(bytes32 _exec_id, address _sender, uint _msg_value) public pure returns (bytes memory context) {
     context = new bytes(96);
@@ -36,7 +36,7 @@ contract RegistryUtils {
   }
 
   function init(
-    address, uint, uint, uint, uint, uint, uint, bool, address
+    address, uint, bytes32, uint, uint, uint, bool, bool, address
   ) public pure returns (bytes memory) {
     return msg.data;
   }
