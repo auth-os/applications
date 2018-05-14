@@ -433,23 +433,19 @@ library CrowdsaleBuyTokens {
     SpendInfo memory _spend_stat
   ) internal pure {
     // Get amount of wei able to be spent, given the number of tokens remaining -
-    if ((_wei_sent * (10 ** _sale_stat.token_decimals)) / _cur_tier.purchase_price > _cur_tier.tokens_remaining) {
+    if ((_wei_sent * (10 ** _sale_stat.token_decimals)) / _cur_tier.purchase_price >= _cur_tier.tokens_remaining) {
       // wei sent is able to purchase more tokens than are remaining in this tier -
       _spend_stat.amount_spent =
         (_cur_tier.purchase_price * _cur_tier.tokens_remaining) / (10 ** _sale_stat.token_decimals);
     } else {
       // All of the wei sent can be used to purchase tokens
-      _spend_stat.amount_spent =
-        _wei_sent - (_wei_sent * (10 ** _sale_stat.token_decimals)) % _cur_tier.purchase_price;
+      _spend_stat.amount_spent = _wei_sent;
     }
 
     // If the current tier is whitelisted, the sender has a maximum wei contribution cap. If amount spent exceeds this cap, adjust amount spent -
     if (_cur_tier.tier_is_whitelisted) {
-      if (_spend_stat.amount_spent > _spend_stat.maximum_spend_amount) {
-        _spend_stat.amount_spent =
-          _spend_stat.maximum_spend_amount - (_spend_stat.maximum_spend_amount * (10 ** _sale_stat.token_decimals))
-          % _cur_tier.purchase_price;
-      }
+      if (_spend_stat.amount_spent > _spend_stat.maximum_spend_amount)
+        _spend_stat.amount_spent = _spend_stat.maximum_spend_amount;
       // Decrease spender's spend amount remaining by the amount spent
       _spend_stat.maximum_spend_amount -= _spend_stat.amount_spent;
     }
@@ -463,7 +459,7 @@ library CrowdsaleBuyTokens {
       (_spend_stat.amount_spent * (10 ** _sale_stat.token_decimals) / _cur_tier.purchase_price);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in this tier -
-    if (_spend_stat.amount_purchased > _cur_tier.tokens_remaining)
+    if (_spend_stat.amount_purchased > _cur_tier.tokens_remaining || _spend_stat.amount_purchased == 0)
       bytes32("InvalidPurchaseAmount").trigger();
 
     // Ensure amount of tokens to purchase is greater than the spender's minimum contribution cap -
