@@ -181,17 +181,13 @@ library CrowdsaleBuyTokens {
         (_spend_stat.current_rate * _sale_stat.tokens_remaining) / (10 ** _sale_stat.token_decimals);
     } else {
       // All of the wei sent can be used to purchase -
-      _spend_stat.spend_amount =
-        _wei_sent - ((_wei_sent * (10 ** _sale_stat.token_decimals)) % _spend_stat.current_rate);
+      _spend_stat.spend_amount = _wei_sent;
     }
 
     // If the sale is whitelisted, ensure the sender is not going over their spend cap -
     if (_sale_stat.sale_is_whitelisted) {
-      if (_spend_stat.spend_amount > _spend_stat.spend_amount_remaining) {
-        _spend_stat.spend_amount =
-          _spend_stat.spend_amount_remaining -
-          ((_spend_stat.spend_amount_remaining * (10 ** _sale_stat.token_decimals)) % _spend_stat.current_rate);
-      }
+      if (_spend_stat.spend_amount > _spend_stat.spend_amount_remaining)
+        _spend_stat.spend_amount = _spend_stat.spend_amount_remaining;
 
       // Decrease sender's spend amount remaining
       assert(_spend_stat.spend_amount_remaining >= _spend_stat.spend_amount);
@@ -207,7 +203,7 @@ library CrowdsaleBuyTokens {
       (_spend_stat.spend_amount * (10 ** _sale_stat.token_decimals)) / _spend_stat.current_rate;
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in the sale -
-    if (_spend_stat.tokens_purchased > _sale_stat.tokens_remaining)
+    if (_spend_stat.tokens_purchased > _sale_stat.tokens_remaining || _spend_stat.tokens_purchased == 0)
       bytes32("InvalidPurchaseAmount").trigger();
 
     // Ensure the number of tokens purchased meets the sender's minimum contribution requirement
@@ -367,10 +363,11 @@ library CrowdsaleBuyTokens {
 
     // Crowdsale is active - calculate current rate, adding decimals for precision
     assert(_sale_stat.start_rate > _sale_stat.end_rate);
-    uint temp_rate = (_sale_stat.start_rate - _sale_stat.end_rate)
-                                * (elapsed / _sale_stat.sale_duration);
+    uint temp_rate =
+      ((_sale_stat.start_rate - _sale_stat.end_rate) * elapsed)
+            / _sale_stat.sale_duration;
 
-    temp_rate /= (10**18);
+    temp_rate /= (10 ** 18);
 
     assert(temp_rate <= _sale_stat.start_rate);
     // Current rate is start rate minus temp rate

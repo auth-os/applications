@@ -9,4 +9,6 @@ contract BuyTokensUtil {
   function setTokensRemaining(uint) public pure returns (bytes memory) { return msg.data; }
 
   function updateGlobalMin(uint) public pure returns (bytes memory) { return msg.data; }
+
+  function setStartAndEndPrices(uint, uint) public pure returns (bytes memory) { return msg.data; }
 }

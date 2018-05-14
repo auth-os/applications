@@ -244,6 +244,12 @@ contract MockAdminContract {
   // Whether or not the crowdsale is whitelist-enabled
   bytes32 internal constant SALE_IS_WHITELISTED = keccak256("crowdsale_is_whitelisted");
 
+  // Storage location of the token/wei rate at the beginning of the sale
+  bytes32 internal constant STARTING_SALE_RATE = keccak256("crowdsale_start_rate");
+
+  // Storage location of the token/wei rate at the beginning of the sale
+  bytes32 internal constant ENDING_SALE_RATE = keccak256("crowdsale_end_rate");
+
   // MOCK FUNCTION - used to set the remaining tokens for sale
   function setTokensRemaining(uint _val) public pure returns (bytes32[] memory store_data) {
     // Create memory buffer for return data
@@ -272,8 +278,19 @@ contract MockAdminContract {
     // Create memory buffer for return data
     uint ptr = MemoryBuffers.stBuff(0, 0);
 
-    // Place new crowdsale minimum token contribution cap and min cap storage location in buffer
     ptr.stPush(SALE_IS_WHITELISTED, bytes32(_is_whitelisted ? bytes32(1) : bytes32(0)));
+
+    // Get bytes32[] storage request array from buffer
+    store_data = ptr.getBuffer();
+  }
+
+  // MOCK FUNCTION - used to update the sale's prices
+  function setStartAndEndPrices(uint _start, uint _end) public pure returns (bytes32[] memory store_data) {
+    // Create memory buffer for return data
+    uint ptr = MemoryBuffers.stBuff(0, 0);
+
+    ptr.stPush(STARTING_SALE_RATE, bytes32(_start));
+    ptr.stPush(ENDING_SALE_RATE, bytes32(_end));
 
     // Get bytes32[] storage request array from buffer
     store_data = ptr.getBuffer();
