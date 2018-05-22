@@ -17,7 +17,6 @@ library InitCrowdsale {
   using SafeMath for uint;
   using Pointers for *;
 
-
   /// CROWDSALE STORAGE ///
 
   // Storage location of crowdsale admin address
