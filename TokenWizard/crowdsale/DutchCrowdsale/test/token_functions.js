@@ -1,5 +1,5 @@
 // Abstract storage contract
-let AbstractStorage = artifacts.require('./RegistryStorage')
+let AbstractStorage = artifacts.require('./AbstractStorage')
 // DutchCrowdsale
 let InitDutch = artifacts.require('./InitCrowdsale')
 let DutchBuy = artifacts.require('./CrowdsaleBuyTokens')
@@ -63,6 +63,15 @@ contract('#LockableToken', function (accounts) {
   let tokenDecimals = 18
 
   let stdBalance = 100
+
+  // Event signatures
+  let initHash = web3.sha3('ApplicationInitialized(bytes32,address,address,address)')
+  let finalHash = web3.sha3('ApplicationFinalization(bytes32,address)')
+  let execHash = web3.sha3('ApplicationExecution(bytes32,address)')
+  let payHash = web3.sha3('DeliveredPayment(bytes32,address,uint256)')
+
+  let transferHash = web3.sha3('Transfer(address,address,uint256)')
+  let approvalHash = web3.sha3('Approval(address,address,uint256)')
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
@@ -204,12 +213,18 @@ contract('#LockableToken', function (accounts) {
 
         let invalidCalldata
         let invalidEvent
+        let invalidReturn
 
         beforeEach(async () => {
           invalidCalldata = await tokenUtils.transfer.call(
             recipientAccount, stdBalance / 2, senderContext
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+
+          invalidReturn = await storage.exec.call(
+            tokenTransfer.address, executionID, invalidCalldata,
+            { from: exec }
+          ).should.be.fulfilled
 
           let events = await storage.exec(
             tokenTransfer.address, executionID, invalidCalldata,
@@ -220,6 +235,25 @@ contract('#LockableToken', function (accounts) {
           events.should.not.eq(null)
           events.length.should.be.eq(1)
           invalidEvent = events[0]
+        })
+
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            invalidReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            invalidReturn[0].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            invalidReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            invalidReturn[2].toNumber().should.be.eq(0)
+          })
         })
 
         it('should emit an ApplicationException event', async () => {
@@ -244,7 +278,7 @@ contract('#LockableToken', function (accounts) {
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('storage', async () => {
 
           it('should maintain the sender\'s balance', async () => {
             let senderInfo = await initCrowdsale.balanceOf.call(
@@ -264,41 +298,114 @@ contract('#LockableToken', function (accounts) {
 
       context('and the sender is a transfer agent', async () => {
 
+        let execEvents
+        let execReturn
+
         beforeEach(async () => {
           transferCalldata = await tokenUtils.transfer.call(
             recipientAccount, stdBalance / 2, unlockedContext
           ).should.be.fulfilled
           transferCalldata.should.not.eq('0x')
 
-          let events = await storage.exec(
+          execReturn = await storage.exec.call(
+            tokenTransfer.address, executionID, transferCalldata,
+            { from: exec }
+          ).should.be.fulfilled
+          execEvents = await storage.exec(
             tokenTransfer.address, executionID, transferCalldata,
             { from: exec }
           ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          transferEvent = events[0]
-        })
-
-        it('should emit an ApplicationExecution event', async () => {
-          transferEvent.event.should.be.eq('ApplicationExecution')
-        })
-
-        describe('the ApplicationExecution event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = transferEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = transferEvent.args['script_target']
-            emittedAppAddr.should.be.eq(tokenTransfer.address)
+            return tx.receipt.logs
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            execReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            execReturn[0].toNumber().should.be.eq(1)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            execReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            execReturn[2].toNumber().should.be.eq(2)
+          })
+        })
+
+        describe('events', async () => {
+
+          it('should have emitted 2 events total', async () => {
+            execEvents.length.should.be.eq(2)
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[1].topics
+              eventData = execEvents[1].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should list the correct event signature in the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+            })
+
+            it('should have the target app address and execution id as the other 2 topics', async () => {
+              let emittedAddr = eventTopics[2]
+              let emittedExecId = eventTopics[1]
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransfer.address))
+              web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+            })
+
+            it('should have an empty data field', async () => {
+              eventData.should.be.eq('0x0')
+            })
+          })
+
+          describe('the other event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[0].topics
+              eventData = execEvents[0].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should match the Transfer event signature for the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(transferHash))
+            })
+
+            it('should match the sender and recipient addresses for the other two topics', async () => {
+              web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(unlockedSender))
+              web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(recipientAccount))
+            })
+
+            it('should contain the number of tokens transferred as the data field', async () => {
+              web3.toDecimal(eventData).should.be.eq(stdBalance / 2)
+            })
+          })
+        })
+
+        describe('storage', async () => {
 
           it('should have changed the sender\'s balance', async () => {
             let senderInfo = await initCrowdsale.balanceOf.call(
@@ -338,6 +445,7 @@ contract('#LockableToken', function (accounts) {
 
         let invalidCalldata
         let invalidEvent
+        let invalidReturn
 
         let invalidRecipient = zeroAddress();
 
@@ -346,6 +454,11 @@ contract('#LockableToken', function (accounts) {
             invalidRecipient, stdBalance / 2, senderContext
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+
+          invalidReturn = await storage.exec.call(
+            tokenTransfer.address, executionID, invalidCalldata,
+            { from: exec }
+          ).should.be.fulfilled
 
           let events = await storage.exec(
             tokenTransfer.address, executionID, invalidCalldata,
@@ -356,6 +469,25 @@ contract('#LockableToken', function (accounts) {
           events.should.not.eq(null)
           events.length.should.be.eq(1)
           invalidEvent = events[0]
+        })
+
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            invalidReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            invalidReturn[0].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            invalidReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            invalidReturn[2].toNumber().should.be.eq(0)
+          })
         })
 
         it('should emit an ApplicationException event', async () => {
@@ -380,7 +512,7 @@ contract('#LockableToken', function (accounts) {
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('storage', async () => {
 
           it('should maintain the sender\'s balance', async () => {
             let senderInfo = await initCrowdsale.balanceOf.call(
@@ -404,6 +536,7 @@ contract('#LockableToken', function (accounts) {
 
           let invalidCalldata
           let invalidEvent
+          let invalidReturn
 
           let invalidSendAmt = stdBalance + 1
 
@@ -412,6 +545,11 @@ contract('#LockableToken', function (accounts) {
               recipientAccount, invalidSendAmt, senderContext
             ).should.be.fulfilled
             invalidCalldata.should.not.eq('0x')
+
+            invalidReturn = await storage.exec.call(
+              tokenTransfer.address, executionID, invalidCalldata,
+              { from: exec }
+            ).should.be.fulfilled
 
             let events = await storage.exec(
               tokenTransfer.address, executionID, invalidCalldata,
@@ -422,6 +560,25 @@ contract('#LockableToken', function (accounts) {
             events.should.not.eq(null)
             events.length.should.be.eq(1)
             invalidEvent = events[0]
+          })
+
+          describe('returned data', async () => {
+
+            it('should return a tuple with 3 fields', async () => {
+              invalidReturn.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              invalidReturn[0].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              invalidReturn[1].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              invalidReturn[2].toNumber().should.be.eq(0)
+            })
           })
 
           it('should emit an ApplicationException event', async () => {
@@ -446,7 +603,7 @@ contract('#LockableToken', function (accounts) {
             })
           })
 
-          describe('the resulting token storage', async () => {
+          describe('storage', async () => {
 
             it('should maintain the sender\'s balance', async () => {
               let senderInfo = await initCrowdsale.balanceOf.call(
@@ -466,41 +623,115 @@ contract('#LockableToken', function (accounts) {
 
         context('when the sender has sufficient balance', async () => {
 
+          let execEvents
+          let execReturn
+
           beforeEach(async () => {
             transferCalldata = await tokenUtils.transfer.call(
               recipientAccount, stdBalance, senderContext
             ).should.be.fulfilled
             transferCalldata.should.not.eq('0x')
 
-            let events = await storage.exec(
+            execReturn = await storage.exec.call(
+              tokenTransfer.address, executionID, transferCalldata,
+              { from: exec }
+            ).should.be.fulfilled
+
+            execEvents = await storage.exec(
               tokenTransfer.address, executionID, transferCalldata,
               { from: exec }
             ).then((tx) => {
-              return tx.logs
-            })
-            events.should.not.eq(null)
-            events.length.should.be.eq(1)
-            transferEvent = events[0]
-          })
-
-          it('should emit an ApplicationExecution event', async () => {
-            transferEvent.event.should.be.eq('ApplicationExecution')
-          })
-
-          describe('the ApplicationExecution event', async () => {
-
-            it('should match the used execution id', async () => {
-              let emittedExecID = transferEvent.args['execution_id']
-              emittedExecID.should.be.eq(executionID)
-            })
-
-            it('should match the TokenTransfer address', async () => {
-              let emittedAppAddr = transferEvent.args['script_target']
-              emittedAppAddr.should.be.eq(tokenTransfer.address)
+              return tx.receipt.logs
             })
           })
 
-          describe('the resulting token storage', async () => {
+          describe('returned data', async () => {
+
+            it('should return a tuple with 3 fields', async () => {
+              execReturn.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              execReturn[0].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              execReturn[1].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              execReturn[2].toNumber().should.be.eq(2)
+            })
+          })
+
+          describe('events', async () => {
+
+            it('should have emitted 2 events total', async () => {
+              execEvents.length.should.be.eq(2)
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = execEvents[1].topics
+                eventData = execEvents[1].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+              })
+
+              it('should have the target app address and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransfer.address))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+              })
+
+              it('should have an empty data field', async () => {
+                eventData.should.be.eq('0x0')
+              })
+            })
+
+            describe('the other event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = execEvents[0].topics
+                eventData = execEvents[0].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should match the Transfer event signature for the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(transferHash))
+              })
+
+              it('should match the sender and recipient addresses for the other two topics', async () => {
+                web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(senderAccount))
+                web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(recipientAccount))
+              })
+
+              it('should contain the number of tokens transferred as the data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(stdBalance)
+              })
+            })
+          })
+
+          describe('storage', async () => {
 
             it('should have changed the sender\'s balance', async () => {
               let senderInfo = await initCrowdsale.balanceOf.call(
@@ -543,42 +774,115 @@ contract('#LockableToken', function (accounts) {
 
     describe('-approve', async () => {
 
-      beforeEach(async () => {
+      let execEvents
+      let execReturn
 
+      beforeEach(async () => {
         approveCalldata = await tokenUtils.approve.call(
           spenderAccount, stdApproval, ownerContext
         ).should.be.fulfilled
         approveCalldata.should.not.eq('0x')
 
-        let events = await storage.exec(
+        execReturn = await storage.exec.call(
+          tokenApprove.address, executionID, approveCalldata,
+          { from: exec }
+        ).should.be.fulfilled
+
+        execEvents = await storage.exec(
           tokenApprove.address, executionID, approveCalldata,
           { from: exec }
         ).then((tx) => {
-          return tx.logs
-        })
-        events.should.not.eq(null)
-        events.length.should.be.eq(1)
-        approveEvent = events[0]
-      })
-
-      it('should emit an ApplicationExecution event', async () => {
-        approveEvent.event.should.be.eq('ApplicationExecution')
-      })
-
-      describe('the ApplicationExecution event', async () => {
-
-        it('should match the used execution id', async () => {
-          let emittedExecID = approveEvent.args['execution_id']
-          emittedExecID.should.be.eq(executionID)
-        })
-
-        it('should match the TokenApprove address', async () => {
-          let emittedAppAddr = approveEvent.args['script_target']
-          emittedAppAddr.should.be.eq(tokenApprove.address)
+          return tx.receipt.logs
         })
       })
 
-      describe('the resulting token storage', async () => {
+      describe('returned data', async () => {
+
+        it('should return a tuple with 3 fields', async () => {
+          execReturn.length.should.be.eq(3)
+        })
+
+        it('should return the correct number of events emitted', async () => {
+          execReturn[0].toNumber().should.be.eq(1)
+        })
+
+        it('should return the correct number of addresses paid', async () => {
+          execReturn[1].toNumber().should.be.eq(0)
+        })
+
+        it('should return the correct number of storage slots written to', async () => {
+          execReturn[2].toNumber().should.be.eq(1)
+        })
+      })
+
+      describe('events', async () => {
+
+        it('should have emitted 2 events total', async () => {
+          execEvents.length.should.be.eq(2)
+        })
+
+        describe('the ApplicationExecution event', async () => {
+
+          let eventTopics
+          let eventData
+
+          beforeEach(async () => {
+            eventTopics = execEvents[1].topics
+            eventData = execEvents[1].data
+          })
+
+          it('should have the correct number of topics', async () => {
+            eventTopics.length.should.be.eq(3)
+          })
+
+          it('should list the correct event signature in the first topic', async () => {
+            let sig = eventTopics[0]
+            web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+          })
+
+          it('should have the target app address and execution id as the other 2 topics', async () => {
+            let emittedAddr = eventTopics[2]
+            let emittedExecId = eventTopics[1]
+            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+            web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+          })
+
+          it('should have an empty data field', async () => {
+            eventData.should.be.eq('0x0')
+          })
+        })
+
+        describe('the other event', async () => {
+
+          let eventTopics
+          let eventData
+
+          beforeEach(async () => {
+            eventTopics = execEvents[0].topics
+            eventData = execEvents[0].data
+          })
+
+          it('should have the correct number of topics', async () => {
+            eventTopics.length.should.be.eq(3)
+          })
+
+          it('should match the Transfer event signature for the first topic', async () => {
+            let sig = eventTopics[0]
+            web3.toDecimal(sig).should.be.eq(web3.toDecimal(approvalHash))
+          })
+
+          it('should match the owner and spender addresses for the other two topics', async () => {
+            web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+            web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(spenderAccount))
+          })
+
+          it('should contain the number of tokens approved as the data field', async () => {
+            web3.toDecimal(eventData).should.be.eq(stdApproval)
+          })
+        })
+      })
+
+      describe('storage', async () => {
 
         it('should have changed the spender\'s allowance', async () => {
           let spenderInfo = await initCrowdsale.allowance.call(
@@ -591,42 +895,115 @@ contract('#LockableToken', function (accounts) {
 
     describe('-increaseApproval', async () => {
 
-      beforeEach(async () => {
+      let execEvents
+      let execReturn
 
-        approveCalldata = await tokenUtils.approve.call(
+      beforeEach(async () => {
+        approveCalldata = await tokenUtils.increaseApproval.call(
           spenderAccount, stdApproval, ownerContext
         ).should.be.fulfilled
         approveCalldata.should.not.eq('0x')
 
-        let events = await storage.exec(
+        execReturn = await storage.exec.call(
+          tokenApprove.address, executionID, approveCalldata,
+          { from: exec }
+        ).should.be.fulfilled
+
+        execEvents = await storage.exec(
           tokenApprove.address, executionID, approveCalldata,
           { from: exec }
         ).then((tx) => {
-          return tx.logs
-        })
-        events.should.not.eq(null)
-        events.length.should.be.eq(1)
-        approveEvent = events[0]
-      })
-
-      it('should emit an ApplicationExecution event', async () => {
-        approveEvent.event.should.be.eq('ApplicationExecution')
-      })
-
-      describe('the ApplicationExecution event', async () => {
-
-        it('should match the used execution id', async () => {
-          let emittedExecID = approveEvent.args['execution_id']
-          emittedExecID.should.be.eq(executionID)
-        })
-
-        it('should match the TokenApprove address', async () => {
-          let emittedAppAddr = approveEvent.args['script_target']
-          emittedAppAddr.should.be.eq(tokenApprove.address)
+          return tx.receipt.logs
         })
       })
 
-      describe('the resulting token storage', async () => {
+      describe('returned data', async () => {
+
+        it('should return a tuple with 3 fields', async () => {
+          execReturn.length.should.be.eq(3)
+        })
+
+        it('should return the correct number of events emitted', async () => {
+          execReturn[0].toNumber().should.be.eq(1)
+        })
+
+        it('should return the correct number of addresses paid', async () => {
+          execReturn[1].toNumber().should.be.eq(0)
+        })
+
+        it('should return the correct number of storage slots written to', async () => {
+          execReturn[2].toNumber().should.be.eq(1)
+        })
+      })
+
+      describe('events', async () => {
+
+        it('should have emitted 2 events total', async () => {
+          execEvents.length.should.be.eq(2)
+        })
+
+        describe('the ApplicationExecution event', async () => {
+
+          let eventTopics
+          let eventData
+
+          beforeEach(async () => {
+            eventTopics = execEvents[1].topics
+            eventData = execEvents[1].data
+          })
+
+          it('should have the correct number of topics', async () => {
+            eventTopics.length.should.be.eq(3)
+          })
+
+          it('should list the correct event signature in the first topic', async () => {
+            let sig = eventTopics[0]
+            web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+          })
+
+          it('should have the target app address and execution id as the other 2 topics', async () => {
+            let emittedAddr = eventTopics[2]
+            let emittedExecId = eventTopics[1]
+            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+            web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+          })
+
+          it('should have an empty data field', async () => {
+            eventData.should.be.eq('0x0')
+          })
+        })
+
+        describe('the other event', async () => {
+
+          let eventTopics
+          let eventData
+
+          beforeEach(async () => {
+            eventTopics = execEvents[0].topics
+            eventData = execEvents[0].data
+          })
+
+          it('should have the correct number of topics', async () => {
+            eventTopics.length.should.be.eq(3)
+          })
+
+          it('should match the Transfer event signature for the first topic', async () => {
+            let sig = eventTopics[0]
+            web3.toDecimal(sig).should.be.eq(web3.toDecimal(approvalHash))
+          })
+
+          it('should match the owner and spender addresses for the other two topics', async () => {
+            web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+            web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(spenderAccount))
+          })
+
+          it('should contain the number of tokens approved as the data field', async () => {
+            web3.toDecimal(eventData).should.be.eq(stdApproval)
+          })
+        })
+      })
+
+      describe('storage', async () => {
 
         it('should have changed the spender\'s allowance', async () => {
           let spenderInfo = await initCrowdsale.allowance.call(
@@ -640,7 +1017,6 @@ contract('#LockableToken', function (accounts) {
     describe('-decreaseApproval', async () => {
 
       beforeEach(async () => {
-
         let preApprovalCalldata = await tokenUtils.approve.call(
           spenderAccount, stdApproval, ownerContext
         ).should.be.fulfilled
@@ -664,41 +1040,115 @@ contract('#LockableToken', function (accounts) {
 
       context('when the amount to approve would underflow the spender\'s allowance', async () => {
 
+        let execEvents
+        let execReturn
+
         beforeEach(async () => {
           approveCalldata = await tokenUtils.decreaseApproval.call(
             spenderAccount, stdApproval + 1, ownerContext
           ).should.be.fulfilled
           approveCalldata.should.not.eq('0x')
 
-          let events = await storage.exec(
+          execReturn = await storage.exec.call(
+            tokenApprove.address, executionID, approveCalldata,
+            { from: exec }
+          ).should.be.fulfilled
+
+          execEvents = await storage.exec(
             tokenApprove.address, executionID, approveCalldata,
             { from: exec }
           ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          approveEvent = events[0]
-        })
-
-        it('should emit an ApplicationExecution event', async () => {
-          approveEvent.event.should.be.eq('ApplicationExecution')
-        })
-
-        describe('the ApplicationExecution event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = approveEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenApprove address', async () => {
-            let emittedAppAddr = approveEvent.args['script_target']
-            emittedAppAddr.should.be.eq(tokenApprove.address)
+            return tx.receipt.logs
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            execReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            execReturn[0].toNumber().should.be.eq(1)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            execReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            execReturn[2].toNumber().should.be.eq(1)
+          })
+        })
+
+        describe('events', async () => {
+
+          it('should have emitted 2 events total', async () => {
+            execEvents.length.should.be.eq(2)
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[1].topics
+              eventData = execEvents[1].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should list the correct event signature in the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+            })
+
+            it('should have the target app address and execution id as the other 2 topics', async () => {
+              let emittedAddr = eventTopics[2]
+              let emittedExecId = eventTopics[1]
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+              web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+            })
+
+            it('should have an empty data field', async () => {
+              eventData.should.be.eq('0x0')
+            })
+          })
+
+          describe('the other event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[0].topics
+              eventData = execEvents[0].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should match the Transfer event signature for the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(approvalHash))
+            })
+
+            it('should match the owner and spender addresses for the other two topics', async () => {
+              web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+              web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(spenderAccount))
+            })
+
+            it('should contain the number of tokens approved as the data field', async () => {
+              web3.toDecimal(eventData).should.be.eq(0)
+            })
+          })
+        })
+
+        describe('storage', async () => {
 
           it('should have changed the spender\'s allowance', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -711,41 +1161,115 @@ contract('#LockableToken', function (accounts) {
 
       context('when the amount to approve would not underflow', async () => {
 
+        let execEvents
+        let execReturn
+
         beforeEach(async () => {
           approveCalldata = await tokenUtils.decreaseApproval.call(
             spenderAccount, stdApproval - 1, ownerContext
           ).should.be.fulfilled
           approveCalldata.should.not.eq('0x')
 
-          let events = await storage.exec(
+          execReturn = await storage.exec.call(
+            tokenApprove.address, executionID, approveCalldata,
+            { from: exec }
+          ).should.be.fulfilled
+
+          execEvents = await storage.exec(
             tokenApprove.address, executionID, approveCalldata,
             { from: exec }
           ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          approveEvent = events[0]
-        })
-
-        it('should emit an ApplicationExecution event', async () => {
-          approveEvent.event.should.be.eq('ApplicationExecution')
-        })
-
-        describe('the ApplicationExecution event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = approveEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenApprove address', async () => {
-            let emittedAppAddr = approveEvent.args['script_target']
-            emittedAppAddr.should.be.eq(tokenApprove.address)
+            return tx.receipt.logs
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            execReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            execReturn[0].toNumber().should.be.eq(1)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            execReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            execReturn[2].toNumber().should.be.eq(1)
+          })
+        })
+
+        describe('events', async () => {
+
+          it('should have emitted 2 events total', async () => {
+            execEvents.length.should.be.eq(2)
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[1].topics
+              eventData = execEvents[1].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should list the correct event signature in the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+            })
+
+            it('should have the target app address and execution id as the other 2 topics', async () => {
+              let emittedAddr = eventTopics[2]
+              let emittedExecId = eventTopics[1]
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+              web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+            })
+
+            it('should have an empty data field', async () => {
+              eventData.should.be.eq('0x0')
+            })
+          })
+
+          describe('the other event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[0].topics
+              eventData = execEvents[0].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should match the Transfer event signature for the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(approvalHash))
+            })
+
+            it('should match the owner and spender addresses for the other two topics', async () => {
+              web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+              web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(spenderAccount))
+            })
+
+            it('should contain the number of tokens approved as the data field', async () => {
+              web3.toDecimal(eventData).should.be.eq(1)
+            })
+          })
+        })
+
+        describe('storage', async () => {
 
           it('should have changed the spender\'s allowance', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -828,12 +1352,18 @@ contract('#LockableToken', function (accounts) {
 
         let invalidCalldata
         let invalidEvent
+        let invalidReturn
 
         beforeEach(async () => {
           invalidCalldata = await tokenUtils.transferFrom.call(
             ownerAccount, recipientAccount, 1, spenderContext
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+
+          invalidReturn = await storage.exec.call(
+            tokenTransferFrom.address, executionID, invalidCalldata,
+            { from: exec }
+          ).should.be.fulfilled
 
           let events = await storage.exec(
             tokenTransferFrom.address, executionID, invalidCalldata,
@@ -844,6 +1374,25 @@ contract('#LockableToken', function (accounts) {
           events.should.not.eq(null)
           events.length.should.be.eq(1)
           invalidEvent = events[0]
+        })
+
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            invalidReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            invalidReturn[0].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            invalidReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            invalidReturn[2].toNumber().should.be.eq(0)
+          })
         })
 
         it('should emit an ApplicationException event', async () => {
@@ -857,7 +1406,7 @@ contract('#LockableToken', function (accounts) {
             emittedExecID.should.be.eq(executionID)
           })
 
-          it('should match the TokenTransferFrom address', async () => {
+          it('should match the TokenTransfer address', async () => {
             let emittedAppAddr = invalidEvent.args['application_address']
             emittedAppAddr.should.be.eq(tokenTransferFrom.address)
           })
@@ -868,7 +1417,7 @@ contract('#LockableToken', function (accounts) {
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('storage', async () => {
 
           it('should maintain the spender\'s allownace', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -894,6 +1443,9 @@ contract('#LockableToken', function (accounts) {
       })
 
       context('and the owner is a transfer agent', async () => {
+
+        let execEvents
+        let execReturn
 
         beforeEach(async () => {
           let setTransferAgentCalldata = await tokenUtils.setTransferAgentStatus.call(
@@ -921,35 +1473,106 @@ contract('#LockableToken', function (accounts) {
           ).should.be.fulfilled
           transferCalldata.should.not.eq('0x')
 
-          events = await storage.exec(
+          execReturn= await storage.exec.call(
+            tokenTransferFrom.address, executionID, transferCalldata,
+            { from: exec }
+          ).should.be.fulfilled
+
+          execEvents = await storage.exec(
             tokenTransferFrom.address, executionID, transferCalldata,
             { from: exec }
           ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          transferEvent = events[0]
-        })
-
-        it('should emit an ApplicationExecution event', async () => {
-          transferEvent.event.should.be.eq('ApplicationExecution')
-        })
-
-        describe('the ApplicationExecution event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = transferEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransferFrom address', async () => {
-            let emittedAppAddr = transferEvent.args['script_target']
-            emittedAppAddr.should.be.eq(tokenTransferFrom.address)
+            return tx.receipt.logs
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            execReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            execReturn[0].toNumber().should.be.eq(1)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            execReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            execReturn[2].toNumber().should.be.eq(3)
+          })
+        })
+
+        describe('events', async () => {
+
+          it('should have emitted 2 events total', async () => {
+            execEvents.length.should.be.eq(2)
+          })
+
+          describe('the ApplicationExecution event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[1].topics
+              eventData = execEvents[1].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should list the correct event signature in the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+            })
+
+            it('should have the target app address and execution id as the other 2 topics', async () => {
+              let emittedAddr = eventTopics[2]
+              let emittedExecId = eventTopics[1]
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransferFrom.address))
+              web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+            })
+
+            it('should have an empty data field', async () => {
+              eventData.should.be.eq('0x0')
+            })
+          })
+
+          describe('the other event', async () => {
+
+            let eventTopics
+            let eventData
+
+            beforeEach(async () => {
+              eventTopics = execEvents[0].topics
+              eventData = execEvents[0].data
+            })
+
+            it('should have the correct number of topics', async () => {
+              eventTopics.length.should.be.eq(3)
+            })
+
+            it('should match the Transfer event signature for the first topic', async () => {
+              let sig = eventTopics[0]
+              web3.toDecimal(sig).should.be.eq(web3.toDecimal(transferHash))
+            })
+
+            it('should match the owner and recipient addresses for the other two topics', async () => {
+              web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+              web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(recipientAccount))
+            })
+
+            it('should contain the number of tokens transferred as the data field', async () => {
+              web3.toDecimal(eventData).should.be.eq(1)
+            })
+          })
+        })
+
+        describe('storage', async () => {
 
           it('should have changed the spender\'s allownace', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -996,6 +1619,7 @@ contract('#LockableToken', function (accounts) {
 
         let invalidCalldata
         let invalidEvent
+        let invalidReturn
 
         let invalidAddress = zeroAddress()
 
@@ -1004,6 +1628,11 @@ contract('#LockableToken', function (accounts) {
             ownerAccount, invalidAddress, 1, spenderContext
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+
+          invalidReturn = await storage.exec.call(
+            tokenTransferFrom.address, executionID, invalidCalldata,
+            { from: exec }
+          ).should.be.fulfilled
 
           let events = await storage.exec(
             tokenTransferFrom.address, executionID, invalidCalldata,
@@ -1014,6 +1643,25 @@ contract('#LockableToken', function (accounts) {
           events.should.not.eq(null)
           events.length.should.be.eq(1)
           invalidEvent = events[0]
+        })
+
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            invalidReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            invalidReturn[0].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            invalidReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            invalidReturn[2].toNumber().should.be.eq(0)
+          })
         })
 
         it('should emit an ApplicationException event', async () => {
@@ -1027,7 +1675,7 @@ contract('#LockableToken', function (accounts) {
             emittedExecID.should.be.eq(executionID)
           })
 
-          it('should match the TokenTransferFrom address', async () => {
+          it('should match the TokenTransfer address', async () => {
             let emittedAppAddr = invalidEvent.args['application_address']
             emittedAppAddr.should.be.eq(tokenTransferFrom.address)
           })
@@ -1038,7 +1686,7 @@ contract('#LockableToken', function (accounts) {
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('storage', async () => {
 
           it('should maintain the spender\'s allownace', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -1067,6 +1715,7 @@ contract('#LockableToken', function (accounts) {
 
         let invalidCalldata
         let invalidEvent
+        let invalidReturn
 
         let invalidAddress = zeroAddress()
 
@@ -1075,6 +1724,11 @@ contract('#LockableToken', function (accounts) {
             invalidAddress, recipientAccount, 1, spenderContext
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+
+          invalidReturn = await storage.exec.call(
+            tokenTransferFrom.address, executionID, invalidCalldata,
+            { from: exec }
+          ).should.be.fulfilled
 
           let events = await storage.exec(
             tokenTransferFrom.address, executionID, invalidCalldata,
@@ -1085,6 +1739,25 @@ contract('#LockableToken', function (accounts) {
           events.should.not.eq(null)
           events.length.should.be.eq(1)
           invalidEvent = events[0]
+        })
+
+        describe('returned data', async () => {
+
+          it('should return a tuple with 3 fields', async () => {
+            invalidReturn.length.should.be.eq(3)
+          })
+
+          it('should return the correct number of events emitted', async () => {
+            invalidReturn[0].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of addresses paid', async () => {
+            invalidReturn[1].toNumber().should.be.eq(0)
+          })
+
+          it('should return the correct number of storage slots written to', async () => {
+            invalidReturn[2].toNumber().should.be.eq(0)
+          })
         })
 
         it('should emit an ApplicationException event', async () => {
@@ -1098,7 +1771,7 @@ contract('#LockableToken', function (accounts) {
             emittedExecID.should.be.eq(executionID)
           })
 
-          it('should match the TokenTransferFrom address', async () => {
+          it('should match the TokenTransfer address', async () => {
             let emittedAppAddr = invalidEvent.args['application_address']
             emittedAppAddr.should.be.eq(tokenTransferFrom.address)
           })
@@ -1109,7 +1782,7 @@ contract('#LockableToken', function (accounts) {
           })
         })
 
-        describe('the resulting token storage', async () => {
+        describe('storage', async () => {
 
           it('should maintain the spender\'s allownace', async () => {
             let spenderInfo = await initCrowdsale.allowance.call(
@@ -1140,12 +1813,18 @@ contract('#LockableToken', function (accounts) {
 
           let invalidCalldata
           let invalidEvent
+          let invalidReturn
 
           beforeEach(async () => {
             invalidCalldata = await tokenUtils.transferFrom.call(
               ownerAccount, recipientAccount, stdBalance, spenderContext
             ).should.be.fulfilled
             invalidCalldata.should.not.eq('0x')
+
+            invalidReturn = await storage.exec.call(
+              tokenTransferFrom.address, executionID, invalidCalldata,
+              { from: exec }
+            ).should.be.fulfilled
 
             let events = await storage.exec(
               tokenTransferFrom.address, executionID, invalidCalldata,
@@ -1156,6 +1835,25 @@ contract('#LockableToken', function (accounts) {
             events.should.not.eq(null)
             events.length.should.be.eq(1)
             invalidEvent = events[0]
+          })
+
+          describe('returned data', async () => {
+
+            it('should return a tuple with 3 fields', async () => {
+              invalidReturn.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              invalidReturn[0].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              invalidReturn[1].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              invalidReturn[2].toNumber().should.be.eq(0)
+            })
           })
 
           it('should emit an ApplicationException event', async () => {
@@ -1169,7 +1867,7 @@ contract('#LockableToken', function (accounts) {
               emittedExecID.should.be.eq(executionID)
             })
 
-            it('should match the TokenTransferFrom address', async () => {
+            it('should match the TokenTransfer address', async () => {
               let emittedAppAddr = invalidEvent.args['application_address']
               emittedAppAddr.should.be.eq(tokenTransferFrom.address)
             })
@@ -1180,7 +1878,7 @@ contract('#LockableToken', function (accounts) {
             })
           })
 
-          describe('the resulting token storage', async () => {
+          describe('storage', async () => {
 
             it('should maintain the spender\'s allownace', async () => {
               let spenderInfo = await initCrowdsale.allowance.call(
@@ -1211,6 +1909,7 @@ contract('#LockableToken', function (accounts) {
 
             let invalidCalldata
             let invalidEvent
+            let invalidReturn
 
             beforeEach(async () => {
               let preTransferCalldata = await tokenUtils.transfer.call(
@@ -1233,6 +1932,11 @@ contract('#LockableToken', function (accounts) {
               events.length.should.be.eq(1)
               events[0].event.should.be.eq('ApplicationExecution')
 
+              invalidReturn = await storage.exec.call(
+                tokenTransferFrom.address, executionID, invalidCalldata,
+                { from: exec }
+              ).should.be.fulfilled
+
               events = await storage.exec(
                 tokenTransferFrom.address, executionID, invalidCalldata,
                 { from: exec }
@@ -1242,6 +1946,25 @@ contract('#LockableToken', function (accounts) {
               events.should.not.eq(null)
               events.length.should.be.eq(1)
               invalidEvent = events[0]
+            })
+
+            describe('returned data', async () => {
+
+              it('should return a tuple with 3 fields', async () => {
+                invalidReturn.length.should.be.eq(3)
+              })
+
+              it('should return the correct number of events emitted', async () => {
+                invalidReturn[0].toNumber().should.be.eq(0)
+              })
+
+              it('should return the correct number of addresses paid', async () => {
+                invalidReturn[1].toNumber().should.be.eq(0)
+              })
+
+              it('should return the correct number of storage slots written to', async () => {
+                invalidReturn[2].toNumber().should.be.eq(0)
+              })
             })
 
             it('should emit an ApplicationException event', async () => {
@@ -1255,7 +1978,7 @@ contract('#LockableToken', function (accounts) {
                 emittedExecID.should.be.eq(executionID)
               })
 
-              it('should match the TokenTransferFrom address', async () => {
+              it('should match the TokenTransfer address', async () => {
                 let emittedAppAddr = invalidEvent.args['application_address']
                 emittedAppAddr.should.be.eq(tokenTransferFrom.address)
               })
@@ -1266,7 +1989,7 @@ contract('#LockableToken', function (accounts) {
               })
             })
 
-            describe('the resulting token storage', async () => {
+            describe('storage', async () => {
 
               it('should maintain the spender\'s allownace', async () => {
                 let spenderInfo = await initCrowdsale.allowance.call(
@@ -1293,6 +2016,9 @@ contract('#LockableToken', function (accounts) {
 
           context('and the owner has sufficient balance', async () => {
 
+            let execEvents
+            let execReturn
+
             beforeEach(async () => {
 
               transferCalldata = await tokenUtils.transferFrom.call(
@@ -1300,35 +2026,106 @@ contract('#LockableToken', function (accounts) {
               ).should.be.fulfilled
               transferCalldata.should.not.eq('0x')
 
-              let events = await storage.exec(
+              execReturn = await storage.exec.call(
+                tokenTransferFrom.address, executionID, transferCalldata,
+                { from: exec }
+              ).should.be.fulfilled
+
+              execEvents = await storage.exec(
                 tokenTransferFrom.address, executionID, transferCalldata,
                 { from: exec }
               ).then((tx) => {
-                return tx.logs
-              })
-              events.should.not.eq(null)
-              events.length.should.be.eq(1)
-              transferEvent = events[0]
-            })
-
-            it('should emit an ApplicationExecution event', async () => {
-              transferEvent.event.should.be.eq('ApplicationExecution')
-            })
-
-            describe('the ApplicationExecution event', async () => {
-
-              it('should match the used execution id', async () => {
-                let emittedExecID = transferEvent.args['execution_id']
-                emittedExecID.should.be.eq(executionID)
-              })
-
-              it('should match the TokenTransferFrom address', async () => {
-                let emittedAppAddr = transferEvent.args['script_target']
-                emittedAppAddr.should.be.eq(tokenTransferFrom.address)
+                return tx.receipt.logs
               })
             })
 
-            describe('the resulting token storage', async () => {
+            describe('returned data', async () => {
+
+              it('should return a tuple with 3 fields', async () => {
+                execReturn.length.should.be.eq(3)
+              })
+
+              it('should return the correct number of events emitted', async () => {
+                execReturn[0].toNumber().should.be.eq(1)
+              })
+
+              it('should return the correct number of addresses paid', async () => {
+                execReturn[1].toNumber().should.be.eq(0)
+              })
+
+              it('should return the correct number of storage slots written to', async () => {
+                execReturn[2].toNumber().should.be.eq(3)
+              })
+            })
+
+            describe('events', async () => {
+
+              it('should have emitted 2 events total', async () => {
+                execEvents.length.should.be.eq(2)
+              })
+
+              describe('the ApplicationExecution event', async () => {
+
+                let eventTopics
+                let eventData
+
+                beforeEach(async () => {
+                  eventTopics = execEvents[1].topics
+                  eventData = execEvents[1].data
+                })
+
+                it('should have the correct number of topics', async () => {
+                  eventTopics.length.should.be.eq(3)
+                })
+
+                it('should list the correct event signature in the first topic', async () => {
+                  let sig = eventTopics[0]
+                  web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+                })
+
+                it('should have the target app address and execution id as the other 2 topics', async () => {
+                  let emittedAddr = eventTopics[2]
+                  let emittedExecId = eventTopics[1]
+                  web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransferFrom.address))
+                  web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+                })
+
+                it('should have an empty data field', async () => {
+                  eventData.should.be.eq('0x0')
+                })
+              })
+
+              describe('the other event', async () => {
+
+                let eventTopics
+                let eventData
+
+                beforeEach(async () => {
+                  eventTopics = execEvents[0].topics
+                  eventData = execEvents[0].data
+                })
+
+                it('should have the correct number of topics', async () => {
+                  eventTopics.length.should.be.eq(3)
+                })
+
+                it('should match the Transfer event signature for the first topic', async () => {
+                  let sig = eventTopics[0]
+                  web3.toDecimal(sig).should.be.eq(web3.toDecimal(transferHash))
+                })
+
+                it('should match the owner and recipient addresses for the other two topics', async () => {
+                  web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(ownerAccount))
+                  web3.toDecimal(eventTopics[2]).should.be.eq(web3.toDecimal(recipientAccount))
+                })
+
+                it('should contain the number of tokens transferred as the data field', async () => {
+                  web3.toDecimal(eventData).should.be.eq(stdBalance - 1)
+                })
+              })
+            })
+
+            describe('storage', async () => {
 
               it('should have changed the spender\'s allownace', async () => {
                 let spenderInfo = await initCrowdsale.allowance.call(

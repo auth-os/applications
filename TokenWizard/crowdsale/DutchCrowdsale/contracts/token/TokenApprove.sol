@@ -2,17 +2,30 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library TokenApprove {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   /// TOKEN STORAGE ///
 
   // Storage seed for user allowances mapping
   bytes32 internal constant TOKEN_ALLOWANCES = keccak256("token_allowances");
+
+  /// EVENTS ///
+
+  // event Approval(address indexed owner, address indexed spender, uint tokens)
+  bytes32 internal constant APPROVAL = keccak256('Approval(address,address,uint256)');
 
   /// FUNCTION SELECTORS ///
 
@@ -29,26 +42,38 @@ library TokenApprove {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function approve(address _spender, uint _amt, bytes memory _context) public pure
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
 
     address sender;
     bytes32 exec_id;
     // Parse context array and get sender address and execution id
     (exec_id, sender, ) = parse(_context);
 
-    // Create storage return data buffer in memory
-    uint ptr = MemoryBuffers.stBuff(0, 0);
-    // Push spender allowance location to buffer
-    ptr.stPush(
-      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES)),
-      bytes32(_amt)
-    );
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Get spender allowance storage location
+    bytes32 spender_allowance =
+      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES));
+    // Store new spender allowance
+    ptr.store(_amt).at(spender_allowance);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add APPROVAL event topics and data
+    ptr.topics(
+      [APPROVAL, bytes32(sender), bytes32(_spender)]
+    ).data(_amt);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -60,10 +85,10 @@ library TokenApprove {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function increaseApproval(address _spender, uint _amt, bytes memory _context) public view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
 
     address sender;
     bytes32 exec_id;
@@ -78,20 +103,29 @@ library TokenApprove {
 
     // Read spender allowance from storage
     uint spender_allowance = uint(ptr.readSingle());
-    // Safely increase the spender's balance -
-    require(spender_allowance + _amt > spender_allowance);
-    spender_allowance += _amt;
 
-    // Overwrite previous buffer, and create storage return buffer
-    ptr.stOverwrite(0, 0);
-    // Place spender allowance location and updated allowance in buffer
-    ptr.stPush(
-      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES)),
-      bytes32(spender_allowance)
-    );
+    // Get pointer to free memory
+    ptr = ptr.clear();
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Get spender allowance storage location
+    bytes32 allowance_location =
+      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES));
+    // Store new spender allowance
+    ptr.store(spender_allowance.add(_amt)).at(allowance_location);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add APPROVAL event topics and data
+    ptr.topics(
+      [APPROVAL, bytes32(sender), bytes32(_spender)]
+    ).data(spender_allowance.add(_amt));
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -103,10 +137,10 @@ library TokenApprove {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function decreaseApproval(address _spender, uint _amt, bytes memory _context) public view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
 
     address sender;
     bytes32 exec_id;
@@ -124,16 +158,28 @@ library TokenApprove {
     // Safely decrease the spender's balance -
     spender_allowance = (_amt > spender_allowance ? 0 : spender_allowance - _amt);
 
-    // Overwrite previous buffer, and create storage return buffer
-    ptr.stOverwrite(0, 0);
-    // Place spender allowance location and updated allowance in buffer
-    ptr.stPush(
-      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES)),
-      bytes32(spender_allowance)
-    );
+    // Get pointer to free memory
+    ptr = ptr.clear();
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Get spender allowance storage location
+    bytes32 allowance_location =
+      keccak256(keccak256(_spender), keccak256(keccak256(sender), TOKEN_ALLOWANCES));
+    // Store new spender allowance
+    ptr.store(spender_allowance).at(allowance_location);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add APPROVAL event topics and data
+    ptr.topics(
+      [APPROVAL, bytes32(sender), bytes32(_spender)]
+    ).data(spender_allowance);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   // Parses context array and returns execution id, sender address, and sent wei amount

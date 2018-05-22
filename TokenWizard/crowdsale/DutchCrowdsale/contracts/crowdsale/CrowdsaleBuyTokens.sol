@@ -2,12 +2,22 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/LibPayments.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library CrowdsaleBuyTokens {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using LibPayments for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   /// CROWDSALE STORAGE ///
 
@@ -65,6 +75,11 @@ library CrowdsaleBuyTokens {
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
+  /// EVENTS ///
+
+  // event Purchase(bytes32 indexed exec_id, uint256 indexed current_rate, uint256 indexed current_time, uint256 tokens)
+  bytes32 internal constant PURCHASE = keccak256('Purchase(bytes32,uint256,uint256,uint256)');
+
   /// FUNCTION SELECTORS ///
 
   // Function selector for storage 'readMulti'
@@ -101,9 +116,9 @@ library CrowdsaleBuyTokens {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
-  function buy(bytes memory _context) public view returns (bytes32[] memory store_data) {
+  function buy(bytes memory _context) public view returns (bytes memory) {
     // Get original sender address, execution id, and wei sent from context array
     address sender;
     bytes32 exec_id;
@@ -127,39 +142,57 @@ library CrowdsaleBuyTokens {
     /// Get total amount of wei that can be spent, given the amount sent and the number of tokens remaining -
     getPurchaseInfo(wei_sent, sale_stat, spend_stat);
 
-    /// Amount to spend and amount of tokens to purchase have been calculated - prepare storage return buffer
-    uint ptr = MemoryBuffers.stBuff(sale_stat.team_wallet, spend_stat.spend_amount);
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Safely add purchased tokens to purchaser's balance, and check for overflow
-    require(spend_stat.tokens_purchased + spend_stat.spender_token_balance > spend_stat.spender_token_balance);
-    ptr.stPush(
-      keccak256(keccak256(sender), TOKEN_BALANCES),
-      bytes32(spend_stat.spender_token_balance + spend_stat.tokens_purchased)
-    );
-    // Safely subtract purchased token amount from tokens_remaining
-    require(spend_stat.tokens_purchased <= sale_stat.tokens_remaining);
-    ptr.stPush(TOKENS_REMAINING, bytes32(sale_stat.tokens_remaining - spend_stat.tokens_purchased));
-    // Safely add wei spent to total wei raised, and check for overflow
-    require(spend_stat.spend_amount + sale_stat.wei_raised > sale_stat.wei_raised);
-    ptr.stPush(WEI_RAISED, bytes32(spend_stat.spend_amount + sale_stat.wei_raised));
+    // Set up PAYS action requests -
+    ptr.pays();
+    // Designate amount spent for forwarding to the team wallet
+    ptr.pay(spend_stat.spend_amount).to(sale_stat.team_wallet);
 
-    // If the sender had not previously contributed, add them as a unique contributor -
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Store updated spender token balance
+    ptr.store(
+      spend_stat.tokens_purchased.add(spend_stat.spender_token_balance)
+    ).at(keccak256(keccak256(sender), TOKEN_BALANCES));
+
+    // Store updated remaining tokens in the sale
+    ptr.store(
+      sale_stat.tokens_remaining.sub(spend_stat.tokens_purchased)
+    ).at(TOKENS_REMAINING);
+
+    // Store updated total wei raised
+    ptr.store(spend_stat.spend_amount.add(sale_stat.wei_raised)).at(WEI_RAISED);
+
+    // If the sender has not previously contributed, store them as a unique contributor
     if (spend_stat.sender_has_contributed == false) {
-      ptr.stPush(CROWDSALE_UNIQUE_CONTRIBUTORS, bytes32(spend_stat.num_contributors + 1));
-      ptr.stPush(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS), bytes32(1));
+      ptr.store(spend_stat.num_contributors.add(1)).at(CROWDSALE_UNIQUE_CONTRIBUTORS);
+      ptr.store(true).at(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS));
     }
 
-    // If the crowdsale is whitelisted, update the sender's minimum and maximum contribution amounts-
+    // If the sale is whitelisted, update the spender's minimum token purchase amount,
+    // as well as their maximum wei contribution amount
     if (sale_stat.sale_is_whitelisted) {
-      ptr.stPush(keccak256(keccak256(sender), SALE_WHITELIST), 0); // Sender's new minimum contribution amount - 0
-      ptr.stPush(
-        bytes32(32 + uint(keccak256(keccak256(sender), SALE_WHITELIST))),
-        bytes32(spend_stat.spend_amount_remaining)
+      ptr.store(uint(0)).at(
+        keccak256(keccak256(sender), SALE_WHITELIST)
+      );
+      ptr.store(spend_stat.spend_amount_remaining).at(
+        bytes32(32 + uint(keccak256(keccak256(sender), SALE_WHITELIST)))
       );
     }
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add PURCHASE signature and topics
+    ptr.topics(
+      [PURCHASE, exec_id, bytes32(spend_stat.current_rate), bytes32(now)]
+    ).data(spend_stat.tokens_purchased);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*

@@ -2,12 +2,20 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library TokenTransferFrom {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   /// CROWDSALE STORAGE ///
 
@@ -26,6 +34,11 @@ library TokenTransferFrom {
   // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
   bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
+  /// EVENTS ///
+
+  // event Transfer(address indexed from, address indexed to, uint tokens)
+  bytes32 internal constant TRANSFER = keccak256('Transfer(address,address,uint256)');
+
   /// FUNCTION SELECTORS ///
 
   // Function selector for storage 'readMulti'
@@ -42,10 +55,10 @@ library TokenTransferFrom {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function transferFrom(address _from, address _to, uint _amt, bytes memory _context) public view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
     // Ensure valid inputs
     if (_to == address(0) || _from == address(0))
       bytes32("InvalidSenderOrRecipient").trigger();
@@ -82,27 +95,32 @@ library TokenTransferFrom {
     uint recipient_bal = read_values[1];
     uint sender_allowance = read_values[2];
 
-    // Ensure owner has sufficient balance to send, and recipient balance does not overflow
-    // Additionally, ensure sender has sufficient allowance
-    require(owner_bal >= _amt && recipient_bal + _amt > recipient_bal && sender_allowance >= _amt);
+    // Get pointer to free memory
+    ptr = ptr.clear();
 
-    // Get updated balances -
-    owner_bal -= _amt;
-    recipient_bal += _amt;
-    // Get updated allowance -
-    sender_allowance -= _amt;
+    // Set up STORES action requests -
+    ptr.stores();
 
-    // Overwrite previous buffer, and create storage return buffer
-    ptr.stOverwrite(0, 0);
-    // Place owner balance location and updated balance in buffer
-    ptr.stPush(keccak256(keccak256(_from), TOKEN_BALANCES), bytes32(owner_bal));
-    // Place recipient balance location and updated balance in buffer
-    ptr.stPush(keccak256(keccak256(_to), TOKEN_BALANCES), bytes32(recipient_bal));
-    // Place sender allowance location and updated allowance in buffer
-    ptr.stPush(keccak256(keccak256(sender), keccak256(keccak256(_from), TOKEN_ALLOWANCES)), bytes32(sender_allowance));
+    // Store new balances
+    ptr.store(owner_bal.sub(_amt)).at(keccak256(keccak256(_from), TOKEN_BALANCES));
+    ptr.store(recipient_bal.add(_amt)).at(keccak256(keccak256(_to), TOKEN_BALANCES));
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Store new allowance
+    ptr.store(sender_allowance.sub(_amt)).at(
+      keccak256(keccak256(sender), keccak256(keccak256(_from), TOKEN_ALLOWANCES))
+    );
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add TRANSFER signature and topics
+    ptr.topics(
+      [TRANSFER, bytes32(_from), bytes32(_to)]
+    );
+    ptr.data(_amt);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   // Parses context array and returns execution id, sender address, and sent wei amount

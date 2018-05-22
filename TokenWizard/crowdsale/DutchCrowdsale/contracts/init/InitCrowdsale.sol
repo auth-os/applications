@@ -2,12 +2,21 @@ pragma solidity ^0.4.23;
 
 import "../lib/ReadFromBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library InitCrowdsale {
 
   using ReadFromBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using SafeMath for uint;
+  using Pointers for *;
+
 
   /// CROWDSALE STORAGE ///
 
@@ -110,7 +119,7 @@ library InitCrowdsale {
   @param _start_time: The start time of the crowdsale
   @param _sale_is_whitelisted: Whether the dutch auction is whitelist-enabled or not
   @param _admin: The address to set as crowdsale admin - is allowed to complete initialization of the crowdsale
-  @return store_data: A formatted storage request
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function init(
     address _wallet,
@@ -122,7 +131,7 @@ library InitCrowdsale {
     uint _start_time,
     bool _sale_is_whitelisted,
     address _admin
-  ) public view returns (bytes32[] memory store_data) {
+  ) public view returns (bytes memory) {
     // Ensure valid input
     if (
       _wallet == address(0)
@@ -135,25 +144,30 @@ library InitCrowdsale {
       || _admin == address(0)
     ) bytes32("ImproperInitialization").trigger();
 
-    // Create storage data return buffer in memory
-    uint ptr = ReadFromBuffers.stBuff(0, 0);
-    // Push admin address, team wallet, token sell cap, and start/end sale rates to buffer
-    ptr.stPush(ADMIN, bytes32(_admin));
-    ptr.stPush(WALLET, bytes32(_wallet));
-    ptr.stPush(TOKENS_REMAINING, bytes32(_max_amount_to_sell));
-    ptr.stPush(STARTING_SALE_RATE, bytes32(_starting_rate));
-    ptr.stPush(ENDING_SALE_RATE, bytes32(_ending_rate));
-    // Push token totalsupply, crowdsale duration, and crowdsale start time to buffer
-    ptr.stPush(TOKEN_TOTAL_SUPPLY, bytes32(_total_supply));
-    ptr.stPush(CROWDSALE_DURATION, bytes32(_duration));
-    ptr.stPush(CROWDSALE_STARTS_AT, bytes32(_start_time));
-    // Push admin balance, token sell cap, and crowdsale whitelist status to buffer
-    ptr.stPush(keccak256(keccak256(_admin), TOKEN_BALANCES), bytes32(_total_supply - _max_amount_to_sell));
-    ptr.stPush(MAX_TOKEN_SELL_CAP, bytes32(_max_amount_to_sell));
-    ptr.stPush(SALE_IS_WHITELISTED, (_sale_is_whitelisted ? bytes32(1) : bytes32(0)));
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+    // Store admin address, team wallet, token sell cap, and sale start/end rates
+    ptr.store(_admin).at(ADMIN);
+    ptr.store(_wallet).at(WALLET);
+    ptr.store(_max_amount_to_sell).at(TOKENS_REMAINING);
+    ptr.store(_starting_rate).at(STARTING_SALE_RATE);
+    ptr.store(_ending_rate).at(ENDING_SALE_RATE);
+    // Store token total supply, crowdsale duration, and crowdsale start time
+    ptr.store(_total_supply).at(TOKEN_TOTAL_SUPPLY);
+    ptr.store(_duration).at(CROWDSALE_DURATION);
+    ptr.store(_start_time).at(CROWDSALE_STARTS_AT);
+    // Store admin token balance, token sell cap, and crowdsale whitelist status
+    ptr.store(_total_supply.sub(_max_amount_to_sell)).at(
+      keccak256(keccak256(_admin), TOKEN_BALANCES)
+    );
+    ptr.store(_max_amount_to_sell).at(MAX_TOKEN_SELL_CAP);
+    ptr.store(_sale_is_whitelisted).at(SALE_IS_WHITELISTED);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*

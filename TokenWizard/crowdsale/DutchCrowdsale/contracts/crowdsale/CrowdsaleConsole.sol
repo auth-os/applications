@@ -2,12 +2,18 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/Pointers.sol";
 
 library CrowdsaleConsole {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using Pointers for *;
 
   /// CROWDSALE STORAGE ///
 
@@ -51,6 +57,23 @@ library CrowdsaleConsole {
 
   // Storage location for token decimals
   bytes32 internal constant TOKEN_DECIMALS = keccak256("token_decimals");
+
+  /// EVENTS ///
+
+  // event CrowdsaleTokenInit(bytes32 indexed exec_id, bytes32 indexed name, bytes32 indexed symbol, uint decimals)
+  bytes32 internal constant CROWDSALE_TOKEN_INIT = keccak256("CrowdsaleTokenInit(bytes32,bytes32,bytes32,uint256)");
+
+  // event GlobalMinUpdate(bytes32 indexed exec_id, uint current_token_purchase_min)
+  bytes32 internal constant GLOBAL_MIN_UPDATE = keccak256("GlobalMinUpdate(bytes32,uint256)");
+
+  // event CrowdsaleTimeUpdated(bytes32 indexed exec_id)
+  bytes32 internal constant CROWDSALE_TIME_UPDATED = keccak256("CrowdsaleTimeUpdated(bytes32)");
+
+  // event CrowdsaleInitialized(bytes32 indexed exec_id, bytes32 indexed token_name, uint start_time);
+  bytes32 internal constant CROWDSALE_INITIALIZED = keccak256("CrowdsaleInitialized(bytes32,bytes32,uint256)");
+
+  // event CrowdsaleFinalized(bytes32 indexed exec_id);
+  bytes32 internal constant CROWDSALE_FINALIZED = keccak256("CrowdsaleFinalized(bytes32)");
 
   /// FUNCTION SELECTORS ///
 
@@ -97,10 +120,10 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function initCrowdsaleToken(bytes32 _name, bytes32 _symbol, uint _decimals, bytes memory _context) public onlyAdminAndNotInit(_context) view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
     // Ensure valid input
     if (
       _name == 0
@@ -108,16 +131,31 @@ library CrowdsaleConsole {
       || _decimals > 18
     ) bytes32("ImproperInitialization").trigger();
 
-    // Create memory buffer for return data
-    uint ptr = MemoryBuffers.stBuff(0, 0);
+    bytes32 exec_id;
+    (exec_id, , ) = parse(_context);
 
-    // Place token name, symbol, and decimals in return data buffer
-    ptr.stPush(TOKEN_NAME, _name);
-    ptr.stPush(TOKEN_SYMBOL, _symbol);
-    ptr.stPush(TOKEN_DECIMALS, bytes32(_decimals));
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Store token name, symbol, and decimals
+    ptr.store(_name).at(TOKEN_NAME);
+    ptr.store(_symbol).at(TOKEN_SYMBOL);
+    ptr.store(_decimals).at(TOKEN_DECIMALS);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add CROWDSALE_TOKEN_INIT signature and topics
+    ptr.topics(
+      [CROWDSALE_TOKEN_INIT, exec_id, _name, _symbol]
+    );
+    ptr.data(_decimals);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -128,18 +166,32 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function updateGlobalMinContribution(uint _new_min_contribution, bytes memory _context) public onlyAdminAndNotInit(_context) view
-  returns (bytes32[] memory store_data) {
-    // Create memory buffer for return data
-    uint ptr = MemoryBuffers.stBuff(0, 0);
+  returns (bytes memory) {
+    bytes32 exec_id;
+    (exec_id, , ) = parse(_context);
 
-    // Place new crowdsale minimum wei contribution cap and min cap storage location in buffer
-    ptr.stPush(CROWDSALE_MINIMUM_CONTRIBUTION, bytes32(_new_min_contribution));
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Store new crowdsale minimum token purchase amount
+    ptr.store(_new_min_contribution).at(CROWDSALE_MINIMUM_CONTRIBUTION);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add GLOBAL_MIN_UPDATE signature and topics
+    ptr.topics(
+      [GLOBAL_MIN_UPDATE, exec_id]
+    ).data(_new_min_contribution);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -152,14 +204,14 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function whitelistMulti(
     address[] memory _to_update,
     uint[] memory _minimum_contribution,
     uint[] memory _max_spend_amt,
     bytes memory _context
-  ) public view returns (bytes32[] memory store_data) {
+  ) public view returns (bytes memory) {
     // Ensure valid input
     if (
       _to_update.length != _minimum_contribution.length
@@ -198,31 +250,33 @@ library CrowdsaleConsole {
 
     /// Sender is crowdsale admin - create storage return request and append whitelist updates
 
-    // Overwrite previous buffer with storage buffer
-    ptr.stOverwrite(0, 0);
+    // Get pointer to free memory
+    ptr = ptr.clear();
+
+    // Set up STORES action requests -
+    ptr.stores();
 
     // Loop over input and add whitelist storage information to buffer
     for (uint i = 0; i < _to_update.length; i++) {
       // Get storage location for address whitelist struct
       bytes32 whitelist_status_loc = keccak256(keccak256(_to_update[i]), SALE_WHITELIST);
-      ptr.stPush(whitelist_status_loc, bytes32(_minimum_contribution[i]));
-      ptr.stPush(bytes32(32 + uint(whitelist_status_loc)), bytes32(_max_spend_amt[i]));
+      ptr.store(_minimum_contribution[i]).at(whitelist_status_loc);
+      ptr.store(_max_spend_amt[i]).at(bytes32(32 + uint(whitelist_status_loc)));
 
       // Push whitelisted address to end of whitelist array, unless the values being pushed are zero
       if (_minimum_contribution[i] != 0 || _max_spend_amt[i] != 0) {
-        ptr.stPush(
-          bytes32(32 + (32 * whitelist_length) + uint(SALE_WHITELIST)),
-          bytes32(_to_update[i])
+        ptr.store(_to_update[i]).at(
+          bytes32(32 + (32 * whitelist_length) + uint(SALE_WHITELIST))
         );
         // Increment whitelist length
         whitelist_length++;
       }
     }
-
     // Store new tier whitelist length
-    ptr.stPush(SALE_WHITELIST, bytes32(whitelist_length));
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    ptr.store(whitelist_length).at(SALE_WHITELIST);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -234,25 +288,40 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function setCrowdsaleStartAndDuration(uint _start_time, uint _duration, bytes memory _context) public onlyAdminAndNotInit(_context) view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
     // Ensure valid input
     if (_start_time <= now && _duration == 0)
       bytes32("InvalidStartTimeAndDuration").trigger();
 
-    // Create memory buffer for return data
-    uint ptr = MemoryBuffers.stBuff(0, 0);
+    bytes32 exec_id;
+    (exec_id, , ) = parse(_context);
+
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
+
+    // Set up STORES action requests -
+    ptr.stores();
+
     // Push crowdsale start time and duration storage locations and new values to buffer
     // If either value is zero, do not update that value
     if (_start_time > now)
-      ptr.stPush(CROWDSALE_STARTS_AT, bytes32(_start_time));
+      ptr.store(_start_time).at(CROWDSALE_STARTS_AT);
     if (_duration != 0)
-      ptr.stPush(CROWDSALE_DURATION, bytes32(_duration));
+      ptr.store(_duration).at(CROWDSALE_DURATION);
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add CROWDSALE_TIME_UPDATED signature and topics
+    ptr.topics(
+      [CROWDSALE_TIME_UPDATED, exec_id]
+    ).data();
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -262,10 +331,10 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function initializeCrowdsale(bytes memory _context) public onlyAdminAndNotInit(_context) view
-  returns (bytes32[] memory store_data) {
+  returns (bytes memory) {
     // Get execuion id from _context
     bytes32 exec_id;
     (exec_id, , ) = parse(_context);
@@ -291,12 +360,24 @@ library CrowdsaleConsole {
       || read_values[1] == 0                   // Token not initialized
     ) bytes32("CrowdsaleStartedOrTokenNotInit").trigger();
 
-    // Overwrite read buffer with storage buffer
-    ptr.stOverwrite(0, 0);
-    // Push crowdsale initialization status location to buffer
-    ptr.stPush(CROWDSALE_IS_INIT, bytes32(1));
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Get pointer to free memory
+    ptr = ptr.clear();
+
+    // Set up STORES action requests -
+    ptr.stores();
+    // Store updated crowdsale initialization status
+    ptr.store(true).at(CROWDSALE_IS_INIT);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add CROWDSALE_INITIALIZED signature and topics
+    ptr.topics(
+      [CROWDSALE_INITIALIZED, exec_id, read_values[1]]
+    ).data(read_values[0]);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
@@ -306,9 +387,9 @@ library CrowdsaleConsole {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
-  function finalizeCrowdsale(bytes memory _context) public view returns (bytes32[] memory store_data) {
+  function finalizeCrowdsale(bytes memory _context) public view returns (bytes memory) {
     // Get sender and exec id for this app instance
     address sender;
     bytes32 exec_id;
@@ -336,13 +417,24 @@ library CrowdsaleConsole {
       || read_values[2] == bytes32(1)                 // Crowdsale finalization status is true
     ) bytes32("NotAdminOrStatusInvalid").trigger();
 
-    // Create storage buffer, overwriting the previous read buffer
-    ptr.stOverwrite(0, 0);
-    // Push crowdsale finalization status to buffer
-    ptr.stPush(CROWDSALE_IS_FINALIZED, bytes32(1));
+    // Get pointer to free memory
+    ptr = ptr.clear();
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Set up STORES action requests -
+    ptr.stores();
+    // Store updated crowdsale initialization status
+    ptr.store(true).at(CROWDSALE_IS_FINALIZED);
+
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add CROWDSALE_INITIALIZED signature and topics
+    ptr.topics(
+      [CROWDSALE_FINALIZED, exec_id]
+    ).data();
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   // Parses context array and returns execution id, sender address, and sent wei amount

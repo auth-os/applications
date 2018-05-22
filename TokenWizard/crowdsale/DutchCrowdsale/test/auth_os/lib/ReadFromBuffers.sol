@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import "./Exceptions.sol";
+import './Exceptions.sol';
 
 library ReadFromBuffers {
 
@@ -178,21 +178,6 @@ library ReadFromBuffers {
       if lt(mload(0x40), add(add(0x20, _ptr), len)) {
         mstore(0x40, add(add(0x40, _ptr), len)) // Ensure free memory pointer points to the beginning of a memory slot
       }
-    }
-  }
-
-  /*
-  Returns the bytes32[] stored at the buffer
-
-  @param _ptr: A pointer to the location in memory where the calldata for the call is stored
-  @return store_data: The return values, which will be stored
-  */
-  function getBuffer(uint _ptr) internal pure returns (bytes32[] memory store_data) {
-    assembly {
-      // If the size stored at the pointer is not evenly divislble into 32-byte segments, this was improperly constructed
-      if gt(mod(mload(_ptr), 0x20), 0) { revert (0, 0) }
-      mstore(_ptr, div(mload(_ptr), 0x20))
-      store_data := _ptr
     }
   }
 }
