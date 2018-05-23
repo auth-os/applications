@@ -15,27 +15,6 @@ library Exceptions {
   }
 }
 
-library ArrayUtils {
-
-  function toUintArr(bytes32[] memory arr) internal pure returns (uint[] memory converted) {
-    assembly {
-      converted := arr
-    }
-  }
-
-  function toIntArr(bytes32[] memory arr) internal pure returns (int[] memory converted) {
-    assembly {
-      converted := arr
-    }
-  }
-
-  function toAddressArr(bytes32[] memory arr) internal pure returns (address[] memory converted) {
-    assembly {
-      converted := arr
-    }
-  }
-}
-
 library MemoryBuffers {
 
   using Exceptions for bytes32;
@@ -146,86 +125,511 @@ library MemoryBuffers {
     if (!success)
       ERR_READ_FAILED.trigger();
   }
+}
 
-  /// STORAGE BUFFERS ///
+library ArrayUtils {
 
-  /*
-  Creates a buffer for return data storage. Buffer pointer stores the lngth of the buffer
-
-  @param _spend_destination: The destination to which _wei_amount will be forwarded
-  @param _wei_amount: The amount of wei to send to the destination
-  @return ptr: The location in memory where the length of the buffer is stored - elements stored consecutively after this location
-  */
-  function stBuff(address _spend_destination, uint _wei_amount) internal pure returns (uint ptr) {
+  function toUintArr(bytes32[] memory arr) internal pure returns (uint[] memory converted) {
     assembly {
-      // Get buffer location - free memory
-      ptr := mload(0x40)
-      // Store initial buffer length
-      mstore(ptr, 0x40)
-      // Push spend destination and wei amount to buffer
-      mstore(add(0x20, ptr), _spend_destination)
-      mstore(add(0x40, ptr), _wei_amount)
-      // Update free-memory pointer to point beyond the buffer
-      mstore(0x40, add(0x60, ptr))
+      converted := arr
     }
   }
 
-  /*
-  Creates a new return data storage buffer at the position given by the pointer. Does not update free memory
-
-  @param _ptr: A pointer to the location where the buffer will be created
-  @param _spend_destination: The destination to which _wei_amount will be forwarded
-  @param _wei_amount: The amount of wei to send to the destination
-  */
-  function stOverwrite(uint _ptr, address _spend_destination, uint _wei_amount) internal pure {
+  function toIntArr(bytes32[] memory arr) internal pure returns (int[] memory converted) {
     assembly {
-      // Set initial length
-      mstore(_ptr, 0x40)
-      // Push spend destination and wei amount to buffer
-      mstore(add(0x20, _ptr), _spend_destination)
-      mstore(add(0x40, _ptr), _wei_amount)
-      // Update free-memory pointer to point beyond the buffer
-      mstore(0x40, msize)
+      converted := arr
     }
   }
 
-  /*
-  Pushes a storage location and value to the end of the storage buffer, and updates the buffer length
+  function toAddressArr(bytes32[] memory arr) internal pure returns (address[] memory converted) {
+    assembly {
+      converted := arr
+    }
+  }
+}
 
-  @param _ptr: A pointer to the start of the buffer
-  @param _location: The location to which the value will be written
-  @param _val: The value to push to the buffer
-  */
-  function stPush(uint _ptr, bytes32 _location, bytes32 _val) internal pure {
+library LibStorage {
+
+  // ACTION REQUESTORS //
+
+  bytes4 internal constant STORES = bytes4(keccak256('stores:'));
+
+  // Set up a STORES action request buffer
+  function stores(uint _ptr) internal pure {
+    bytes4 action_req = STORES;
     assembly {
       // Get end of buffer - 32 bytes plus the length stored at the pointer
       let len := add(0x20, mload(_ptr))
-      // Push location and value to end of buffer
-      mstore(add(_ptr, len), _location)
-      len := add(0x20, len)
-      mstore(add(_ptr, len), _val)
+      // Push requestor to the of buffer
+      mstore(add(_ptr, len), action_req)
+      // Push '0' to the end of the 4 bytes just pushed - this will be the length of the STORES action
+      mstore(add(_ptr, add(0x04, len)), 0)
       // Increment buffer length
-      mstore(_ptr, len)
+      mstore(_ptr, add(0x04, len))
+      // Set a pointer to STORES action length in the free slot before _ptr
+      mstore(sub(_ptr, 0x20), add(_ptr, add(0x04, len)))
       // If the free-memory pointer does not point beyond the buffer's current size, update it
-      if lt(mload(0x40), add(add(0x20, _ptr), len)) {
-        mstore(0x40, add(add(0x40, _ptr), len)) // Ensure free memory pointer points to the beginning of a memory slot
+      if lt(mload(0x40), add(add(0x44, _ptr), len)) {
+        mstore(0x40, add(add(0x44, _ptr), len))
       }
     }
   }
 
-  /*
-  Returns the bytes32[] stored at the buffer
-
-  @param _ptr: A pointer to the location in memory where the calldata for the call is stored
-  @return store_data: The return values, which will be stored
-  */
-  function getBuffer(uint _ptr) internal pure returns (bytes32[] memory store_data) {
+  function store(uint _ptr, bytes32 _val) internal pure returns (uint) {
     assembly {
-      // If the size stored at the pointer is not evenly divislble into 32-byte segments, this was improperly constructed
-      if gt(mod(mload(_ptr), 0x20), 0) { revert (0, 0) }
-      mstore(_ptr, div(mload(_ptr), 0x20))
-      store_data := _ptr
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push value to the end of the buffer
+      mstore(add(_ptr, len), _val)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // Increment STORES action length (pointer to length stored before _ptr)
+      let _len_ptr := mload(sub(_ptr, 0x20))
+      mstore(_len_ptr, add(1, mload(_len_ptr)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
     }
+    return _ptr;
+  }
+
+  function store(uint _ptr, address _val) internal pure returns (uint) {
+    return store(_ptr, bytes32(_val));
+  }
+
+  function store(uint _ptr, uint _val) internal pure returns (uint) {
+    return store(_ptr, bytes32(_val));
+  }
+
+  function store(uint _ptr, bool _val) internal pure returns (uint) {
+    return store(
+      _ptr,
+      _val ? bytes32(1) : bytes32(0)
+    );
+  }
+
+  function at(uint _ptr, bytes32 _loc) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push storage location to the end of the buffer
+      mstore(add(_ptr, len), _loc)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function storeBytesAt(uint _ptr, bytes memory _arr, bytes32 _base_location) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Loop over bytes array, and push each value and incremented storage location to storage buffer
+      let offset := 0x0
+      for { } lt(offset, add(0x20, mload(_arr))) { offset := add(0x20, offset) } {
+        // Push incremented location to buffer
+        mstore(add(add(add(0x20, len), mul(2, offset)), _ptr), add(offset, _base_location))
+        // Push bytes array chunk to buffer
+        mstore(add(add(len, mul(2, offset)), _ptr), mload(add(offset, _arr)))
+      }
+      // Increment buffer length
+      mstore(_ptr, add(mul(2, offset), mload(_ptr)))
+      // Increment STORES length
+      let _len_ptr := mload(sub(_ptr, 0x20))
+      len := add(div(offset, 0x20), mload(_len_ptr))
+      mstore(_len_ptr, len)
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), mload(_ptr))) {
+        mstore(0x40, add(add(0x40, _ptr), mload(_ptr)))
+      }
+    }
+    return _ptr;
+  }
+}
+
+library Pointers {
+
+  function getBuffer(uint _ptr) internal pure returns (bytes memory buffer) {
+    assembly {
+      buffer := _ptr
+    }
+  }
+
+  function toPointer(bytes memory _buffer) internal pure returns (uint _ptr) {
+    assembly {
+      _ptr := _buffer
+    }
+  }
+
+  function clear(uint _ptr) internal pure returns (uint) {
+    assembly {
+      _ptr := add(0x20, msize)
+      mstore(_ptr, 0)
+      mstore(0x40, add(0x20, _ptr))
+    }
+    return _ptr;
+  }
+
+  function end(uint _ptr) internal pure returns (uint buffer_end) {
+    assembly {
+      let len := mload(_ptr)
+      buffer_end := add(0x20, add(len, _ptr))
+    }
+  }
+}
+
+library LibEvents {
+
+  // ACTION REQUESTORS //
+
+  bytes4 internal constant EMITS = bytes4(keccak256('emits:'));
+
+  // Takes an existing or empty buffer stored at the buffer and adds an EMITS
+  // requestor to the end
+  function emits(uint _ptr) internal pure {
+    bytes4 action_req = EMITS;
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push requestor to the of buffer
+      mstore(add(_ptr, len), action_req)
+      // Push '0' to the end of the 4 bytes just pushed - this will be the length of the EMITS action
+      mstore(add(_ptr, add(0x04, len)), 0)
+      // Increment buffer length
+      mstore(_ptr, add(0x04, len))
+      // Set a pointer to EMITS action length in the free slot before _ptr
+      mstore(sub(_ptr, 0x20), add(_ptr, add(0x04, len)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x44, _ptr), len)) {
+        mstore(0x40, add(add(0x44, _ptr), len))
+      }
+    }
+  }
+
+  function topics(uint _ptr) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push 0 to the end of the buffer - event will have no topics
+      mstore(add(_ptr, len), 0)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // Increment EMITS action length (pointer to length stored before _ptr)
+      let _len_ptr := mload(sub(_ptr, 0x20))
+      mstore(_len_ptr, add(1, mload(_len_ptr)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function topics(uint _ptr, bytes32[1] memory _topics) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push 1 to the end of the buffer - event will have 1 topics
+      mstore(add(_ptr, len), 1)
+      // Push topic to end of buffer
+      mstore(add(_ptr, add(0x20, len)), mload(_topics))
+      // Increment buffer length
+      mstore(_ptr, add(0x20, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x60, _ptr), len)) {
+        mstore(0x40, add(add(0x60, _ptr), len))
+      }
+      // Increment EMITS action length (pointer to length stored before _ptr)
+      len := mload(sub(_ptr, 0x20))
+      mstore(len, add(1, mload(len)))
+    }
+    return _ptr;
+  }
+
+  function topics(uint _ptr, bytes32[2] memory _topics) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push 2 to the end of the buffer - event will have 2 topics
+      mstore(add(_ptr, len), 2)
+      // Push topics to end of buffer
+      mstore(add(_ptr, add(0x20, len)), mload(_topics))
+      mstore(add(_ptr, add(0x40, len)), mload(add(0x20, _topics)))
+      // Increment buffer length
+      mstore(_ptr, add(0x40, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x80, _ptr), len)) {
+        mstore(0x40, add(add(0x80, _ptr), len))
+      }
+      // Increment EMITS action length (pointer to length stored before _ptr)
+      len := mload(sub(_ptr, 0x20))
+      mstore(len, add(1, mload(len)))
+    }
+    return _ptr;
+  }
+
+  function topics(uint _ptr, bytes32[3] memory _topics) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push 3 to the end of the buffer - event will have 3 topics
+      mstore(add(_ptr, len), 3)
+      // Push topics to end of buffer
+      mstore(add(_ptr, add(0x20, len)), mload(_topics))
+      mstore(add(_ptr, add(0x40, len)), mload(add(0x20, _topics)))
+      mstore(add(_ptr, add(0x60, len)), mload(add(0x40, _topics)))
+      // Increment buffer length
+      mstore(_ptr, add(0x60, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0xa0, _ptr), len)) {
+        mstore(0x40, add(add(0xa0, _ptr), len))
+      }
+      // Increment EMITS action length (pointer to length stored before _ptr)
+      len := mload(sub(_ptr, 0x20))
+      mstore(len, add(1, mload(len)))
+    }
+    return _ptr;
+  }
+
+  function topics(uint _ptr, bytes32[4] memory _topics) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push 4 to the end of the buffer - event will have 4 topics
+      mstore(add(_ptr, len), 4)
+      // Push topics to end of buffer
+      mstore(add(_ptr, add(0x20, len)), mload(_topics))
+      mstore(add(_ptr, add(0x40, len)), mload(add(0x20, _topics)))
+      mstore(add(_ptr, add(0x60, len)), mload(add(0x40, _topics)))
+      mstore(add(_ptr, add(0x80, len)), mload(add(0x60, _topics)))
+      // Increment buffer length
+      mstore(_ptr, add(0x80, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0xc0, _ptr), len)) {
+        mstore(0x40, add(add(0xc0, _ptr), len))
+      }
+      // Increment EMITS action length (pointer to length stored before _ptr)
+      len := mload(sub(_ptr, 0x20))
+      mstore(len, add(1, mload(len)))
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr, bytes memory _data) internal pure returns (uint) {
+    assembly {
+      // Loop over bytes array, and push each value to storage buffer
+      let offset := 0x0
+      for { } lt(offset, add(0x20, mload(_data))) { offset := add(0x20, offset) } {
+        // Push bytes array chunk to buffer
+        mstore(add(add(add(0x20, mload(_ptr)), offset), _ptr), mload(add(offset, _data)))
+      }
+      // Increment buffer length
+      mstore(_ptr, add(offset, mload(_ptr)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), mload(_ptr))) {
+        mstore(0x40, add(add(0x40, _ptr), mload(_ptr)))
+      }
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push data size (0 bytes) to end of buffer
+      mstore(add(_ptr, len), 0)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr, bytes32 _data) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push data size (32 bytes) to end of buffer
+      mstore(add(_ptr, len), 0x20)
+      // Push value to the end of the buffer
+      mstore(add(_ptr, add(0x20, len)), _data)
+      // Increment buffer length
+      mstore(_ptr, add(0x20, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x60, _ptr), len)) {
+        mstore(0x40, add(add(0x60, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr, uint _data) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push data size (32 bytes) to end of buffer
+      mstore(add(_ptr, len), 0x20)
+      // Push value to the end of the buffer
+      mstore(add(_ptr, add(0x20, len)), _data)
+      // Increment buffer length
+      mstore(_ptr, add(0x20, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x60, _ptr), len)) {
+        mstore(0x40, add(add(0x60, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr, address _data) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push data size (32 bytes) to end of buffer
+      mstore(add(_ptr, len), 0x20)
+      // Push value to the end of the buffer
+      mstore(add(_ptr, add(0x20, len)), _data)
+      // Increment buffer length
+      mstore(_ptr, add(0x20, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x60, _ptr), len)) {
+        mstore(0x40, add(add(0x60, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function data(uint _ptr, bool _data) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push data size (32 bytes) to end of buffer
+      mstore(add(_ptr, len), 0x20)
+      // Push value to the end of the buffer
+      mstore(add(_ptr, add(0x20, len)), _data)
+      // Increment buffer length
+      mstore(_ptr, add(0x20, len))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x60, _ptr), len)) {
+        mstore(0x40, add(add(0x60, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+}
+
+library LibPayments {
+
+  // ACTION REQUESTORS //
+
+  bytes4 internal constant PAYS = bytes4(keccak256('pays:'));
+
+  // Set up a PAYS action request buffer
+  function pays(uint _ptr) internal pure {
+    bytes4 action_req = PAYS;
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push requestor to the of buffer
+      mstore(add(_ptr, len), action_req)
+      // Push '0' to the end of the 4 bytes just pushed - this will be the length of the PAYS action
+      mstore(add(_ptr, add(0x04, len)), 0)
+      // Increment buffer length
+      mstore(_ptr, add(0x04, len))
+      // Set a pointer to PAYS action length in the free slot before _ptr
+      mstore(sub(_ptr, 0x20), add(_ptr, add(0x04, len)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x44, _ptr), len)) {
+        mstore(0x40, add(add(0x44, _ptr), len))
+      }
+    }
+  }
+
+  function pay(uint _ptr, uint _amt) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push amount to the end of the buffer
+      mstore(add(_ptr, len), _amt)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // Increment PAYS action length (pointer to length stored before _ptr)
+      let _len_ptr := mload(sub(_ptr, 0x20))
+      mstore(_len_ptr, add(1, mload(_len_ptr)))
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+
+  function to(uint _ptr, address _destination) internal pure returns (uint) {
+    assembly {
+      // Get end of buffer - 32 bytes plus the length stored at the pointer
+      let len := add(0x20, mload(_ptr))
+      // Push payee address to the end of the buffer
+      mstore(add(_ptr, len), _destination)
+      // Increment buffer length
+      mstore(_ptr, len)
+      // If the free-memory pointer does not point beyond the buffer's current size, update it
+      if lt(mload(0x40), add(add(0x40, _ptr), len)) {
+        mstore(0x40, add(add(0x40, _ptr), len))
+      }
+    }
+    return _ptr;
+  }
+}
+
+/**
+ * @title SafeMath
+ * @dev Math operations with safety checks that throw on error
+ */
+library SafeMath {
+
+  /**
+  * @dev Multiplies two numbers, throws on overflow.
+  */
+  function mul(uint256 a, uint256 b) internal pure returns (uint256 c) {
+    if (a == 0) {
+      return 0;
+    }
+    c = a * b;
+    assert(c / a == b);
+    return c;
+  }
+
+  /**
+  * @dev Integer division of two numbers, truncating the quotient.
+  */
+  function div(uint256 a, uint256 b) internal pure returns (uint256) {
+    return a / b;
+  }
+
+  /**
+  * @dev Subtracts two numbers, throws on overflow (i.e. if subtrahend is greater than minuend).
+  */
+  function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+    assert(b <= a);
+    return a - b;
+  }
+
+  /**
+  * @dev Adds two numbers, throws on overflow.
+  */
+  function add(uint256 a, uint256 b) internal pure returns (uint256 c) {
+    c = a + b;
+    assert(c >= a);
+    return c;
   }
 }
 
@@ -234,6 +638,11 @@ contract CrowdsaleBuyTokensMock {
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using LibPayments for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   uint public set_time;
 
@@ -318,6 +727,11 @@ contract CrowdsaleBuyTokensMock {
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
+  /// EVENTS ///
+
+  // event Purchase(bytes32 indexed exec_id, uint indexed current_tier, address indexed purchaser, uint256 tokens)
+  bytes32 internal constant PURCHASE = keccak256('Purchase(bytes32,uint256,uint256,uint256)');
+
   /// FUNCTION SELECTORS ///
 
   // Function selector for storage 'readMulti'
@@ -360,9 +774,9 @@ contract CrowdsaleBuyTokensMock {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
-  function buy(bytes memory _context) public view returns (bytes32[] memory store_data) {
+  function buy(bytes memory _context) public view returns (bytes memory) {
     // Get original sender address, execution id, and wei sent from context array
     address sender;
     bytes32 exec_id;
@@ -383,51 +797,64 @@ contract CrowdsaleBuyTokensMock {
     /// Get amount of wei able to be spent, and tokens able to be purchased -
     getPurchaseInfo(wei_sent, sale_stat, cur_tier, spend_stat);
 
-    /// Amount to spend and amount of tokens to purchase have been calculated - prepare storage return buffer
-    uint ptr = MemoryBuffers.stBuff(sale_stat.team_wallet, spend_stat.amount_spent);
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Safely add to sender's token balance, and push their new balance along with their balance storage location
-    require(spend_stat.amount_purchased + spend_stat.sender_token_balance > spend_stat.sender_token_balance);
-    ptr.stPush(
-      keccak256(keccak256(sender), TOKEN_BALANCES),
-      bytes32(spend_stat.amount_purchased + spend_stat.sender_token_balance)
+    // Set up PAYS action requests -
+    ptr.pays();
+    // Designate amount spent for forwarding to the team wallet
+    ptr.pay(spend_stat.amount_spent).to(sale_stat.team_wallet);
+
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Store updated purchaser's token balance
+    ptr.store(spend_stat.amount_purchased.add(spend_stat.sender_token_balance)).at(
+      keccak256(keccak256(sender), TOKEN_BALANCES)
     );
-    // Safely subtract amount purchased from tier tokens remaining -
-    require(cur_tier.tokens_remaining >= spend_stat.amount_purchased);
-    ptr.stPush(CURRENT_TIER_TOKENS_REMAINING, bytes32(cur_tier.tokens_remaining - spend_stat.amount_purchased));
-    // Safely add to the crowdsale's total tokens sold
-    require(sale_stat.tokens_sold + spend_stat.amount_purchased > sale_stat.tokens_sold);
-    ptr.stPush(CROWDSALE_TOKENS_SOLD, bytes32(sale_stat.tokens_sold + spend_stat.amount_purchased));
-    // Safely add tokens purchased to total token supply
-    require(sale_stat.token_total_supply + spend_stat.amount_purchased > sale_stat.token_total_supply);
-    ptr.stPush(TOKEN_TOTAL_SUPPLY, bytes32(sale_stat.token_total_supply + spend_stat.amount_purchased));
-    // Safely add to crowdsale wei raised
-    require(sale_stat.wei_raised + spend_stat.amount_spent > sale_stat.wei_raised);
-    ptr.stPush(WEI_RAISED, bytes32(sale_stat.wei_raised + spend_stat.amount_spent));
+
+    // Update tokens remaining for sale in the tier
+    ptr.store(cur_tier.tokens_remaining.sub(spend_stat.amount_purchased)).at(CURRENT_TIER_TOKENS_REMAINING);
+
+    // Update total tokens sold during the sale
+    ptr.store(sale_stat.tokens_sold.add(spend_stat.amount_purchased)).at(CROWDSALE_TOKENS_SOLD);
+
+    // Update total token supply
+    ptr.store(sale_stat.token_total_supply.add(spend_stat.amount_purchased)).at(TOKEN_TOTAL_SUPPLY);
+
+    // Update total wei raised
+    ptr.store(sale_stat.wei_raised.add(spend_stat.amount_spent)).at(WEI_RAISED);
 
     // If the sender had not previously contributed to the sale, push new unique contributor count and sender contributor status to buffer
     if (sale_stat.sender_has_contributed == false) {
-      ptr.stPush(CROWDSALE_UNIQUE_CONTRIBUTORS, bytes32(sale_stat.num_contributors + 1));
-      ptr.stPush(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS), bytes32(1));
+      ptr.store(sale_stat.num_contributors.add(1)).at(CROWDSALE_UNIQUE_CONTRIBUTORS);
+      ptr.store(true).at(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS));
     }
 
     // If this tier was whitelisted, update sender's whitelist spend caps
     if (cur_tier.tier_is_whitelisted) {
-      ptr.stPush(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)), 0);
-      ptr.stPush(
-        bytes32(32 + uint(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)))),
-        bytes32(spend_stat.maximum_spend_amount)
+      ptr.store(uint(0)).at(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)));
+      ptr.store(spend_stat.maximum_spend_amount).at(
+        bytes32(32 + uint(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST))))
       );
     }
 
     // If this tier was updated, set storage 'current tier' information -
     if (cur_tier.updated_tier) {
-      ptr.stPush(CROWDSALE_CURRENT_TIER, bytes32(cur_tier.index + 1));
-      ptr.stPush(CURRENT_TIER_ENDS_AT, bytes32(cur_tier.tier_ends_at));
+      ptr.store(cur_tier.index.add(1)).at(CROWDSALE_CURRENT_TIER);
+      ptr.store(cur_tier.tier_ends_at).at(CURRENT_TIER_ENDS_AT);
     }
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add PURCHASE signature and topics
+    ptr.topics(
+      [PURCHASE, exec_id, bytes32(cur_tier.index), bytes32(sender)]
+    ).data(spend_stat.amount_purchased);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*

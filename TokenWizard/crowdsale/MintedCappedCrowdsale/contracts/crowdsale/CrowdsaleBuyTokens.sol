@@ -2,12 +2,22 @@ pragma solidity ^0.4.23;
 
 import "../lib/MemoryBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/LibPayments.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library CrowdsaleBuyTokens {
 
   using MemoryBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using LibPayments for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   /// CROWDSALE STORAGE ///
 
@@ -78,6 +88,11 @@ library CrowdsaleBuyTokens {
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
+  /// EVENTS ///
+
+  // event Purchase(bytes32 indexed exec_id, uint indexed current_tier, address indexed purchaser, uint256 tokens)
+  bytes32 internal constant PURCHASE = keccak256('Purchase(bytes32,uint256,uint256,uint256)');
+
   /// FUNCTION SELECTORS ///
 
   // Function selector for storage 'readMulti'
@@ -120,9 +135,9 @@ library CrowdsaleBuyTokens {
     1. Application execution id
     2. Original script sender (address, padded to 32 bytes)
     3. Wei amount sent with transaction to storage
-  @return store_data: A formatted storage request - first 64 bytes designate a forwarding address (and amount) for any wei sent
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
-  function buy(bytes memory _context) public view returns (bytes32[] memory store_data) {
+  function buy(bytes memory _context) public view returns (bytes memory) {
     // Get original sender address, execution id, and wei sent from context array
     address sender;
     bytes32 exec_id;
@@ -143,51 +158,64 @@ library CrowdsaleBuyTokens {
     /// Get amount of wei able to be spent, and tokens able to be purchased -
     getPurchaseInfo(wei_sent, sale_stat, cur_tier, spend_stat);
 
-    /// Amount to spend and amount of tokens to purchase have been calculated - prepare storage return buffer
-    uint ptr = MemoryBuffers.stBuff(sale_stat.team_wallet, spend_stat.amount_spent);
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
 
-    // Safely add to sender's token balance, and push their new balance along with their balance storage location
-    require(spend_stat.amount_purchased + spend_stat.sender_token_balance > spend_stat.sender_token_balance);
-    ptr.stPush(
-      keccak256(keccak256(sender), TOKEN_BALANCES),
-      bytes32(spend_stat.amount_purchased + spend_stat.sender_token_balance)
+    // Set up PAYS action requests -
+    ptr.pays();
+    // Designate amount spent for forwarding to the team wallet
+    ptr.pay(spend_stat.amount_spent).to(sale_stat.team_wallet);
+
+    // Set up STORES action requests -
+    ptr.stores();
+
+    // Store updated purchaser's token balance
+    ptr.store(spend_stat.amount_purchased.add(spend_stat.sender_token_balance)).at(
+      keccak256(keccak256(sender), TOKEN_BALANCES)
     );
-    // Safely subtract amount purchased from tier tokens remaining -
-    require(cur_tier.tokens_remaining >= spend_stat.amount_purchased);
-    ptr.stPush(CURRENT_TIER_TOKENS_REMAINING, bytes32(cur_tier.tokens_remaining - spend_stat.amount_purchased));
-    // Safely add to the crowdsale's total tokens sold
-    require(sale_stat.tokens_sold + spend_stat.amount_purchased > sale_stat.tokens_sold);
-    ptr.stPush(CROWDSALE_TOKENS_SOLD, bytes32(sale_stat.tokens_sold + spend_stat.amount_purchased));
-    // Safely add tokens purchased to total token supply
-    require(sale_stat.token_total_supply + spend_stat.amount_purchased > sale_stat.token_total_supply);
-    ptr.stPush(TOKEN_TOTAL_SUPPLY, bytes32(sale_stat.token_total_supply + spend_stat.amount_purchased));
-    // Safely add to crowdsale wei raised
-    require(sale_stat.wei_raised + spend_stat.amount_spent > sale_stat.wei_raised);
-    ptr.stPush(WEI_RAISED, bytes32(sale_stat.wei_raised + spend_stat.amount_spent));
+
+    // Update tokens remaining for sale in the tier
+    ptr.store(cur_tier.tokens_remaining.sub(spend_stat.amount_purchased)).at(CURRENT_TIER_TOKENS_REMAINING);
+
+    // Update total tokens sold during the sale
+    ptr.store(sale_stat.tokens_sold.add(spend_stat.amount_purchased)).at(CROWDSALE_TOKENS_SOLD);
+
+    // Update total token supply
+    ptr.store(sale_stat.token_total_supply.add(spend_stat.amount_purchased)).at(TOKEN_TOTAL_SUPPLY);
+
+    // Update total wei raised
+    ptr.store(sale_stat.wei_raised.add(spend_stat.amount_spent)).at(WEI_RAISED);
 
     // If the sender had not previously contributed to the sale, push new unique contributor count and sender contributor status to buffer
     if (sale_stat.sender_has_contributed == false) {
-      ptr.stPush(CROWDSALE_UNIQUE_CONTRIBUTORS, bytes32(sale_stat.num_contributors + 1));
-      ptr.stPush(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS), bytes32(1));
+      ptr.store(sale_stat.num_contributors.add(1)).at(CROWDSALE_UNIQUE_CONTRIBUTORS);
+      ptr.store(true).at(keccak256(keccak256(sender), CROWDSALE_UNIQUE_CONTRIBUTORS));
     }
 
     // If this tier was whitelisted, update sender's whitelist spend caps
     if (cur_tier.tier_is_whitelisted) {
-      ptr.stPush(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)), 0);
-      ptr.stPush(
-        bytes32(32 + uint(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)))),
-        bytes32(spend_stat.maximum_spend_amount)
+      ptr.store(uint(0)).at(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST)));
+      ptr.store(spend_stat.maximum_spend_amount).at(
+        bytes32(32 + uint(keccak256(keccak256(sender), keccak256(cur_tier.index, SALE_WHITELIST))))
       );
     }
 
     // If this tier was updated, set storage 'current tier' information -
     if (cur_tier.updated_tier) {
-      ptr.stPush(CROWDSALE_CURRENT_TIER, bytes32(cur_tier.index + 1));
-      ptr.stPush(CURRENT_TIER_ENDS_AT, bytes32(cur_tier.tier_ends_at));
+      ptr.store(cur_tier.index.add(1)).at(CROWDSALE_CURRENT_TIER);
+      ptr.store(cur_tier.tier_ends_at).at(CURRENT_TIER_ENDS_AT);
     }
 
-    // Get bytes32[] representation of storage buffer
-    store_data = ptr.getBuffer();
+    // Set up EMITS action requests -
+    ptr.emits();
+
+    // Add PURCHASE signature and topics
+    ptr.topics(
+      [PURCHASE, exec_id, bytes32(cur_tier.index), bytes32(sender)]
+    ).data(spend_stat.amount_purchased);
+
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*

@@ -2,12 +2,20 @@ pragma solidity ^0.4.23;
 
 import "../lib/ReadFromBuffers.sol";
 import "../lib/ArrayUtils.sol";
+import "../lib/LibStorage.sol";
+import "../lib/LibEvents.sol";
+import "../lib/SafeMath.sol";
+import "../lib/Pointers.sol";
 
 library InitCrowdsale {
 
   using ReadFromBuffers for uint;
   using ArrayUtils for bytes32[];
   using Exceptions for bytes32;
+  using LibStorage for uint;
+  using LibEvents for uint;
+  using SafeMath for uint;
+  using Pointers for *;
 
   /// CROWDSALE STORAGE ///
 
@@ -132,7 +140,7 @@ library InitCrowdsale {
   @param _initial_tier_is_whitelisted: Whether the initial tier of the crowdsale requires an address be whitelisted for successful purchase
   @param _initial_tier_duration_is_modifiable: Whether the initial tier of the crowdsale has a modifiable duration
   @param _admin: A privileged address which is able to complete the crowdsale initialization process
-  @return store_data: A formatted storage request
+  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
   */
   function init(
     address _team_wallet,
@@ -144,7 +152,7 @@ library InitCrowdsale {
     bool _initial_tier_is_whitelisted,
     bool _initial_tier_duration_is_modifiable,
     address _admin
-  ) public view returns (bytes32[] memory store_data) {
+  ) public view returns (bytes memory) {
     // Ensure valid input
     if (
       _team_wallet == address(0)
@@ -155,37 +163,40 @@ library InitCrowdsale {
       || _admin == address(0)
     ) bytes32("ImproperInitialization").trigger();
 
-    // Create storage data return buffer in memory
-    uint ptr = ReadFromBuffers.stBuff(0, 0);
-    // Push admin address, team wallet, crowdsale overall duration, and overall crowdsale start time
-    ptr.stPush(ADMIN, bytes32(_admin));
-    ptr.stPush(WALLET, bytes32(_team_wallet));
-    ptr.stPush(CROWDSALE_TOTAL_DURATION, bytes32(_initial_tier_duration));
-    ptr.stPush(CROWDSALE_START_TIME, bytes32(_start_time));
-    // Push initial crowdsale tiers list length (1), and initial tier information to list
-    ptr.stPush(CROWDSALE_TIERS, bytes32(1));
+    // Get pointer to free memory
+    uint ptr = ptr.clear();
+
+    // Set up STORES action requests -
+    ptr.stores();
+    // Store admin address, team wallet, initial tier duration, and sale start time
+    ptr.store(_admin).at(ADMIN);
+    ptr.store(_team_wallet).at(WALLET);
+    ptr.store(_initial_tier_duration).at(CROWDSALE_TOTAL_DURATION);
+    ptr.store(_start_time).at(CROWDSALE_START_TIME);
+    // Store initial crowdsale tier list length and initial tier information
+    ptr.store(uint(1)).at(CROWDSALE_TIERS);
     // Tier name
-    ptr.stPush(bytes32(32 + uint(CROWDSALE_TIERS)), _initial_tier_name);
+    ptr.store(_initial_tier_name).at(bytes32(32 + uint(CROWDSALE_TIERS)));
     // Tier token sell cap
-    ptr.stPush(bytes32(64 + uint(CROWDSALE_TIERS)), bytes32(_initial_tier_token_sell_cap));
+    ptr.store(_initial_tier_token_sell_cap).at(bytes32(64 + uint(CROWDSALE_TIERS)));
     // Tier purchase price
-    ptr.stPush(bytes32(96 + uint(CROWDSALE_TIERS)), bytes32(_initial_tier_price));
+    ptr.store(_initial_tier_price).at(bytes32(96 + uint(CROWDSALE_TIERS)));
     // Tier active duration
-    ptr.stPush(bytes32(128 + uint(CROWDSALE_TIERS)), bytes32(_initial_tier_duration));
+    ptr.store(_initial_tier_duration).at(bytes32(128 + uint(CROWDSALE_TIERS)));
     // Whether this tier's duration is modifiable prior to its start time
-    ptr.stPush(bytes32(160 + uint(CROWDSALE_TIERS)), _initial_tier_duration_is_modifiable ? bytes32(1) : bytes32(0));
+    ptr.store(_initial_tier_duration_is_modifiable).at(bytes32(160 + uint(CROWDSALE_TIERS)));
     // Whether this tier requires an address be whitelisted to complete token purchase
-    ptr.stPush(bytes32(192 + uint(CROWDSALE_TIERS)), _initial_tier_is_whitelisted ? bytes32(1) : bytes32(0));
+    ptr.store(_initial_tier_is_whitelisted).at(bytes32(192 + uint(CROWDSALE_TIERS)));
 
-    // Push current crowdsale tier to buffer (initial tier is '1' - index is 0, but offset by 1 in storage)
-    ptr.stPush(CROWDSALE_CURRENT_TIER, bytes32(1));
-    // Push end time of initial tier to buffer
-    ptr.stPush(CURRENT_TIER_ENDS_AT, bytes32(_initial_tier_duration + _start_time));
-    // Push number of tokens remaining to be sold in the initial tier to the buffer
-    ptr.stPush(CURRENT_TIER_TOKENS_REMAINING, bytes32(_initial_tier_token_sell_cap));
+    // Store current crowdsale tier (offset by 1)
+    ptr.store(uint(1)).at(CROWDSALE_CURRENT_TIER);
+    // Store current tier end time
+    ptr.store(_initial_tier_duration.add(_start_time)).at(CURRENT_TIER_ENDS_AT);
+    // Store current tier tokens remaining
+    ptr.store(_initial_tier_token_sell_cap).at(CURRENT_TIER_TOKENS_REMAINING);
 
-    // Get bytes32[] storage request array from buffer
-    store_data = ptr.getBuffer();
+    // Return formatted action requests to storage
+    return ptr.getBuffer();
   }
 
   /*
