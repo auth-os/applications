@@ -91,7 +91,7 @@ library CrowdsaleBuyTokens {
   /// EVENTS ///
 
   // event Purchase(bytes32 indexed exec_id, uint indexed current_tier, address indexed purchaser, uint256 tokens)
-  bytes32 internal constant PURCHASE = keccak256('Purchase(bytes32,uint256,uint256,uint256)');
+  bytes32 internal constant PURCHASE = keccak256('Purchase(bytes32,uint256,address,uint256)');
 
   /// FUNCTION SELECTORS ///
 
