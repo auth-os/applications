@@ -14,7 +14,7 @@ library MintedCapped {
   /// Feature - Transfer: ///
   function transfer(address to, uint amount, bytes context) external view {
     // Start Contract execution -
-    Abstract.contractAt(context);
+    Abstract.strictContract(context);
     // Invoke Token class, which should invoke the Transfer feature -
     Abstract.invoke(Token._class);
     // Execute function -
