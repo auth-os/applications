@@ -2,80 +2,75 @@ pragma solidity ^0.4.23;
 
 import "../MintedCapped.sol";
 import "./features/Transfer.sol";
-import "./features/Approve.sol";
+/* import "./features/Approve.sol"; */
 
 library Token {
+
+  using Contract for Contract.Process;
+
   // TODO implement transferAgent requirements!
-  using Token for Abstract.Class;
-  using Abstract for Abstract.Class;
 
-  // Token field storage seeds -
-  bytes32 internal constant TOKEN_NAME = keccak256('token_name');
-  bytes32 internal constant TOKEN_SYMBOL = keccak256('token_symbol');
-  bytes32 internal constant TOKEN_SUPPLY = keccak256('token_supply');
-  bytes32 internal constant TOKEN_BALANCES = keccak256('token_balances');
-  bytes32 internal constant TOKEN_ALLOWANCES = keccak256('token_allowances');
+  // Token fields -
 
-  // Valid selectors TODO
-  bytes4 internal constant TRANSFER_SEL = bytes4(keccak256('transfer(address,uint256,bytes)'));
-  bytes4 internal constant TRANSFERFROM_SEL = bytes4(keccak256('transfer(address,uint256,bytes)'));
-  bytes4 internal constant APPROVE_SEL = bytes4(keccak256('transfer(address,uint256,bytes)'));
-  bytes4 internal constant INCR_APPR_SEL = bytes4(keccak256('transfer(address,uint256,bytes)'));
-  bytes4 internal constant DEC_APPR_SEL = bytes4(keccak256('transfer(address,uint256,bytes)'));
+  // Returns the storage location of the token's name
+  function name() internal pure returns (bytes32 location) {
+    location = keccak256('token_name');
+  }
+
+  // Returns the storage location of the token's symbol
+  function symbol() internal pure returns (bytes32 location) {
+    location = keccak256('token_symbol');
+  }
+
+  // Returns the storage location of the token's totalSupply
+  function totalSupply() internal pure returns (bytes32 location) {
+    location = keccak256('token_supply');
+  }
+
+  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
+
+  // Returns the storage location of an owner's token balance
+  function balances(address _owner) internal pure returns (bytes32 location) {
+    location = keccak256(_owner, BALANCE_SEED);
+  }
+
+  bytes32 private constant ALLOWANCE_SEED = keccak256('token_allowed');
+
+  // Returns the storage location of a spender's token allowance from the owner
+  function allowed(address _owner, address _spender) internal pure returns (bytes32 location) {
+    location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
+  }
+
+  // Token function selectors -
+  bytes4 private constant TRANSFER_SEL = bytes4(keccak256('transfer(address,uint256)'));
+  bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
+  bytes4 private constant APPROVE_SEL = bytes4(keccak256('approve(address,uint256)'));
+  bytes4 private constant INCR_APPR_SEL = bytes4(keccak256('increaseApproval(address,uint256)'));
+  bytes4 private constant DECR_APPR_SEL = bytes4(keccak256('decreaseApproval(address,uint256)'));
+
+  // Token pre/post conditions for execution -
 
   // Before each Transfer and Approve Feature executes, check that the token is initialized -
-  function validInitialState(Abstract.Class memory _token) internal view {
-    if (_token.name() == bytes32(0))
-      _token.throws('not initialized');
+  function first(Contract.Process memory _proc) internal view {
+    if (_proc.read(name()) == bytes32(0))
+      revert('Token not initialized');
 
     if (msg.value != 0)
-      _token.throws('function is not payable');
+      revert('Token is not payable');
+
+    // Check msg.sig, and check the appropriate preconditions -
+    if (msg.sig == TRANSFER_SEL || msg.sig == TRANSFER_FROM_SEL)
+      Contract.checks(Transfer.first);
+    else if (msg.sig == APPROVE_SEL || msg.sig == INCR_APPR_SEL || msg.sig == DECR_APPR_SEL)
+      Contract.checks(Transfer.first); //TODO - Approve
+    else
+      revert('Invalid function selector');
   }
 
   // After each Transfer and Approve Feature executes, ensure that the result will
   // both emit an event and store values in storage -
-  function shouldEmitAndStore(Abstract.Class memory _token) internal pure {
-    if (_token.emitted() == false || _token.stored() == false)
-      _token.throws('invalid state change');
-  }
-
-  // Invoked by the Contract after initialization. Sets a precondition and postcondition,
-  // and routes invocation toward the correct Feature
-  function _class(Abstract.Class memory _token) internal view {
-    // Set error context for Token -
-    _token.setRef('Token');
-
-    // Check precondition for Token class -
-    _token._before(validInitialState);
-
-    // Resolve Feature by function selector, and call -
-    if (msg.sig == TRANSFER_SEL || msg.sig == TRANSFERFROM_SEL)
-      _token.invoke(Transfer._feature);
-    else if
-      (
-        msg.sig == APPROVE_SEL ||
-        msg.sig == INCR_APPR_SEL ||
-        msg.sig == DEC_APPR_SEL
-      ) _token.invoke(Approve._feature);
-    else
-      _token.throws('invalid function selector');
-
-    // Check postcondition for Token class -
-    _token._after(shouldEmitAndStore);
-  }
-
-  // Referencing the execution id held by the passed-in class, returns the token name -
-  function name(Abstract.Class memory _token) internal pure returns (bytes32) {
-    return _token.read(TOKEN_NAME);
-  }
-
-  // Returns the relative storage location of the passed in owner's balance
-  function balances(address _owner) internal pure returns (bytes32) {
-    return keccak256(_owner, TOKEN_BALANCES);
-  }
-
-  // Returns the relative storage location of the spender's allowed amount from the owner
-  function allowed(address _owner, address _spender) internal pure returns (bytes32) {
-    return keccak256(_spender, keccak256(_owner, TOKEN_ALLOWANCES));
+  function last(Contract.Process memory _proc) internal pure {
+    if (_proc.emitted() == false || _proc.stored() == false)
+      revert('Invalid state change');
   }
 }
