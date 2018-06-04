@@ -16,10 +16,10 @@ library Transfer {
   }
 
   // Preconditions for Transfer - none
-  function first(Contract.Process memory) internal pure { }
+  function first() internal pure { }
 
   // Postconditions for Transfer - none
-  function last(Contract.Process memory) internal pure { }
+  function last() internal pure { }
 
   // Implements the logic for a token transfer -
   function transfer(address _dest, uint _amt)

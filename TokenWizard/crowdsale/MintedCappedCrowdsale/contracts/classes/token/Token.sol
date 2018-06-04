@@ -6,8 +6,6 @@ import "./features/Transfer.sol";
 
 library Token {
 
-  using Contract for Contract.Process;
-
   // TODO implement transferAgent requirements!
 
   // Token fields -
@@ -51,8 +49,8 @@ library Token {
   // Token pre/post conditions for execution -
 
   // Before each Transfer and Approve Feature executes, check that the token is initialized -
-  function first(Contract.Process memory _proc) internal view {
-    if (_proc.read(name()) == bytes32(0))
+  function first() internal view {
+    if (Contract.read(name()) == bytes32(0))
       revert('Token not initialized');
 
     if (msg.value != 0)
@@ -62,15 +60,15 @@ library Token {
     if (msg.sig == TRANSFER_SEL || msg.sig == TRANSFER_FROM_SEL)
       Contract.checks(Transfer.first);
     else if (msg.sig == APPROVE_SEL || msg.sig == INCR_APPR_SEL || msg.sig == DECR_APPR_SEL)
-      Contract.checks(Transfer.first); //TODO - Approve
+      Contract.checks(Approve.first);
     else
       revert('Invalid function selector');
   }
 
   // After each Transfer and Approve Feature executes, ensure that the result will
   // both emit an event and store values in storage -
-  function last(Contract.Process memory _proc) internal pure {
-    if (_proc.emitted() == false || _proc.stored() == false)
+  function last() internal pure {
+    if (Contract.emitted() == 0 || Contract.stored() == 0)
       revert('Invalid state change');
   }
 }
