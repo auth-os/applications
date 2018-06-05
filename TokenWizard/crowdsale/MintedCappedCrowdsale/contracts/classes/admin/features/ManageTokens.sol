@@ -1,7 +1,6 @@
 pragma solidity ^0.4.23;
 
 import "../Admin.sol";
-import "../../../lib/SafeMath.sol";
 import "../../../lib/Contract.sol";
 
 library ManageTokens {

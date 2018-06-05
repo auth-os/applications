@@ -2,7 +2,6 @@ pragma solidity ^0.4.23;
 
 import "../Admin.sol";
 import "../../../lib/Contract.sol";
-import "../../../lib/SafeMath.sol";
 
 library ConfigureSale {
 

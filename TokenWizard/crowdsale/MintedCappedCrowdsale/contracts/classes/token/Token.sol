@@ -72,7 +72,7 @@ library Token {
     if (msg.sig == TRANSFER_SEL || msg.sig == TRANSFER_FROM_SEL)
       Contract.checks(Transfer.first);
     else if (msg.sig == APPROVE_SEL || msg.sig == INCR_APPR_SEL || msg.sig == DECR_APPR_SEL)
-      Contract.checks(Transfer.first); //TODO - Approve
+      Contract.checks(Approve.first);
     else
       revert('Invalid function selector');
   }
