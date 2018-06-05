@@ -1,9 +1,5 @@
 pragma solidity ^0.4.23;
 
-/**
- * @title SafeMath
- * @dev Math operations with safety checks that throw on error
- */
 library SafeMath {
 
   /**
@@ -14,7 +10,7 @@ library SafeMath {
       return 0;
     }
     c = a * b;
-    assert(c / a == b);
+    require(c / a == b, "Overflow - Multiplication");
     return c;
   }
 
@@ -29,7 +25,7 @@ library SafeMath {
   * @dev Subtracts two numbers, throws on overflow (i.e. if subtrahend is greater than minuend).
   */
   function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-    assert(b <= a);
+    require(b <= a, "Underflow - Subtraction");
     return a - b;
   }
 
@@ -38,7 +34,7 @@ library SafeMath {
   */
   function add(uint256 a, uint256 b) internal pure returns (uint256 c) {
     c = a + b;
-    assert(c >= a);
+    require(c >= a, "Overflow - Addition");
     return c;
   }
 }

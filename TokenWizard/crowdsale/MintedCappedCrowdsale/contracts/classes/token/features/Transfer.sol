@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import "../Contract.sol";
+import "../../../lib/Contract.sol";
 import "../Token.sol";
 
 library Transfer {
@@ -15,11 +15,17 @@ library Transfer {
     return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)];
   }
 
+  // Function selectors
+  bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
+
   // Preconditions for Transfer - none
-  function first(Contract.Process memory) internal pure { }
+  function first() internal view {
+    if (msg.sig == TRANSFER_FROM_SEL) 
+      Contract.checks(isTransferAgent);
+  }
 
   // Postconditions for Transfer - none
-  function last(Contract.Process memory) internal pure { }
+  function last() internal pure { }
 
   // Implements the logic for a token transfer -
   function transfer(address _dest, uint _amt)
@@ -78,4 +84,13 @@ library Transfer {
       TRANSFER(_owner, _dest), bytes32(_amt)
     );
   }
+
+  // Precondition for transferFrom
+  function isTransferAgent() internal view {
+    if (
+      uint(Contract.read(Token.transferAgent(Contract.sender()))) == 0
+      && uint(Contract.read(Token.tokensUnlocked())) == 0
+    ) revert('transfers are locked');
+  }
+
 }

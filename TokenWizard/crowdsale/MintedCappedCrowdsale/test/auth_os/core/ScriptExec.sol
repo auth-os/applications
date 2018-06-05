@@ -111,7 +111,6 @@ contract ScriptExec {
   Executes an application using its execution id and storage address. For non-payable execution, specifies that all _app_calldata
   arrays must contain, in order, the app execution id, and the 32-byte padded sender's address. For payable execution, this should
   be followed by the value sent, in wei.
-
   @param _target: The target address, which houses the function being called
   @param _app_calldata: The calldata to forward to the application target address
   @return success: Whether execution succeeded or not
@@ -169,7 +168,6 @@ contract ScriptExec {
   /*
   Initializes an instance of an application. Uses default app provider, script registry, app updater,
   and script registry exec id to get app information. Uses latest app version by default.
-
   @param _app: The name of the application to initialize
   @param _is_payable: Whether the app will accept ether
   @param _init_calldata: Calldata to be forwarded to an application's initialization function

@@ -1,14 +1,12 @@
 pragma solidity ^0.4.23;
 
-import "../MintedCapped.sol";
+import "../../MintedCapped.sol";
 import "./features/Transfer.sol";
-/* import "./features/Approve.sol"; */
+import "./features/Approve.sol"; 
 
 library Token {
 
-  using Contract for Contract.Process;
-
-  // TODO implement transferAgent requirements!
+  using Contract for *;
 
   // Token fields -
 
@@ -41,6 +39,18 @@ library Token {
     location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
   }
 
+  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('transfer_agents');
+
+  // Returns the storage location of an Agent's transfer agent status
+  function transferAgent(address agent) internal pure returns (bytes32 location) {
+    location = keccak256(agent, TRANSFER_AGENT_SEED);
+  }
+
+  // Returns the storage location for the unlock status of the token
+  function tokensUnlocked() internal pure returns(bytes32 location) {
+    location = keccak256('tokens_unlocked');
+  }
+
   // Token function selectors -
   bytes4 private constant TRANSFER_SEL = bytes4(keccak256('transfer(address,uint256)'));
   bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
@@ -51,8 +61,8 @@ library Token {
   // Token pre/post conditions for execution -
 
   // Before each Transfer and Approve Feature executes, check that the token is initialized -
-  function first(Contract.Process memory _proc) internal view {
-    if (_proc.read(name()) == bytes32(0))
+  function first() internal view {
+    if (Contract.read(name()) == bytes32(0))
       revert('Token not initialized');
 
     if (msg.value != 0)
@@ -69,8 +79,8 @@ library Token {
 
   // After each Transfer and Approve Feature executes, ensure that the result will
   // both emit an event and store values in storage -
-  function last(Contract.Process memory _proc) internal pure {
-    if (_proc.emitted() == false || _proc.stored() == false)
+  function last() internal pure {
+    if (Contract.emitted() == 0 || Contract.stored() == 0)
       revert('Invalid state change');
   }
 }
