@@ -6,61 +6,24 @@ library Admin {
   using SafeMath for uint;
 
   /// CROWDSALE STORAGE ///
-
-  // Storage location of crowdsale admin address
-  function admin() internal pure returns (bytes32 location) {
-    location = keccak256("admin");
-  }
-
-  // Whether the crowdsale and token are initialized, and the sale is ready to run
-  function is_init() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_init");
-  }
-
-  // Whether or not the crowdsale is post-purchase
-  function is_final() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_finalized");
-  }
-
-  // Storage location of the CROWDSALE_TIERS index of the current tier. Return value minus 1 is the actual index of the tier. 0 is an invalid return
-  function current_tier() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_current_tier");
-  }
   
-  // Storage location of a list of the tiers the crowdsale will have
-  function crowdsale_tiers() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_list");
-  }
-
-  // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
-  function ends_at() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_ends_at");
-  }
-
-  // Storage location of the amount of time the crowdsale will take, accounting for all tiers
-  function total_duration() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_total_duration");
-  }
-
-  // Storage location of the minimum amount of tokens allowed to be purchased
-  function min_contrib() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_min_cap");
-  } 
-
-  // Storage location of the crowdsale's start time
-  function start_time() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_start_time");
-  }
-
-  // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
-  }
-
-  // Storage location of amount of wei raised during the crowdsale, total
-  function wei_raised() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_wei_raised");
-  }
+  bytes32 internal constant ADMIN = keccak256("admin");
+  bytes32 internal constant CROWDSALE_IS_INIT = keccak256("crowdsale_is_init");
+  bytes32 internal constant CROWDSALE_IS_FINAL = keccak256("crowdsale_is_finalized");
+  bytes32 internal constant CURRENT_TIER = keccak256("crowdsale_current_tier");
+  bytes32 internal constant CROWDSALE_TIERS = keccak256("crowdsale_tiers");
+  bytes32 internal constant END_TIME = keccak256("crowdsale_tier_ends_at");
+  bytes32 internal constant TOTAL_DURATION = keccak256("crowdsale_total_duration");
+  bytes32 internal constant MIN_CAP = keccak256("crowdsale_min_cap");
+  bytes32 internal constant START_TIME = keccak256("crowdsale_start_time");
+  bytes32 internal constant TOKENS_SOLD = keccak256("crowdsale_tokens_sold");
+  bytes32 internal constant WEI_RAISED = keccak256("crowdsale_wei_raised");
+  bytes32 internal constant TOKENS_UNLOCKED = keccak256("tokens_are_unlocked");
+  bytes32 internal constant RESERVE_DESTINATIONS = keccak256("token_reserved_dest_list");
+  bytes32 internal constant TOKEN_NAME = keccak256('token_name');
+  bytes32 internal constant TOKEN_SYMBOL = keccak256('token_symbol');
+  bytes32 internal constant TOKEN_DECIMALS = keccak256('token_decimals');
+  bytes32 internal constant TOTAL_SUPPLY = keccak256("token_total_supply");
 
   // Storage seed for crowdsale whitelist mappings - maps each tier's index to a mapping of addresses to whtielist information
   bytes32 internal constant SALE_WHITELIST = keccak256("crowdsale_purchase_whitelist");
@@ -75,25 +38,6 @@ library Admin {
 
   /// TOKEN STORAGE ///
 
-  // Returns the storage location of the token's name
-  function name() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
-
-  // Returns the storage location of the token's symbol
-  function symbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
-
-  // Returns the storage location of the token's decimals 
-  function decimals() internal pure returns (bytes32 location) {
-    location = keccak256('token_decimals');
-  }
-
-  // Storage location for token totalSupply
-  function token_total_supply() internal pure returns (bytes32 location) {
-    location = keccak256("token_total_supply");
-  }
 
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
@@ -110,15 +54,6 @@ library Admin {
     location = keccak256(keccak256(agent), TOKEN_TRANSFER_AGENTS);
   }
 
-  // Whether or not the token is unlocked for transfers
-  function tokens_unlocked() internal pure returns (bytes32 location) {
-    location = keccak256("tokens_are_unlocked");
-  }
-
-  /// Storage location for an array of addresses with some form of reserved tokens
-  function reserved_destinations() internal pure returns (bytes32 location) {
-    location = keccak256("token_reserved_dest_list");
-  }
 
   // Storage seed for reserved token information for a given address
   // Maps an address for which tokens are reserved to a struct:
@@ -203,7 +138,7 @@ library Admin {
   }
 
   function onlyAdmin() internal view {
-    if (address(Contract.read(admin())) != Contract.sender()) 
+    if (address(Contract.read(ADMIN)) != Contract.sender()) 
       revert('sender is not admin');
   }
 
@@ -261,7 +196,7 @@ library Admin {
 
     // Store new crowdsale minimum token purchase amount
     Contract.set(
-      min_contrib() 
+      MIN_CAP 
     ).to(new_min_contribution);
 
     // Set up EMITS action requests -
@@ -289,25 +224,25 @@ library Admin {
     ) revert("array length mismatch");
 
 
-    uint _total_duration = uint(Contract.read(total_duration()));
-    uint num_tiers = uint(Contract.read(crowdsale_tiers()));
+    uint _total_duration = uint(Contract.read(TOTAL_DURATION));
+    uint num_tiers = uint(Contract.read(CROWDSALE_TIERS));
     uint base_storage = 0;
 
     // Check that the sender is the crowdsale admin, and that the crowdsale is not initialized
     if (
-      Contract.read(is_init()) == bytes32(1)
-      || address(Contract.read(admin())) != Contract.sender()
+      Contract.read(CROWDSALE_IS_INIT) == bytes32(1)
+      || address(Contract.read(ADMIN)) != Contract.sender()
     ) revert("not admin or sale is init");
 
     Contract.storing();
 
     // Store new tier list length
     Contract.set(
-     crowdsale_tiers() 
+     CROWDSALE_TIERS 
     ).to(num_tiers.add(tier_names.length));
 
     // Place crowdsale tier storage base location in tiers struct
-    base_storage = 32 + (192 * num_tiers) + uint(crowdsale_tiers());
+    base_storage = 32 + (192 * num_tiers) + uint(CROWDSALE_TIERS);
     // Loop over each new tier, and add to storage buffer. Keep track of the added duration
     for (uint i = 0; i < tier_names.length; i++) {
       // Ensure valid input -
@@ -349,7 +284,7 @@ library Admin {
     }
     // Store new total crowdsale duration
     Contract.set(
-      total_duration()
+      TOTAL_DURATION
     ).to(_total_duration);
 
     // Set up EMITS action requests -
@@ -373,7 +308,7 @@ library Admin {
     ) revert("mismatched input lengths");
 
     // If the first returned value is not equal to the sender's address, sender is not the crowdsale admin
-    if (address(Contract.read(admin())) != Contract.sender())
+    if (address(Contract.read(ADMIN)) != Contract.sender())
       revert("sender is not admin");
 
     // Get tier whitelist length
@@ -431,9 +366,9 @@ library Admin {
     Contract.storing();
 
     // Store token name, symbol, and decimals
-    Contract.set(name()).to(_name);
-    Contract.set(symbol()).to(_symbol);
-    Contract.set(decimals()).to(_decimals);
+    Contract.set(TOKEN_NAME).to(_name);
+    Contract.set(TOKEN_SYMBOL).to(_symbol);
+    Contract.set(TOKEN_DECIMALS).to(_decimals);
 
     // Set up EMITS action requests -
     Contract.emitting();
@@ -452,12 +387,12 @@ library Admin {
     if (new_duration == 0)
       revert('invalid duration');
 
-    uint starts_at = uint(Contract.read(start_time()));
-    uint _current_tier = uint(Contract.read(current_tier()));
-    uint _total_duration = uint(Contract.read(total_duration()));
-    uint _ends_at = uint(Contract.read(ends_at()));
+    uint starts_at = uint(Contract.read(START_TIME));
+    uint _current_tier = uint(Contract.read(CURRENT_TIER));
+    uint _total_duration = uint(Contract.read(TOTAL_DURATION));
+    uint _ends_at = uint(Contract.read(END_TIME));
     uint previous_duration = uint(Contract.read(
-      bytes32(128 + (192 * tier_index) + uint(crowdsale_tiers())))
+      bytes32(128 + (192 * tier_index) + uint(CROWDSALE_TIERS)))
     );
 
 
@@ -478,13 +413,13 @@ library Admin {
 
     // Check returned values for valid crowdsale and tier status -
     if (
-      address(Contract.read(admin())) != Contract.sender()
-      || Contract.read(is_final()) == bytes32(1)                  
-      || uint(Contract.read(crowdsale_tiers())) <= tier_index 
+      address(Contract.read(ADMIN)) != Contract.sender()
+      || Contract.read(CROWDSALE_IS_FINAL) == bytes32(1)                  
+      || uint(Contract.read(CROWDSALE_TIERS)) <= tier_index 
       || _current_tier > tier_index 
       || (_current_tier == tier_index 
          && tier_index != 0)
-      || Contract.read(bytes32(160 + (192 * tier_index) + uint(crowdsale_tiers()))) == 0
+      || Contract.read(bytes32(160 + (192 * tier_index) + uint(CROWDSALE_TIERS))) == 0
     ) revert("invalid crowdsale status");
 
     if (tier_index == 0 && _current_tier == 0) {
@@ -493,7 +428,7 @@ library Admin {
 
       // Store current tier end time
       Contract.set(
-        ends_at()
+        END_TIME
       ).to(new_duration.add(starts_at));
 
     } else if (tier_index > _current_tier && now >= _ends_at) {
@@ -501,7 +436,7 @@ library Admin {
         revert("cannot modify current tier");
 
       for (uint i = _current_tier; i < tier_index; i++)
-        _ends_at = _ends_at.add(uint(Contract.read(bytes32(128 + (192 * i) + uint(crowdsale_tiers())))));
+        _ends_at = _ends_at.add(uint(Contract.read(bytes32(128 + (192 * i) + uint(CROWDSALE_TIERS)))));
 
       if (now <= _ends_at)
         revert("cannot modify current tier");
@@ -520,12 +455,12 @@ library Admin {
 
     // Store updated tier duration
     Contract.set(
-      bytes32(128 + (192 * tier_index) + uint(crowdsale_tiers()))
+      bytes32(128 + (192 * tier_index) + uint(CROWDSALE_TIERS))
     ).to(new_duration);
 
     // Update total crowdsale duration
     Contract.set(
-      total_duration()
+      TOTAL_DURATION
     ).to(_total_duration);
 
     Contract.emitting();
@@ -553,8 +488,8 @@ library Admin {
 
   function initializeCrowdsale() internal view { 
 
-    uint starts_at = uint(Contract.read(start_time()));
-    bytes32 token_name = Contract.read(name());
+    uint starts_at = uint(Contract.read(START_TIME));
+    bytes32 token_name = Contract.read(TOKEN_NAME);
 
     if (starts_at < now) 
       revert('crowdsale already started');
@@ -566,7 +501,7 @@ library Admin {
 
     // Store updated crowdsale initialization status
     Contract.set(
-      is_init()
+      CROWDSALE_IS_INIT
     ).to(true);
 
     // Set up EMITS action requests -
@@ -581,17 +516,17 @@ library Admin {
 
   function finalizeCrowdsale() internal view { 
 
-    if (Contract.read(is_init()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_INIT) == bytes32(0))
       revert('crowdsale has not been initialized');
 
-    if (Contract.read(is_final()) == bytes32(1))
+    if (Contract.read(CROWDSALE_IS_FINAL) == bytes32(1))
       revert('crowdsale already finalized');
 
     Contract.storing();
 
     // Store updated crowdsale finalization status
     Contract.set(
-      is_final()
+      CROWDSALE_IS_FINAL
     ).to(true);
 
     // Set up EMITS action requests -
@@ -643,7 +578,7 @@ library Admin {
 
   function setTransferAgentStatus(address agent, bool is_agent) internal view { 
 
-    if (Contract.sender() != address(Contract.read(admin())))
+    if (Contract.sender() != address(Contract.read(ADMIN)))
       revert('sender is not admin');
 
     // Ensure valid input
@@ -679,13 +614,13 @@ library Admin {
     ) revert('invalid input arrays'); 
 
     // Add crowdsale destinations list length location to buffer
-    uint num_destinations = uint(Contract.read(reserved_destinations()));
+    uint num_destinations = uint(Contract.read(RESERVE_DESTINATIONS));
 
-    if (Contract.sender() != address(Contract.read(admin())))
+    if (Contract.sender() != address(Contract.read(ADMIN)))
       revert('sender is not admin');
 
     // Ensure sender is admin address, and crowdsale has not been initialized
-    if (Contract.read(is_init()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_INIT) == bytes32(0))
       revert('crowdsale is not initialized');
 
     Contract.storing();
@@ -726,7 +661,7 @@ library Admin {
           revert('too many reserved destinations');
         // Push address to reserved destination list
         Contract.set(
-          bytes32(32 * num_destinations + uint(reserved_destinations()))
+          bytes32(32 * num_destinations + uint(RESERVE_DESTINATIONS))
         ).to(to_add);
         // Store reservation info
         Contract.set(
@@ -747,7 +682,7 @@ library Admin {
     }
     // Finally, update array length
     Contract.set(
-      reserved_destinations()
+      RESERVE_DESTINATIONS
     ).to(num_destinations);
 
     Contract.emitting();
@@ -763,16 +698,16 @@ library Admin {
     if (destination == address(0))
       revert('invalid destination');
 
-    if (Contract.sender() != address(Contract.read(admin())))
+    if (Contract.sender() != address(Contract.read(ADMIN)))
       revert('sender is not admin');
 
-    if (Contract.read(is_init()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_INIT) == bytes32(0))
       revert('crowdsale is not initialized');
 
     Contract.storing();
 
     // Get reservation list length
-    uint reservation_len = uint(Contract.read(reserved_destinations()));
+    uint reservation_len = uint(Contract.read(RESERVE_DESTINATIONS));
     // Get index of passed-in destination. If zero, sender is not in reserved list - revert
     uint to_remove = uint(Contract.read(reserved_info(destination)));
     // Ensure that to_remove is less than or equal to reservation list length (stored indices are offset by 1)
@@ -781,20 +716,20 @@ library Admin {
 
     if (to_remove != reservation_len) {
       // Execute read from storage, and store return in buffer
-      address last_index = address(Contract.read(bytes32(32 * reservation_len + uint(reserved_destinations()))));
+      address last_index = address(Contract.read(bytes32(32 * reservation_len + uint(RESERVE_DESTINATIONS))));
 
       // Update index
       Contract.set(
         reserved_info(last_index)
       ).to(to_remove);
-      // Push last index address to correct spot in reserved_destinations() list
+      // Push last index address to correct spot in RESERVE_DESTINATIONS list
       Contract.set(
-        bytes32((32 * to_remove) + uint(reserved_destinations()))
+        bytes32((32 * to_remove) + uint(RESERVE_DESTINATIONS))
       ).to(last_index);
     }
     // Update destination list length
     Contract.set(
-      reserved_destinations()
+      RESERVE_DESTINATIONS
     ).to(reservation_len.sub(1));
     // Update removed address index
     Contract.set(
@@ -815,13 +750,13 @@ library Admin {
       revert('invalid number of destinations');
 
     // If the crowdsale is not finalized, revert
-    if (Contract.read(is_final()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_FINAL) == bytes32(0))
       revert('crowdsale is not finalized');
 
     // Get total tokens sold, total token supply, and reserved destinations list length
-    uint total_sold = uint(Contract.read(tokens_sold()));
-    uint total_supply = uint(Contract.read(token_total_supply()));
-    uint reserved_len = uint(Contract.read(reserved_destinations()));
+    uint total_sold = uint(Contract.read(TOKENS_SOLD));
+    uint total_supply = uint(Contract.read(TOTAL_SUPPLY));
+    uint reserved_len = uint(Contract.read(RESERVE_DESTINATIONS));
 
     Contract.storing();
 
@@ -835,13 +770,13 @@ library Admin {
 
 
     Contract.set(
-      reserved_destinations()
+      RESERVE_DESTINATIONS
     ).to(reserved_len.sub(num_destinations));
 
     // For each address, get their new balance and add to storage buffer
     for (uint i = 0; i < num_destinations; i++) {
 
-      address addr = address(Contract.read(bytes32(32 * (num_destinations - i) + uint(reserved_destinations())))); 
+      address addr = address(Contract.read(bytes32(32 * (num_destinations - i) + uint(RESERVE_DESTINATIONS)))); 
 
       // Get percent reserved and precision
       uint to_add = uint(Contract.read(
@@ -886,7 +821,7 @@ library Admin {
 
     // Update total supply
     Contract.set(
-      token_total_supply()
+      TOTAL_SUPPLY
     ).to(total_supply);
 
     Contract.emitting();
@@ -898,13 +833,13 @@ library Admin {
   }
 
   function finalizeCrowdsaleAndToken() internal view { 
-    if (Contract.sender() != address(Contract.read(admin())))
+    if (Contract.sender() != address(Contract.read(ADMIN)))
       revert('sender is not admin');
 
-    if (Contract.read(is_init()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_INIT) == bytes32(0))
       revert('crowdsale is not initialized');
 
-    if (Contract.read(is_final()) == bytes32(1))
+    if (Contract.read(CROWDSALE_IS_FINAL) == bytes32(1))
       revert('crowdsale is already finalized');
 
     // Get reserved token distribution from distributeAndUnlockTokens
@@ -912,7 +847,7 @@ library Admin {
 
     // Finalize crowdsale
     Contract.set(
-      is_final()
+      CROWDSALE_IS_FINAL
     ).to(true);
 
     Contract.emitting();
@@ -927,9 +862,9 @@ library Admin {
   function distributeAndUnlockTokens() internal view { 
 
     // Get total tokens sold, total token supply, and reserved destinations list length
-    uint total_sold = uint(Contract.read(tokens_sold())); 
-    uint total_supply = uint(Contract.read(token_total_supply())); 
-    uint num_destinations = uint(Contract.read(reserved_destinations()));
+    uint total_sold = uint(Contract.read(TOKENS_SOLD)); 
+    uint total_supply = uint(Contract.read(TOTAL_SUPPLY)); 
+    uint num_destinations = uint(Contract.read(RESERVE_DESTINATIONS));
 
     Contract.storing();
 
@@ -937,7 +872,7 @@ library Admin {
     if (num_destinations == 0) {
       // Unlock tokens
       Contract.set(
-        tokens_unlocked()
+        TOKENS_UNLOCKED
       ).to(true);
 
       return;
@@ -945,14 +880,14 @@ library Admin {
 
     // Set new reserved destination list length
     Contract.set(
-      reserved_destinations()
+      RESERVE_DESTINATIONS
     ).to(uint(0));
 
     // For each address, get their new balance and add to storage buffer
     for (uint i = 0; i < num_destinations; i++) {
 
       address reserved_address = address(Contract.read(
-        bytes32(32 + (32 * i) + uint(reserved_destinations())))
+        bytes32(32 + (32 * i) + uint(RESERVE_DESTINATIONS)))
       );
 
       // Get percent reserved and precision
@@ -992,12 +927,12 @@ library Admin {
 
     // Update total token supply
     Contract.set(
-      token_total_supply()
+      TOTAL_SUPPLY
     ).to(total_supply);
 
     // Unlock tokens
     Contract.set(
-      tokens_unlocked()
+      TOKENS_UNLOCKED
     ).to(true);
 
 
@@ -1006,31 +941,31 @@ library Admin {
   function finalizeAndDistributeToken() internal view { 
 
     // Get total tokens sold, total token supply, and reserved destinations list length
-    uint total_sold = uint(Contract.read(tokens_sold())); 
-    uint total_supply = uint(Contract.read(token_total_supply()));
-    uint num_destinations = uint(Contract.read(reserved_destinations()));
+    uint total_sold = uint(Contract.read(TOKENS_SOLD)); 
+    uint total_supply = uint(Contract.read(TOTAL_SUPPLY));
+    uint num_destinations = uint(Contract.read(RESERVE_DESTINATIONS));
 
     // If the crowdsale is not finalized, revert
-    if (Contract.read(is_final()) == bytes32(0))
+    if (Contract.read(CROWDSALE_IS_FINAL) == bytes32(0))
       revert('crowdsale not finalized');
 
     // If there are no reserved destinations, simply create a storage buffer to unlock token transfers -
     if (num_destinations == 0) {
       // Unlock tokens
       Contract.set(
-        tokens_unlocked()
+        TOKENS_UNLOCKED
       ).to(true);
     }
 
     // Store new reserved destination list length
     Contract.set(
-      reserved_destinations()
+      RESERVE_DESTINATIONS
     ).to(uint(0));
 
     // For each address, get their new balance and add to storage buffer
     for (uint i = 0; i < num_destinations; i++) {
 
-      address reserved = address(Contract.read(bytes32(32 + (32 * i) + uint(reserved_destinations()))));
+      address reserved = address(Contract.read(bytes32(32 + (32 * i) + uint(RESERVE_DESTINATIONS))));
       // Get percent reserved and precision
       uint to_add = uint(Contract.read(
         bytes32(64 + uint(reserved_info(reserved)))
@@ -1064,11 +999,11 @@ library Admin {
     }
     // Update total supply
     Contract.set(
-      token_total_supply()
+      TOTAL_SUPPLY
     ).to(total_supply);
     // Unlock tokens
     Contract.set(
-      tokens_unlocked()
+      TOKENS_UNLOCKED
     ).to(true);
 
     Contract.emitting();
@@ -1085,22 +1020,25 @@ library Token {
 
   using Contract for *;
 
+  bytes32 internal constant ADMIN = keccak256("admin");
+  bytes32 internal constant CROWDSALE_IS_INIT = keccak256("crowdsale_is_init");
+  bytes32 internal constant CROWDSALE_IS_FINAL = keccak256("crowdsale_is_finalized");
+  bytes32 internal constant CURRENT_TIER = keccak256("crowdsale_current_tier");
+  bytes32 internal constant CROWDSALE_TIERS = keccak256("crowdsale_tiers");
+  bytes32 internal constant END_TIME = keccak256("crowdsale_tier_ends_at");
+  bytes32 internal constant TOTAL_DURATION = keccak256("crowdsale_total_duration");
+  bytes32 internal constant MIN_CAP = keccak256("crowdsale_min_cap");
+  bytes32 internal constant START_TIME = keccak256("crowdsale_start_time");
+  bytes32 internal constant TOKENS_SOLD = keccak256("crowdsale_tokens_sold");
+  bytes32 internal constant WEI_RAISED = keccak256("crowdsale_wei_raised");
+  bytes32 internal constant TOKENS_UNLOCKED = keccak256("tokens_are_unlocked");
+  bytes32 internal constant RESERVE_DESTINATIONS = keccak256("token_reserved_dest_list");
+  bytes32 internal constant TOKEN_NAME = keccak256('token_name');
+  bytes32 internal constant TOKEN_SYMBOL = keccak256('token_symbol');
+  bytes32 internal constant TOKEN_DECIMALS = keccak256('token_decimals');
+  bytes32 internal constant TOTAL_SUPPLY = keccak256("token_total_supply");
+
   // Token fields -
-
-  // Returns the storage location of the token's name
-  function name() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
-
-  // Returns the storage location of the token's symbol
-  function symbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
-
-  // Returns the storage location of the token's totalSupply
-  function totalSupply() internal pure returns (bytes32 location) {
-    location = keccak256('token_supply');
-  }
 
   bytes32 private constant BALANCE_SEED = keccak256('token_balances');
 
@@ -1123,10 +1061,6 @@ library Token {
     location = keccak256(agent, TRANSFER_AGENT_SEED);
   }
 
-  // Returns the storage location for the unlock status of the token
-  function tokensUnlocked() internal pure returns(bytes32 location) {
-    location = keccak256('tokens_unlocked');
-  }
 
   // Token function selectors -
   bytes4 private constant TRANSFER_SEL = bytes4(keccak256('transfer(address,uint256)'));
@@ -1139,7 +1073,7 @@ library Token {
 
   // Before each Transfer and Approve Feature executes, check that the token is initialized -
   function first() internal view {
-    if (Contract.read(name()) == bytes32(0))
+    if (Contract.read(TOKEN_NAME) == bytes32(0))
       revert('Token not initialized');
 
     if (msg.value != 0)
@@ -1303,7 +1237,7 @@ library Token {
   function isTransferAgent() internal view {
     if (
       uint(Contract.read(transferAgent(Contract.sender()))) == 0
-      && uint(Contract.read(tokensUnlocked())) == 0
+      && uint(Contract.read(TOKENS_UNLOCKED)) == 0
     ) revert('transfers are locked');
   }
 
@@ -2187,69 +2121,26 @@ library Sale {
   using Contract for *;
 
   /// CROWDSALE STORAGE ///
+  bytes32 internal constant ADMIN = keccak256("admin");
+  bytes32 internal constant CROWDSALE_IS_INIT = keccak256("crowdsale_is_init");
+  bytes32 internal constant CROWDSALE_IS_FINAL = keccak256("crowdsale_is_finalized");
+  bytes32 internal constant CURRENT_TIER = keccak256("crowdsale_current_tier");
+  bytes32 internal constant CROWDSALE_TIERS = keccak256("crowdsale_tiers");
+  bytes32 internal constant END_TIME = keccak256("crowdsale_tier_ends_at");
+  bytes32 internal constant TOTAL_DURATION = keccak256("crowdsale_total_duration");
+  bytes32 internal constant MIN_CAP = keccak256("crowdsale_min_cap");
+  bytes32 internal constant START_TIME = keccak256("crowdsale_start_time");
+  bytes32 internal constant TOKENS_SOLD = keccak256("crowdsale_tokens_sold");
+  bytes32 internal constant WEI_RAISED = keccak256("crowdsale_wei_raised");
+  bytes32 internal constant TOKENS_UNLOCKED = keccak256("tokens_are_unlocked");
+  bytes32 internal constant RESERVE_DESTINATIONS = keccak256("token_reserved_dest_list");
+  bytes32 internal constant TOKEN_NAME = keccak256('token_name');
+  bytes32 internal constant TOKEN_SYMBOL = keccak256('token_symbol');
+  bytes32 internal constant TOKEN_DECIMALS = keccak256('token_decimals');
+  bytes32 internal constant TOTAL_SUPPLY = keccak256("token_total_supply");
+  bytes32 internal constant WALLET = keccak256("crowdsale_wallet");
+  bytes32 internal constant TOKENS_REMAINING = keccak256("crowdsale_tokens_remaining");
   
-  function ends_at() internal pure returns (bytes32 location) {
-    location = keccak256('current_tier_ends_at');
-  }
-
-  function crowdsale_tiers() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_list");
-  }
-
-  // Storage location of the CROWDSALE_TIERS index (-1) of the current tier. If zero, no tier is currently active
-  function cur_tier() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_current_tier");
-  }
-
-  // Storage location of the total number of tokens remaining for purchase in the current tier
-  function tokens_remaining() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_tokens_remaining");
-  }
-
-  // Storage location for token decimals
-  function decimals() internal pure returns (bytes32 location) {
-    location = keccak256("token_decimals");
-  }
-
-  // Storage location of team funds wallet
-  function wallet() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_wallet");
-  }
-
-  // Storage location of amount of wei raised during the crowdsale, total
-  function wei_raised() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_wei_raised");
-  }
-
-  // Returns the storage location of the initialization status
-  function is_init() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_init");
-  }
-
-  // Returns the storage location of the finalization status
-  function is_final() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_finalized");
-  }
-  // Returns the storage location of the Crowdsale's start time
-  function start_time() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_start_time");
-  }
-
-  // Returns the storage location of the number of tokens sold
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
-  }
-
-  // Returns the storage location of the total token supply
-  function total_supply() internal pure returns (bytes32 location) {
-    location = keccak256('tokens_total_supply');
-  }
-
-  // Returns the storage location of the minimum amount of tokens allowed to be purchased
-  function min_contribution() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_min_cap");
-  }
-
   // Storage seed for unique contributors
   bytes32 private constant UNIQUE_CONTRIB_SEED = keccak256('crowdsale_unique_contributions');
 
@@ -2261,8 +2152,6 @@ library Sale {
   function has_contributed(address sender) internal pure returns (bytes32 location) {
     location = keccak256(sender, UNIQUE_CONTRIB_SEED);
   }
-
-  bytes32 private constant CROWDSALE_TIERS = keccak256('crowdsale_tiers');
 
   // Returns the storage location of the tier's token sell cap
   function tier_sell_cap(uint tier) internal pure returns (bytes32 location) {
@@ -2358,8 +2247,8 @@ library Sale {
     ) = getCurrentTier();
 
     if (
-      uint(Contract.read(is_init())) == 0 // Crowdsale is not yet initialized
-      || uint(Contract.read(is_final())) == 1         // Crowdsale is already finalized
+      uint(Contract.read(CROWDSALE_IS_INIT)) == 0 // Crowdsale is not yet initialized
+      || uint(Contract.read(CROWDSALE_IS_FINAL)) == 1         // Crowdsale is already finalized
     ) revert('crowdsale invalid state');
 
     // Get amount of wei able to be spent, and tokens able to be purchased
@@ -2369,7 +2258,7 @@ library Sale {
     if (_tier_is_whitelisted) {
       if (Contract.read(has_contributed(Contract.sender())) == bytes32(1)) {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(decimals())),
+          uint(Contract.read(TOKEN_DECIMALS)),
           purchase_price,
           _tokens_remaining,
           uint(Contract.read(whitelist_max_cap(Contract.sender(), current_tier))),
@@ -2379,7 +2268,7 @@ library Sale {
 
       } else {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(decimals())),
+          uint(Contract.read(TOKEN_DECIMALS)),
           purchase_price,
           _tokens_remaining,
           uint(Contract.read(whitelist_max_cap(Contract.sender(), current_tier))),
@@ -2391,7 +2280,7 @@ library Sale {
     } else {
       if (Contract.read(has_contributed(Contract.sender())) == bytes32(1)) {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(decimals())),
+          uint(Contract.read(TOKEN_DECIMALS)),
           purchase_price,
           _tokens_remaining,
           0,
@@ -2400,11 +2289,11 @@ library Sale {
         );
       } else {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(decimals())),
+          uint(Contract.read(TOKEN_DECIMALS)),
           purchase_price,
           _tokens_remaining,
           0,
-          uint(Contract.read(min_contribution())),
+          uint(Contract.read(MIN_CAP)),
           _tier_is_whitelisted
         );
       }
@@ -2413,7 +2302,7 @@ library Sale {
     // Begin paying
     Contract.paying();
     // Designate amount spent for forwarding to the team wallet
-    Contract.pay(amount_spent).toAcc(address(Contract.read(wallet())));
+    Contract.pay(amount_spent).toAcc(address(Contract.read(WALLET)));
 
     // Begin storing values
     Contract.storing();
@@ -2425,22 +2314,22 @@ library Sale {
 
     // Update tokens remaining for sale in the tier
     Contract.decrease(
-      tokens_remaining()
+      TOKENS_REMAINING
     ).by(amount_purchased);
 
     // Update total tokens sold during the sale
     Contract.increase(
-      tokens_sold()
+      TOKENS_SOLD
     ).by(amount_purchased);
 
     // Update total token supply
     Contract.increase(
-      total_supply()
+      TOTAL_SUPPLY
     ).by(amount_purchased);
 
     // Update total wei raised
     Contract.increase(
-      wei_raised()
+      WEI_RAISED
     ).by(amount_spent);
 
     // If the sender had not previously contributed to the sale, push new unique contributor count and sender contributor status to buffer
@@ -2466,10 +2355,10 @@ library Sale {
     // If this tier was updated, set storage 'current tier' information -
     if (updated_tier) {
       Contract.increase(
-        cur_tier()
+        CURRENT_TIER
       ).by(1);
       Contract.set(
-        ends_at()
+        END_TIME
       ).to(tier_ends_at);
     }
 
@@ -2498,10 +2387,10 @@ library Sale {
     bool _tier_is_whitelisted,
     bool updated_tier
   ) {
-    uint num_tiers = uint(Contract.read(crowdsale_tiers()));
-    current_tier = uint(Contract.read(cur_tier())) - 1;
-    tier_ends_at = uint(Contract.read(ends_at()));
-    _tokens_remaining = uint(Contract.read(tokens_remaining()));
+    uint num_tiers = uint(Contract.read(CROWDSALE_TIERS));
+    current_tier = uint(Contract.read(CURRENT_TIER)) - 1;
+    tier_ends_at = uint(Contract.read(END_TIME));
+    _tokens_remaining = uint(Contract.read(TOKENS_REMAINING));
 
     // If the current tier has ended, we need to update the current tier in storage
     if (now >= tier_ends_at) {
@@ -2904,204 +2793,205 @@ library MintedCappedFlat {
 
   //// CLASS - Admin: ////
 
-//  /// Feature - Admin: ///
-//  function updateGlobalMinContribution(uint new_min_contribution)
-//  external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.updateGlobalMinContribution(new_min_contribution);
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function createCrowdsaleTiers(
-//    bytes32[] tier_names, uint[] tier_durations, uint[] tier_prices, uint[] tier_caps,
-//    bool[] tier_modifiable, bool[] tier_whitelisted
-//  ) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.createCrowdsaleTiers(
-//      tier_names, tier_durations, tier_prices, tier_caps, tier_modifiable, tier_whitelisted 
-//    );
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function whitelistMultiForTier(
-//    uint tier_index, address[] to_whitelist, uint[] min_token_purchase, uint[] max_wei_spend
-//  ) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.whitelistMultiForTier(
-//      tier_index, to_whitelist, min_token_purchase, max_wei_spend 
-//    );
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function initCrowdsaleToken(bytes32 name, bytes32 symbol, uint decimals)
-//  external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.initCrowdsaleToken(
-//      name, symbol, decimals
-//    );
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//  
-//  function updateTierDuration(uint tier_index, uint new_duration)
-//  external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.updateTierDuration(
-//      tier_index, new_duration 
-//    );
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  } 
-//
-//  // Feature - Admin: ///
-//  function initializeCrowdsale() external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.initializeCrowdsale();
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function finalizeCrowdsale() external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.finalizeCrowdsale();
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  } 
-//
-//  // Feature - Admin: ///
-//  function setTransferAgentStatus(address agent, bool is_agent) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.setTransferAgentStatus(agent, is_agent);
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function updateMultipleReservedTokens(address[] destinations, uint[] num_tokens, uint[] num_percents, uint[] percent_decimals) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function removeReservedTokens(address destination) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.removeReservedTokens(destination);
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function distributeReservedTokens(uint num_destinations) external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.distributeReservedTokens(num_destinations);
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function finalizeCrowdsaleAndToken() external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.finalizeCrowdsaleAndToken();
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function distributeAndUnlockTokens() external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.distributeAndUnlockTokens();
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
-//
-//  function finalizeAndDistributeToken() external view { 
-//    // Begin execution - reads execution id and original sender address from storage
-//    Contract.authorize(msg.sender);
-//    // Check preconditions for execution -
-//    Contract.checks(Admin.first);
-//    // Execute approval function -
-//    Admin.finalizeAndDistributeToken();
-//    // Check postconditions for execution -
-//    Contract.checks(Admin.last);
-//    // Commit state changes to storage -
-//    Contract.commit();
-//  }
+  /// Feature - Admin: ///
+  function updateGlobalMinContribution(uint new_min_contribution)
+  external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.updateGlobalMinContribution(new_min_contribution);
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function createCrowdsaleTiers(
+    bytes32[] tier_names, uint[] tier_durations, uint[] tier_prices, uint[] tier_caps,
+    bool[] tier_modifiable, bool[] tier_whitelisted
+  ) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.createCrowdsaleTiers(
+      tier_names, tier_durations, tier_prices, tier_caps, tier_modifiable, tier_whitelisted 
+    );
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function whitelistMultiForTier(
+    uint tier_index, address[] to_whitelist, uint[] min_token_purchase, uint[] max_wei_spend
+  ) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.whitelistMultiForTier(
+      tier_index, to_whitelist, min_token_purchase, max_wei_spend 
+    );
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function initCrowdsaleToken(bytes32 name, bytes32 symbol, uint decimals)
+  external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.initCrowdsaleToken(
+      name, symbol, decimals
+    );
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  
+  function updateTierDuration(uint tier_index, uint new_duration)
+  external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.updateTierDuration(
+      tier_index, new_duration 
+    );
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  } 
+
+  // Feature - Admin: ///
+  function initializeCrowdsale() external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.initializeCrowdsale();
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function finalizeCrowdsale() external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.finalizeCrowdsale();
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  } 
+
+  // Feature - Admin: ///
+  function setTransferAgentStatus(address agent, bool is_agent) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.setTransferAgentStatus(agent, is_agent);
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function updateMultipleReservedTokens(address[] destinations, uint[] num_tokens, uint[] num_percents, uint[] percent_decimals) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+
+  }
+
+  function removeReservedTokens(address destination) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.removeReservedTokens(destination);
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function distributeReservedTokens(uint num_destinations) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.distributeReservedTokens(num_destinations);
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function finalizeCrowdsaleAndToken() external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.finalizeCrowdsaleAndToken();
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function distributeAndUnlockTokens() external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.distributeAndUnlockTokens();
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function finalizeAndDistributeToken() external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(Admin.first);
+    // Execute approval function -
+    Admin.finalizeAndDistributeToken();
+    // Check postconditions for execution -
+    Contract.checks(Admin.last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
 }
