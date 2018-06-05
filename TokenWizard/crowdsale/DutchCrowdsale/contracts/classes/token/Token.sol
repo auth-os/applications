@@ -80,4 +80,75 @@ library Token {
     if (Contract.emitted() == 0 || Contract.stored() == 0)
       revert('Invalid state change');
   }
+
+
+  //// CLASS - Token: ////
+
+  /// Feature - Transfer: ///
+  function transfer(address to, uint amount) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute transfer function -
+    Transfer.transfer(to, amount);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();  
+  }
+
+  function transferFrom(address owner, address recipient, uint amount) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute transferFrom function -
+    Transfer.transferFrom(owner, recipient, amount);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  /// Feature - Approve: ///
+  function approve(address spender, uint amount) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute approve function -
+    Approve.approve(spender, amount);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function increaseApproval(address spender, uint amount) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute increaseApproval function -
+    Approve.increaseApproval(spender, amount);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  function decreaseApproval(address spender, uint amount) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    Approve.decreaseApproval(spender, amount);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  
 }

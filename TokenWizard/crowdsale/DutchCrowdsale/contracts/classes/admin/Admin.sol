@@ -179,5 +179,102 @@ library Admin {
     if (Contract.emitted() == 0 || Contract.stored() == 0)
       revert('invalid state change');
   }
+
+  //// CLASS - Admin: ////
+
+  /// Feature - ConfigureSale: ///
+  function updateGlobalMinContribution(uint new_min_contribution)
+  external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ConfigureSale.updateGlobalMinContribution(new_min_contribution);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  function whitelistMulti(
+    address[] to_update, uint[] min_contribution, uint[] max_spend_amt
+  ) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ConfigureSale.whitelistMulti(to_update, min_contribution, max_spend_amt);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  function initCrowdsaleToken(bytes32 name, bytes32 symbol, uint decimals)
+  external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ConfigureSale.initCrowdsaleToken(name, symbol, decimals);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  function setCrowdsaleStartandDuration(uint start_time, uint duration)
+  external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ConfigureSale.setCrowdsaleStartandDuration(start_time, duration);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  //Feature - ManageSale
+  function initializeCrowdsale() external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ManageSale.initializeCrowdsale();
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+  function finalizeCrowdsale() external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ManageSale.finalizeCrowdsale();
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  } 
+
+  // Feature - ManageTokens: ///
+  function setTransferAgentStatus(address agent, bool is_agent) external view { 
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute decreaseApproval function -
+    ManageToken.setTransferAgentStatus(agent, is_agent);
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }    
 	
 }

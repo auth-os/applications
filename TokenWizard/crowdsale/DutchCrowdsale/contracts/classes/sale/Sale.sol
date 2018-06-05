@@ -161,4 +161,20 @@ library Sale {
       revert('invalid state change');
   }
 
+  //// CLASS - Sale: ////
+
+  /// Feature - Purchase: ///
+  function buy() external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check preconditions for execution -
+    Contract.checks(first);
+    // Execute buy function -
+    Purchase.buy();
+    // Check postconditions for execution -
+    Contract.checks(last);
+    // Commit state changes to storage -
+    Contract.commit();
+  }   
+
 }
