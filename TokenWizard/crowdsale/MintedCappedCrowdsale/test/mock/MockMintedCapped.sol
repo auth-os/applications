@@ -1,14 +1,16 @@
 pragma solidity ^0.4.23;
 
-import "./lib/Contract.sol";
-import "./Initialize.sol";
-import "./classes/token/Token.sol";
-import "./classes/sale/Sale.sol";
-import "./classes/admin/Admin.sol";
+import "./MockInitialize.sol";
+import "./Contract.sol";
+import "./classes/token/MockToken.sol";
+import "./classes/sale/MockSale.sol";
+import "./classes/admin/MockAdmin.sol";
 
-library MintedCapped {
+
+library MockMintedCapped {
 
   using Contract for *;
+
 
   // TODO - set script exec address in constructor and check for each function
 
@@ -21,15 +23,15 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.initialize();
     // Check preconditions for execution -
-    Contract.checks(Initialize.first);
+    Contract.checks(MockInitialize.first);
     // Execute transfer function -
-    Initialize.init(
+    MockInitialize.init(
       team_wallet, start_time, initial_tier_name, initial_tier_price,
       initial_tier_duration, initial_tier_token_sell_cap, initial_tier_is_whitelisted,
       initial_tier_duration_is_modifiable, admin
     );
     // Check postconditions for execution -
-    Contract.checks(Initialize.last);
+    Contract.checks(MockInitialize.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -41,11 +43,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Token.first);
+    Contract.checks(MockToken.first);
     // Execute transfer function -
-    Transfer.transfer(to, amount);
+    MockTransfer.transfer(to, amount);
     // Check postconditions for execution -
-    Contract.checks(Token.last);
+    Contract.checks(MockToken.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -54,11 +56,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Token.first);
+    Contract.checks(MockToken.first);
     // Execute transfer function -
-    Transfer.transferFrom(owner, recipient, amount);
+    MockTransfer.transferFrom(owner, recipient, amount);
     // Check postconditions for execution -
-    Contract.checks(Token.last);
+    Contract.checks(MockToken.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -68,11 +70,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Token.first);
+    Contract.checks(MockToken.first);
     // Execute approval function -
-    Approve.approve(spender, amount);
+    MockApprove.approve(spender, amount);
     // Check postconditions for execution -
-    Contract.checks(Token.last);
+    Contract.checks(MockToken.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -81,11 +83,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Token.first);
+    Contract.checks(MockToken.first);
     // Execute approval function -
-    Approve.increaseApproval(spender, amount);
+    MockApprove.increaseApproval(spender, amount);
     // Check postconditions for execution -
-    Contract.checks(Token.last);
+    Contract.checks(MockToken.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -94,11 +96,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Token.first);
+    Contract.checks(MockToken.first);
     // Execute approval function -
-    Approve.decreaseApproval(spender, amount);
+    MockApprove.decreaseApproval(spender, amount);
     // Check postconditions for execution -
-    Contract.checks(Token.last);
+    Contract.checks(MockToken.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -110,11 +112,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Sale.first);
+    Contract.checks(MockSale.first);
     // Execute approval function -
-    Purchase.buy();
+    MockPurchase.buy();
     // Check postconditions for execution -
-    Contract.checks(Sale.last);
+    Contract.checks(MockSale.last);
     // Commit state changes to storage -
     Contract.commit();
   } 
@@ -127,11 +129,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ConfigureSale.updateGlobalMinContribution(new_min_contribution);
+    MockConfigureSale.updateGlobalMinContribution(new_min_contribution);
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -143,13 +145,13 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ConfigureSale.createCrowdsaleTiers(
+    MockConfigureSale.createCrowdsaleTiers(
       tier_names, tier_durations, tier_prices, tier_caps, tier_modifiable, tier_whitelisted 
     );
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -160,13 +162,13 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ConfigureSale.whitelistMultiForTier(
+    MockConfigureSale.whitelistMultiForTier(
       tier_index, to_whitelist, min_token_purchase, max_wei_spend 
     );
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -176,13 +178,13 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ConfigureSale.initCrowdsaleToken(
+    MockConfigureSale.initCrowdsaleToken(
       name, symbol, decimals
     );
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -192,13 +194,13 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ConfigureSale.updateTierDuration(
+    MockConfigureSale.updateTierDuration(
       tier_index, new_duration 
     );
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   } 
@@ -208,11 +210,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageSale.initializeCrowdsale();
+    MockManageSale.initializeCrowdsale();
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -221,11 +223,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageSale.finalizeCrowdsale();
+    MockManageSale.finalizeCrowdsale();
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   } 
@@ -235,11 +237,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.setTransferAgentStatus(agent, is_agent);
+    MockManageTokens.setTransferAgentStatus(agent, is_agent);
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -248,11 +250,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
+    MockManageTokens.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -261,11 +263,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.removeReservedTokens(destination);
+    MockManageTokens.removeReservedTokens(destination);
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -274,11 +276,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.distributeReservedTokens(num_destinations);
+    MockManageTokens.distributeReservedTokens(num_destinations);
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -287,11 +289,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.finalizeCrowdsaleAndToken();
+    MockManageTokens.finalizeCrowdsaleAndToken();
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -300,11 +302,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.distributeAndUnlockTokens();
+    MockManageTokens.distributeAndUnlockTokens();
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
@@ -313,11 +315,11 @@ library MintedCapped {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
-    Contract.checks(Admin.first);
+    Contract.checks(MockAdmin.first);
     // Execute approval function -
-    ManageTokens.finalizeAndDistributeToken();
+    MockManageTokens.finalizeAndDistributeToken();
     // Check postconditions for execution -
-    Contract.checks(Admin.last);
+    Contract.checks(MockAdmin.last);
     // Commit state changes to storage -
     Contract.commit();
   }
