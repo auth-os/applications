@@ -1,7 +1,7 @@
 // Abstract storage contract
 let AbstractStorage = artifacts.require('./AbstractStorage')
 // MintedCappedCrowdsale
-let MintedCapped = artifacts.require('./MintedCapped')
+let MintedCapped = artifacts.require('./MintedCappedFlat')
 let Initialize = artifacts.require('./Initialize')
 // Utils
 let MintedCappedUtils = artifacts.require('./MintedCappedUtils')
