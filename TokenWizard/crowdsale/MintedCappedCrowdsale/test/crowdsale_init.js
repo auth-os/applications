@@ -1,10 +1,15 @@
 // Abstract storage contract
 let AbstractStorage = artifacts.require('./AbstractStorage')
 // MintedCappedCrowdsale
-let MintedCapped = artifacts.require('./MintedCappedFlat')
-let Initialize = artifacts.require('./Initialize')
+let InitMintedCapped = artifacts.require('./InitCrowdsale')
+let MintedCappedBuy = artifacts.require('./CrowdsaleBuyTokens')
+let MintedCappedCrowdsaleConsole = artifacts.require('./CrowdsaleConsole')
+let MintedCappedTokenConsole = artifacts.require('./TokenConsole')
+let MintedCappedTokenTransfer = artifacts.require('./TokenTransfer')
+let MintedCappedTokenTransferFrom = artifacts.require('./TokenTransferFrom')
+let MintedCappedTokenApprove = artifacts.require('./TokenApprove')
 // Utils
-let MintedCappedUtils = artifacts.require('./MintedCappedUtils')
+let TestUtils = artifacts.require('./TestUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')
@@ -22,14 +27,20 @@ function hexStrEquals(hex, expected) {
 contract('#MintedCappedInit', function (accounts) {
 
   let storage
-  let mintedCappedUtils
+  let testUtils
 
   let exec = accounts[0]
   let updater = accounts[1]
   let crowdsaleAdmin = accounts[2]
   let teamWallet = accounts[3]
 
-  let mintedCapped
+  let initCrowdsale
+  let crowdsaleBuy
+  let crowdsaleConsole
+  let tokenConsole
+  let tokenTransfer
+  let tokenTransferFrom
+  let tokenApprove
 
   let executionID
   let initCalldata
@@ -57,10 +68,15 @@ contract('#MintedCappedInit', function (accounts) {
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
-    mintedCappedUtils = await MintedCappedUtils.new().should.be.fulfilled
+    testUtils = await TestUtils.new().should.be.fulfilled
 
-
-    mintedCapped = await MintedCapped.new().should.be.fulfilled
+    initCrowdsale = await InitMintedCapped.new().should.be.fulfilled
+    crowdsaleBuy = await MintedCappedBuy.new().should.be.fulfilled
+    crowdsaleConsole = await MintedCappedCrowdsaleConsole.new().should.be.fulfilled
+    tokenConsole = await MintedCappedTokenConsole.new().should.be.fulfilled
+    tokenTransfer = await MintedCappedTokenTransfer.new().should.be.fulfilled
+    tokenTransferFrom = await MintedCappedTokenTransferFrom.new().should.be.fulfilled
+    tokenApprove = await MintedCappedTokenApprove.new().should.be.fulfilled
   })
 
   describe('valid initialization', async () => {
@@ -69,20 +85,22 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get valid init calldata
-      initCalldata = await mintedCappedUtils.init.call(
+      initCalldata = await testUtils.init.call(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       initCalldata.should.not.be.eq('0x')
 
-      let events = await storage.createInstance(
-        exec, mintedCapped.address, initCalldata, 
-        { from: exec }
+      // Initialize a valid sale
+      let events = await storage.initAndFinalize(
+        updater, true, initCrowdsale.address, initCalldata, [
+          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
+          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
+        ], { from: exec }
       ).then((tx) => {
         return tx.logs
       })
-
       events.should.not.eq(null)
       events.length.should.be.eq(2)
       initEvent = events[0]

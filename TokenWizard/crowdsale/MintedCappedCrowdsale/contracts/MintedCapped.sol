@@ -8,8 +8,6 @@ import "./classes/admin/Admin.sol";
 
 library MintedCapped {
 
-  using Contract for *;
-
   // TODO - set script exec address in constructor and check for each function
 
   // Initialization function - uses a new exec id to create a new instance of this application
@@ -36,14 +34,14 @@ library MintedCapped {
 
   //// CLASS - Token: ////
 
-  /// Feature - Token: ///
+  /// Feature - Transfer: ///
   function transfer(address to, uint amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(Token.first);
     // Execute transfer function -
-    Token.transfer(to, amount);
+    Transfer.transfer(to, amount);
     // Check postconditions for execution -
     Contract.checks(Token.last);
     // Commit state changes to storage -
@@ -56,21 +54,21 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Token.first);
     // Execute transfer function -
-    Token.transferFrom(owner, recipient, amount);
+    Transfer.transferFrom(owner, recipient, amount);
     // Check postconditions for execution -
     Contract.checks(Token.last);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  /// Feature - Token: ///
+  /// Feature - Approve: ///
   function approve(address spender, uint amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(Token.first);
     // Execute approval function -
-    Token.approve(spender, amount);
+    Approve.approve(spender, amount);
     // Check postconditions for execution -
     Contract.checks(Token.last);
     // Commit state changes to storage -
@@ -83,7 +81,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Token.first);
     // Execute approval function -
-    Token.increaseApproval(spender, amount);
+    Approve.increaseApproval(spender, amount);
     // Check postconditions for execution -
     Contract.checks(Token.last);
     // Commit state changes to storage -
@@ -96,7 +94,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Token.first);
     // Execute approval function -
-    Token.decreaseApproval(spender, amount);
+    Approve.decreaseApproval(spender, amount);
     // Check postconditions for execution -
     Contract.checks(Token.last);
     // Commit state changes to storage -
@@ -105,14 +103,14 @@ library MintedCapped {
 
   //// CLASS - Sale: ////
 
-  /// Feature - Sale: ///
+  /// Feature - Purchase: ///
   function buy() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(Sale.first);
     // Execute approval function -
-    Sale.buy();
+    Purchase.buy();
     // Check postconditions for execution -
     Contract.checks(Sale.last);
     // Commit state changes to storage -
@@ -121,7 +119,7 @@ library MintedCapped {
 
   //// CLASS - Admin: ////
 
-  /// Feature - Admin: ///
+  /// Feature - ConfigureSale: ///
   function updateGlobalMinContribution(uint new_min_contribution)
   external view { 
     // Begin execution - reads execution id and original sender address from storage
@@ -129,7 +127,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.updateGlobalMinContribution(new_min_contribution);
+    ConfigureSale.updateGlobalMinContribution(new_min_contribution);
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -145,7 +143,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.createCrowdsaleTiers(
+    ConfigureSale.createCrowdsaleTiers(
       tier_names, tier_durations, tier_prices, tier_caps, tier_modifiable, tier_whitelisted 
     );
     // Check postconditions for execution -
@@ -162,7 +160,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.whitelistMultiForTier(
+    ConfigureSale.whitelistMultiForTier(
       tier_index, to_whitelist, min_token_purchase, max_wei_spend 
     );
     // Check postconditions for execution -
@@ -178,7 +176,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.initCrowdsaleToken(
+    ConfigureSale.initCrowdsaleToken(
       name, symbol, decimals
     );
     // Check postconditions for execution -
@@ -194,7 +192,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.updateTierDuration(
+    ConfigureSale.updateTierDuration(
       tier_index, new_duration 
     );
     // Check postconditions for execution -
@@ -203,14 +201,14 @@ library MintedCapped {
     Contract.commit();
   } 
 
-  // Feature - Admin: ///
+  // Feature - ManageSale: ///
   function initializeCrowdsale() external view { 
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.initializeCrowdsale();
+    ManageSale.initializeCrowdsale();
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -223,21 +221,21 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.finalizeCrowdsale();
+    ManageSale.finalizeCrowdsale();
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
     Contract.commit();
   } 
 
-  // Feature - Admin: ///
+  // Feature - ManageTokens: ///
   function setTransferAgentStatus(address agent, bool is_agent) external view { 
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.setTransferAgentStatus(agent, is_agent);
+    ManageTokens.setTransferAgentStatus(agent, is_agent);
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -250,7 +248,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
+    ManageTokens.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -263,7 +261,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.removeReservedTokens(destination);
+    ManageTokens.removeReservedTokens(destination);
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -276,7 +274,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.distributeReservedTokens(num_destinations);
+    ManageTokens.distributeReservedTokens(num_destinations);
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -289,7 +287,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.finalizeCrowdsaleAndToken();
+    ManageTokens.finalizeCrowdsaleAndToken();
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -302,7 +300,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.distributeAndUnlockTokens();
+    ManageTokens.distributeAndUnlockTokens();
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -
@@ -315,7 +313,7 @@ library MintedCapped {
     // Check preconditions for execution -
     Contract.checks(Admin.first);
     // Execute approval function -
-    Admin.finalizeAndDistributeToken();
+    ManageTokens.finalizeAndDistributeToken();
     // Check postconditions for execution -
     Contract.checks(Admin.last);
     // Commit state changes to storage -

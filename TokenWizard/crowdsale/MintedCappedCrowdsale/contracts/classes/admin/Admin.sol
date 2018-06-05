@@ -9,7 +9,6 @@ import "./features/ManageTokens.sol";
 library Admin {
 
   using Contract for *;
-  using SafeMath for uint;
 
   /// CROWDSALE STORAGE ///
 
@@ -163,11 +162,11 @@ library Admin {
       msg.sig == WHITELIST_MULTI_SEL ||
       msg.sig == INIT_SALE_TOKEN_SEL ||
       msg.sig == UPDATE_TIER_SEL
-    ) Contract.checks(onlyAdmin);
+    ) Contract.checks(ConfigureSale.first);
     else if (
       msg.sig == INIT_SALE_SEL ||
       msg.sig == FINAL_SALE_SEL
-    ) Contract.checks(onlyAdmin);
+    ) Contract.checks(ManageSale.first);
     else  if (
       msg.sig == SET_AGENT_SEL ||
       msg.sig == UPDATE_RESER_SEL ||
@@ -176,7 +175,7 @@ library Admin {
       msg.sig == FINAL_SALE_TOKENS_SEL ||
       msg.sig == DISTRIB_UNLOCK_SEL ||
       msg.sig == FINAL_DISTIBUTE_SEL
-    ) Contract.checks(empty);
+    ) Contract.checks(ManageTokens.first);
     else
       revert('invalid function selector');
   }
@@ -189,11 +188,11 @@ library Admin {
       msg.sig == WHITELIST_MULTI_SEL ||
       msg.sig == INIT_SALE_TOKEN_SEL ||
       msg.sig == UPDATE_TIER_SEL
-    ) Contract.checks(emitAndStore);
+    ) Contract.checks(ConfigureSale.last);
     else if (
       msg.sig == INIT_SALE_SEL ||
       msg.sig == FINAL_SALE_SEL
-    ) Contract.checks(emitAndStore);
+    ) Contract.checks(ManageSale.last);
     else  if (
       msg.sig == SET_AGENT_SEL ||
       msg.sig == UPDATE_RESER_SEL ||
@@ -202,7 +201,7 @@ library Admin {
       msg.sig == FINAL_SALE_TOKENS_SEL ||
       msg.sig == DISTRIB_UNLOCK_SEL ||
       msg.sig == FINAL_DISTIBUTE_SEL
-    ) Contract.checks(emitAndStore);
+    ) Contract.checks(ManageTokens.last);
     else
       revert('invalid function selector');
 
@@ -274,16 +273,14 @@ library Admin {
     Contract.commit();
   }
 
-  function initCrowdsaleToken(bytes32 name, bytes32 symbol, uint decimals)
+  function initCrowdsaleToken(bytes32 _name, bytes32 _symbol, uint _decimals)
   external view { 
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ConfigureSale.initCrowdsaleToken(
-      name, symbol, decimals
-    );
+    ConfigureSale.initCrowdsaleToken(_name, _symbol, _decimals);
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -338,7 +335,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.setTransferAgentStatus(agent, is_agent);
+    ManageTokens.setTransferAgentStatus(agent, is_agent);
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -351,7 +348,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
+    ManageTokens.updateMultipleReservedTokens(destinations, num_tokens, num_percents, percent_decimals);
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -364,7 +361,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.removeReservedTokens(destination);
+    ManageTokens.removeReservedTokens(destination);
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -377,7 +374,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.distributeReservedTokens(num_destinations);
+    ManageTokens.distributeReservedTokens(num_destinations);
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -390,7 +387,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.finalizeCrowdsaleAndToken();
+    ManageTokens.finalizeCrowdsaleAndToken();
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -403,7 +400,7 @@ library Admin {
     // Check preconditions for execution -
     Contract.checks(first);
     // Execute approval function -
-    ManageTokensAdmin.distributeAndUnlockTokens();
+    ManageTokens.distributeAndUnlockTokens();
     // Check postconditions for execution -
     Contract.checks(last);
     // Commit state changes to storage -
@@ -422,5 +419,4 @@ library Admin {
     // Commit state changes to storage -
     Contract.commit();
   }
-
 }
