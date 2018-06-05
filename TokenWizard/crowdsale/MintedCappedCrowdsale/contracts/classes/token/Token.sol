@@ -155,8 +155,6 @@ library Token {
     return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)];
   }
 
-  // Function selectors
-  bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
 
   // Preconditions for Transfer - none
   function transfer_first() internal view {

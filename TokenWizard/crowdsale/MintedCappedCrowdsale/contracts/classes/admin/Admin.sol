@@ -239,8 +239,8 @@ library Admin {
     return [UPDATE_DURATION_SIG, exec_id, bytes32(duration)];
   }
 
-  function TOKEN_INIT(bytes32 exec_id, bytes32 name, bytes32 symbol) private pure returns (bytes32[4] memory) {
-    return [CROWDSALE_TOKEN_INIT, exec_id, name, symbol];
+  function TOKEN_INIT(bytes32 exec_id, bytes32 _name, bytes32 _symbol) private pure returns (bytes32[4] memory) {
+    return [CROWDSALE_TOKEN_INIT, exec_id, _name, _symbol];
   }
 
   function MIN_UPDATE(bytes32 exec_id) private pure returns (bytes32[2] memory) {
@@ -292,7 +292,7 @@ library Admin {
     ) revert("array length mismatch");
 
 
-    uint total_duration = uint(Contract.read(total_duration()));
+    uint _total_duration = uint(Contract.read(total_duration()));
     uint num_tiers = uint(Contract.read(crowdsale_tiers()));
     uint base_storage = 0;
 
@@ -316,12 +316,12 @@ library Admin {
       // Ensure valid input -
       if (
         tier_caps[i] == 0
-        || total_duration + tier_durations[i] <= total_duration
+        || _total_duration + tier_durations[i] <= _total_duration
         || tier_prices[i] == 0
       ) revert("invalid tier vals");
 
       // Increment total duration of the crowdsale
-      total_duration = total_duration.add(tier_durations[i]);
+      _total_duration = _total_duration.add(tier_durations[i]);
       // Store tier information
       Contract.set(
         bytes32(base_storage)
@@ -353,7 +353,7 @@ library Admin {
     // Store new total crowdsale duration
     Contract.set(
       total_duration()
-    ).to(total_duration);
+    ).to(_total_duration);
 
     // Set up EMITS action requests -
     Contract.emitting();
@@ -456,7 +456,7 @@ library Admin {
       revert('invalid duration');
 
     uint starts_at = uint(Contract.read(start_time()));
-    uint current_tier = uint(Contract.read(current_tier()));
+    uint _current_tier = uint(Contract.read(current_tier()));
     uint _total_duration = uint(Contract.read(total_duration()));
     uint _ends_at = uint(Contract.read(ends_at()));
     uint previous_duration = uint(Contract.read(
@@ -471,26 +471,26 @@ library Admin {
     if (_total_duration < previous_duration)
       revert("total duration invalid");
     // Indices are off-by-one in storage - so the stored current tier index should never be 0
-    if (current_tier == 0)
+    if (_current_tier == 0)
       revert("invalid crowdsale setup");
 
     Contract.storing();
 
     // Normalize returned current tier index
-    current_tier--;
+    _current_tier--;
 
     // Check returned values for valid crowdsale and tier status -
     if (
       address(Contract.read(admin())) != Contract.sender()
       || Contract.read(is_final()) == bytes32(1)                  
       || uint(Contract.read(crowdsale_tiers())) <= tier_index 
-      || current_tier > tier_index 
-      || (current_tier == tier_index 
+      || _current_tier > tier_index 
+      || (_current_tier == tier_index 
          && tier_index != 0)
       || Contract.read(bytes32(160 + (192 * tier_index) + uint(crowdsale_tiers()))) == 0
     ) revert("invalid crowdsale status");
 
-    if (tier_index == 0 && current_tier == 0) {
+    if (tier_index == 0 && _current_tier == 0) {
       if (now >= starts_at) 
         revert("cannot modify current tier");
 
@@ -499,18 +499,18 @@ library Admin {
         ends_at()
       ).to(new_duration.add(starts_at));
 
-    } else if (tier_index > current_tier && now >= _ends_at) {
-      if (tier_index - current_tier == 1)
+    } else if (tier_index > _current_tier && now >= _ends_at) {
+      if (tier_index - _current_tier == 1)
         revert("cannot modify current tier");
 
-      for (uint i = current_tier; i < tier_index; i++)
+      for (uint i = _current_tier; i < tier_index; i++)
         _ends_at = _ends_at.add(uint(Contract.read(bytes32(128 + (192 * i) + uint(crowdsale_tiers())))));
 
       if (now <= _ends_at)
         revert("cannot modify current tier");
 
 
-    } else if (tier_index <= current_tier || now >= _ends_at) {
+    } else if (tier_index <= _current_tier || now >= _ends_at) {
       // Not a valid state to update - throw
       revert('invalid state');
     }
@@ -546,8 +546,8 @@ library Admin {
   // event CrowdsaleFinalized(bytes32 indexed exec_id);
   bytes32 internal constant CROWDSALE_FINALIZED = keccak256("CrowdsaleFinalized(bytes32)");
 
-  function INITIALIZE(bytes32 exec_id, bytes32 name) private pure returns (bytes32[3] memory) {
-    return [CROWDSALE_INITIALIZED, exec_id, name];
+  function INITIALIZE(bytes32 exec_id, bytes32 _name) private pure returns (bytes32[3] memory) {
+    return [CROWDSALE_INITIALIZED, exec_id, _name];
   }
 
   function FINALIZE(bytes32 exec_id) private pure returns (bytes32[2] memory) {
