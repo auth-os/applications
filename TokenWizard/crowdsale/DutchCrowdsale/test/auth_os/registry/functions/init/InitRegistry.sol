@@ -91,35 +91,10 @@ library InitRegistry {
   function getProviderInfo(address _storage, bytes32 _exec_id, bytes32 _provider) public view
   returns (bytes32[] memory registered_apps) {
     // Ensure valid input
-    require(_storage != address(0) && _exec_id != bytes32(0) && _provider != bytes32(0));
+    if (_storage == address(0) || _exec_id == bytes32(0) || _provides == bytes32(0))
+      revert("Invalid input");
 
-    // Create 'read' calldata buffer in memory
-    uint ptr = cdBuff(RD_SING);
-    // Push exec id to calldata buffer
-    cdPush(ptr, _exec_id);
-    // Place provider app list storage location in calldata buffer
-    cdPush(ptr, keccak256(PROVIDER_APP_LIST, keccak256(_provider, PROVIDERS)));
-    // Read single value from storage, and place return in buffer
-    uint app_count = uint(readSingleFrom(ptr, _storage));
-
-    // If the provider has not registered any applications, return an empty array
-    if (app_count == 0)
-      return registered_apps;
-
-    // Overwrite previous read buffer with readMulti buffer
-    cdOverwrite(ptr, RD_MULTI);
-    // Place exec id, data read offset, and read size in calldata buffer
-    cdPush(ptr, _exec_id);
-    cdPush(ptr, 0x40);
-    cdPush(ptr, bytes32(app_count));
-    // Get base storage location for provider app list
-    uint provider_list_storage = uint(keccak256(PROVIDER_APP_LIST, keccak256(_provider, PROVIDERS)));
-    // Loop over app coutn and store list index locations in calldata buffer
-    for (uint i = 1; i <= app_count; i++)
-      cdPush(ptr, bytes32((32 * i) + provider_list_storage));
-
-    // Read from storage and store return in buffer
-    registered_apps = readMultiFrom(ptr, _storage);
+    uint num_apps = Contract.read()
   }
 
   /*

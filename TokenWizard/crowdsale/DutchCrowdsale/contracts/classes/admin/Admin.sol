@@ -35,7 +35,12 @@ library Admin {
   // Returns the storage location of crowdsale's minimum contribution
   function minContribution() internal pure returns (bytes32 location) {
   	location = keccak256("crowdsale_min_cap");
-  }  
+  } 
+
+  // Returns the storage location of crowdsale's max number of tokens to sell
+  function maxSellCap() internal pure returns (bytes32 location) {
+    location = keccak256("token_sell_cap");
+  } 
   
   // Storage seed for crowdsale's unique contributors
   bytes32 internal constant CROWDSALE_UNIQUE_CONTRIBUTORS = keccak256("crowdsale_contributors");
