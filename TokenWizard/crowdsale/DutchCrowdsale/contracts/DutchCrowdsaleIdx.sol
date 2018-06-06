@@ -9,6 +9,13 @@ library DutchCrowdsaleIdx {
   using Contract for *;
   using ArrayUtils for bytes32[]; 
 
+  bytes32 internal constant EXEC_PERMISSIONS = keccak256('script_exec_permissions');
+
+  // Returns the storage location of a script execution address's permissions -
+  function execPermissions(address _exec) internal pure returns (bytes32 location) {
+    location = keccak256(_exec, EXEC_PERMISSIONS);
+  }
+
   // Crowdsale fields - 
 
   //Returns the storage location of the admin of the crowdsale
@@ -142,6 +149,60 @@ library DutchCrowdsaleIdx {
 
   function transferAgentStatus(address _sender) internal pure returns (bytes32 location) {
   	location = keccak256(keccak256(_sender), TOKEN_TRANSFER_AGENTS); 
+  }
+
+  /// INIT FUNCTION ///
+
+  /*
+  Creates a DutchCrowdsale with the specified initial conditions. The admin should now initialize the crowdsale's token, 
+  as well as any additional features of the crowdsale that will exist. Then, initialize the crowdsale as a whole.
+  */
+  function init(
+    address _wallet, uint _total_supply, uint _max_amount_to_sell, uint _starting_rate,
+    uint _ending_rate, uint _duration, uint _start_time, bool _sale_is_whitelisted,
+    address _admin
+  ) internal view {
+    //Ensure valid input
+    if (
+      _wallet == address(0)
+      || _max_amount_to_sell == 0
+      || _max_amount_to_sell > _total_supply
+      || _starting_rate <= _ending_rate
+      || _ending_rate == 0
+      || _start_time <= now
+      || _duration + _start_time <= _start_time
+      || _admin == address(0)
+    ) revert("Improper Initialization");
+
+    // Begin storing values
+    Contract.storing();
+    //Set instance script exec address permission - 
+    Contract.set(execPermissions(msg.sender)).to(true);
+    // Store wallet address
+    Contract.set(wallet()).to(_wallet);
+    //store total supply of token
+    Contract.set(tokenTotalSupply()).to(_total_supply);
+    //store max amount of token to sell in tokens_remaining and max_token_sell_cap
+    Contract.set(tokensRemaining()).to(_max_amount_to_sell);
+    Contract.set(maxSellCap()).to(_max_amount_to_sell);
+    //store starting rate of token
+    Contract.set(startRate()).to(_starting_rate);
+    //store ending rate of token
+     Contract.set(endRate()).to(_ending_rate);
+    //store duration of crowdsale
+     Contract.set(duration()).to(_duration); 
+    //store start time of crowdsale
+     Contract.set(startTime()).to(_start_time);
+    // store whether or not the crowdsale is whitelisted
+     Contract.set(isWhitelisted()).to(_sale_is_whitelisted);
+    // store the admin address
+     Contract.set(admin()).to(_admin);
+    //assign all excess tokens to the admin
+    Contract.set(
+      balances(_admin)
+    ).to(_total_supply - _max_amount_to_sell);
+
+    Contract.commit();
   }
 
 

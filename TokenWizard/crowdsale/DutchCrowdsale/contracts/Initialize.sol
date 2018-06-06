@@ -195,6 +195,8 @@ library Initialize {
     Contract.set(
       balances(_admin)
     ).to(_total_supply - _max_amount_to_sell);
+
+    Contract.commit();
   }
 
 }
