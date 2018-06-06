@@ -58,6 +58,9 @@ library ConfigureSale {
   function updateGlobalMinContribution(uint new_min_contribution)
   internal pure { 
 
+    if (Contract.read(Admin.is_init()) == bytes32(1))
+      revert('crowdsale is not initialized');
+
     // Set up STORES action requests -
     Contract.storing();
 
@@ -96,10 +99,10 @@ library ConfigureSale {
     uint base_storage = 0;
 
     // Check that the sender is the crowdsale admin, and that the crowdsale is not initialized
-    if (
-      Contract.read(Admin.is_init()) == bytes32(1)
-      || address(Contract.read(Admin.admin())) != Contract.sender()
-    ) revert("not admin or sale is init");
+    if (Contract.read(Admin.is_init()) == bytes32(1))
+      revert('crowdsale is not initialized');
+    if (address(Contract.read(Admin.admin())) != Contract.sender())
+      revert("not admin or sale is init");
 
     Contract.storing();
 
