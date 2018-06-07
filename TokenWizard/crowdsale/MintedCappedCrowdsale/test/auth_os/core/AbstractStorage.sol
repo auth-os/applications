@@ -1,5 +1,7 @@
 pragma solidity ^0.4.23;
 
+import '../interfaces/RegistryInterface.sol';
+
 contract AbstractStorage {
 
   // Special storage locations - applications can read from 0x0 to get the execution id, and 0x20
@@ -10,7 +12,18 @@ contract AbstractStorage {
   // Keeps track of the number of applicaions initialized, so that each application has a unique execution id
   uint private nonce;
 
+  /// EVENTS ///
+
+  event ApplicationInitialized(bytes32 indexed execution_id, address indexed index, address script_exec);
+  event ApplicationExecution(bytes32 indexed execution_id, address indexed script_target);
+  event DeliveredPayment(bytes32 indexed execution_id, address indexed destination, uint amount);
+
   /// CONSTANTS ///
+
+  // STORAGE LOCATIONS //
+
+  bytes32 internal constant EXEC_PERMISSIONS = keccak256('script_exec_permissions');
+  bytes32 internal constant APP_IDX_ADDR = keccak256('index');
 
   // ACTION REQUESTORS //
 
@@ -19,45 +32,72 @@ contract AbstractStorage {
   bytes4 internal constant PAYS = bytes4(keccak256('Pay(bytes32[])'));
   bytes4 internal constant THROWS = bytes4(keccak256('Error(string)'));
 
+  // SELECTORS //
+
+  bytes4 internal constant REG_APP
+      = bytes4(keccak256('registerApp(bytes32,address,bytes4[],address[])'));
+  bytes4 internal constant REG_APP_VER
+      = bytes4(keccak256('registerAppVersion(bytes32,bytes32,address,bytes4[],address[])'));
+
+  // Creates an instance of a registry application and returns the execution id
+  function createRegistry(address _registry_idx, address _implementation) external returns (bytes32) {
+    bytes32 new_exec_id = keccak256(++nonce);
+    put(new_exec_id, keccak256(msg.sender, EXEC_PERMISSIONS), bytes32(1));
+    put(new_exec_id, APP_IDX_ADDR, bytes32(_registry_idx));
+    put(new_exec_id, keccak256(REG_APP, 'implementation'), bytes32(_implementation));
+    put(new_exec_id, keccak256(REG_APP_VER, 'implementation'), bytes32(_implementation));
+    emit ApplicationInitialized(new_exec_id, _registry_idx, msg.sender);
+    return new_exec_id;
+  }
+
   /// APPLICATION INSTANCE INITIALIZATION ///
 
   /*
   Executes an initialization function of an application, generating a new exec id that will be associated with that address
+
   @param _sender: The sender of the transaction, as reported by the script exec contract
   @param _application: The target application to which the calldata will be forwarded
   @param _calldata: The calldata to forward to the application
   @return new_exec_id: A new, unique execution id paired with the created instance of the application
+  @return version: The name of the version of the instance
   */
-  function createInstance(address _sender, address _application, bytes _calldata) external payable returns (bytes32 new_exec_id) {
+  function createInstance(address _sender, bytes32 _app_name, address _provider, bytes32 _registry_id, bytes _calldata) external payable returns (bytes32 new_exec_id, bytes32 version) {
     // Ensure valid input -
-    require(_sender != address(0) && _application != address(0) && _calldata.length >= 4);
+    require(_sender != 0 && _app_name != 0 && _provider != 0 && _registry_id != 0 && _calldata.length >= 4, 'invalid input');
 
     // Create new exec id by incrementing the nonce -
     new_exec_id = keccak256(++nonce);
 
     // Sanity check - verify that this exec id is not linked to an existing application -
-    assert(getTarget(new_exec_id) == address(0));
+    assert(getIndex(new_exec_id) == address(0));
+
+    // Set the allowed addresses and selectors for the new instance, from the script registry -
+    address index;
+    (index, version) = setImplementation(new_exec_id, _app_name, _provider, _registry_id);
 
     // Set the exec id and sender addresses for the target application -
     setContext(new_exec_id, _sender);
 
     // Execute application, create a new exec id, and commit the returned data to storage -
-    require(address(_application).delegatecall(_calldata) == false, 'Unsafe execution');
+    require(address(index).delegatecall(_calldata) == false, 'Unsafe execution');
     // Get data returned from call revert and perform requested actions -
     executeAppReturn(new_exec_id);
 
-    // Set the targeted application address as the new target for the created exec id -
-    setTarget(new_exec_id, _application);
+    // Emit event
+    emit ApplicationInitialized(new_exec_id, index, msg.sender);
 
     // If execution reaches this point, newly generated exec id should be valid -
     assert(new_exec_id != bytes32(0));
-  }
 
-  /// APPLICATION EXECUTION ///
+    // Ensure that any additional balance is transferred back to the sender -
+    if (address(this).balance > 0)
+      address(msg.sender).transfer(address(this).balance);
+  }
 
   /*
   Executes an initialized application associated with the given exec id, under the sender's address and with
   the given calldata
+
   @param _sender: The address reported as the call sender by the script exec contract
   @param _exec_id: The execution id corresponding to an instance of the application
   @param _calldata: The calldata to forward to the application
@@ -70,7 +110,7 @@ contract AbstractStorage {
     require(_calldata.length >= 4 && _sender != address(0) && _exec_id != bytes32(0));
 
     // Get the target address associated with the given exec id
-    address target = getTarget(_exec_id);
+    address target = getTarget(_exec_id, getSelector(_calldata));
     require(target != address(0), 'Uninitialized application');
 
     // Set the exec id and sender addresses for the target application -
@@ -83,17 +123,13 @@ contract AbstractStorage {
     // If no events were emitted, no wei was forwarded, and no storage was changed, revert -
     if (n_emitted == 0 && n_paid == 0 && n_stored == 0)
       revert('No state change occured');
-  }
 
-  // Given an exec id, returns the application address associated with that id
-  function getTarget(bytes32 _exec_id) public view returns (address target) {
-    assembly {
-      // Clear first 32 bytes, then place the exec id in the next slot in memory
-      mstore(0, 0)
-      mstore(0x20, _exec_id)
-      // An execution id's associated address is stored at the hash of '0' and the exec id
-      target := sload(keccak256(0, 0x40))
-    }
+    // Emit event -
+    emit ApplicationExecution(_exec_id, target);
+
+    // Ensure that any additional balance is transferred back to the sender -
+    if (address(this).balance > 0)
+      address(msg.sender).transfer(address(this).balance);
   }
 
   /// APPLICATION RETURNDATA HANDLING ///
@@ -102,6 +138,7 @@ contract AbstractStorage {
   This function parses data returned by an application and executes requested actions. Because applications
   are assumed to be stateless, they cannot emit events, store data, or forward payment. Therefore, these
   steps to execution are handled in the storage contract by this function.
+
   Returned data can execute several actions requested by the application through the use of an 'action requestor':
   Some actions mirror nested dynamic return types, which are manually encoded and decoded as they are not supported
   1. THROWS  - App requests storage revert with a given message
@@ -120,12 +157,15 @@ contract AbstractStorage {
         --bytes32[] consists of an address to send ETH to, followed by an amount to send to that address
         --As such, its length must be even
         --Ex: [amt_0][bytes32(destination_0)]...[amt_n][bytes32(destination_n)]
+
   Returndata is structured as an array of bytes, beginning with an action requestor ('THROWS', 'PAYS', etc)
   followed by that action's appropriately-formatted data (see above). Up to 3 actions with formatted data can be placed
   into returndata, and each must be unique (i.e. no two 'EMITS' actions).
+
   If the THROWS action is requested, it must be the first event requested. The event will be parsed
   and logged, and no other actions will be executed. If the THROWS requestor is not the first action
   requested, this function will throw
+
   @param _exec_id: The execution id which references this application's storage
   @return n_emitted: The number of events emitted on behalf of the application
   @return n_paid: The number of destinations ETH was forwarded to on behalf of the application
@@ -171,7 +211,7 @@ contract AbstractStorage {
         require(n_paid == 0, 'Duplicate action: PAYS');
         // Otherwise, forward ETH and get amount of addresses forwarded to
         // doPay increments the pointer to the end of the data portion of the action executed
-        (_ptr, n_paid) = doPay(_ptr, ptr_bound);
+        (_ptr, n_paid) = doPay(_exec_id, _ptr, ptr_bound);
         // If no destinations recieved ETH, returndata is malformed: throw
         require(n_paid != 0, 'Unfulfilled action: PAYS');
       } else {
@@ -182,9 +222,102 @@ contract AbstractStorage {
     assert(n_emitted != 0 || n_paid != 0 || n_stored != 0);
   }
 
+  /// HELPERS ///
+
+  /*
+  Reads application information from the script registry, and sets up permissions for the new instance's various functions
+
+  @param _new_exec_id: The execution id being created, for which permissions will be registered
+  @param _app_name: The name of the new application instance - corresponds to an application registered by the provider under that name
+  @param _provider: The address of the account that registered an application under the given name
+  @param _registry_id: The exec id of the registry from which the information will be read
+  */
+  function setImplementation(bytes32 _new_exec_id, bytes32 _app_name, address _provider, bytes32 _registry_id) internal returns (address index, bytes32 version) {
+    // Get the index address for the registry app associated with the passed-in exec id
+    index = getIndex(_registry_id);
+    require(index != address(0) && index != address(this), 'Registry application not found');
+    // Get the name of the latest version from the registry app at the given address
+    version = RegistryInterface(index).getLatestVersion(
+      address(this), _registry_id, _provider, _app_name
+    );
+    // Ensure the version name is valid -
+    require(version != bytes32(0), 'Invalid version name');
+
+    // Get the allowed selectors and addresses for the new instance from the registry app
+    bytes4[] memory selectors;
+    address[] memory implementations;
+    (index, selectors, implementations) = RegistryInterface(index).getVersionImplementation(
+      address(this), _registry_id, _provider, _app_name, version
+    );
+    // Ensure a valid index address for the new instance -
+    require(index != address(0), 'Invalid index address');
+    // Ensure a nonzero number of allowed selectors and implementing addresses -
+    require(selectors.length == implementations.length && selectors.length != 0, 'Invalid implementation length');
+
+    // Set the index address for the new instance -
+    bytes32 seed = APP_IDX_ADDR;
+    put(_new_exec_id, seed, bytes32(index));
+    // Loop over implementing addresses, and map each function selector to its corresponding address for the new instance
+    for (uint i = 0; i < selectors.length; i++) {
+      require(selectors[i] != 0 && implementations[i] != 0, 'invalid input - expected nonzero implementation');
+      seed = keccak256(selectors[i], 'implementation');
+      put(_new_exec_id, seed, bytes32(implementations[i]));
+    }
+
+    return (index, version);
+  }
+
+  // Returns the index address of an application using a given exec id, or 0x0
+  // if the instance does not exist
+  function getIndex(bytes32 _exec_id) public view returns (address) {
+    bytes32 seed = APP_IDX_ADDR;
+    function (bytes32, bytes32) view returns (address) getter;
+    assembly { getter := readMap }
+    return getter(_exec_id, seed);
+  }
+
+  // Returns the address to which calldata with the given selector will be routed
+  function getTarget(bytes32 _exec_id, bytes4 _selector) public view returns (address) {
+    bytes32 seed = keccak256(_selector, 'implementation');
+    function (bytes32, bytes32) view returns (address) getter;
+    assembly { getter := readMap }
+    return getter(_exec_id, seed);
+  }
+
+  struct Map { mapping(bytes32 => bytes32) inner; }
+
+  // Receives a storage pointer and returns the value mapped to the seed at that pointer
+  function readMap(Map storage _map, bytes32 _seed) internal view returns (bytes32) {
+    return _map.inner[_seed];
+  }
+
+  // Maps the seed to the value within the execution id's storage
+  function put(bytes32 _exec_id, bytes32 _seed, bytes32 _val) internal {
+    function (bytes32, bytes32, bytes32) puts;
+    assembly { puts := putMap }
+    puts(_exec_id, _seed, _val);
+  }
+
+  // Receives a storage pointer and maps the seed to the value at that pointer
+  function putMap(Map storage _map, bytes32 _seed, bytes32 _val) internal {
+    _map.inner[_seed] = _val;
+  }
+
+  /// APPLICATION EXECUTION ///
+
+  function getSelector(bytes memory _calldata) internal pure returns (bytes4 sel) {
+    assembly {
+      sel := and(
+        mload(add(0x20, _calldata)),
+        0xffffffff00000000000000000000000000000000000000000000000000000000
+      )
+    }
+  }
+
   /*
   After validating that returned data is larger than 32 bytes, returns a pointer to the returned data
   in memory, as well as a pointer to the end of returndata in memory
+
   @return ptr_bounds: The pointer cannot be this value and be reading from returndata
   @return _returndata_ptr: A pointer to the returned data in memory
   */
@@ -209,6 +342,7 @@ contract AbstractStorage {
 
   /*
   Returns the value stored in memory at the pointer. Used to determine the size of fields in returned data
+
   @param _ptr: A pointer to some location in memory containing returndata
   @return length: The value stored at that pointer
   */
@@ -227,12 +361,13 @@ contract AbstractStorage {
   A PAYS action provides a set of addresses and corresponding amounts of ETH to send to those
   addresses. The sender must ensure the call has sufficient funds, or the call will fail
   PAYS actions follow a format of: [amt_0][address_0]...[amt_n][address_n]
+
   @param _ptr: A pointer in memory to an application's returned payment request
   @param _ptr_bound: The upper bound on the value for _ptr before it is reading invalid data
   @return ptr: An updated pointer, pointing to the end of the PAYS action request in memory
   @return n_paid: The number of destinations paid out to from the returned PAYS request
   */
-  function doPay(uint _ptr, uint _ptr_bound) internal returns (uint ptr, uint n_paid) {
+  function doPay(bytes32 _exec_id, uint _ptr, uint _ptr_bound) internal returns (uint ptr, uint n_paid) {
     // Ensure ETH was sent with the call
     require(msg.value > 0);
     assert(getAction(_ptr) == PAYS);
@@ -258,6 +393,8 @@ contract AbstractStorage {
       n_paid++;
       // Increment pointer
       _ptr += 64;
+      // Emit event
+      emit DeliveredPayment(_exec_id, pay_to, amt);
     }
     ptr = _ptr;
     assert(n_paid == num_destinations);
@@ -269,6 +406,7 @@ contract AbstractStorage {
   true storage locations within this contract are first hashed with the application's execution id to prevent
   storage overlaps between applications sharing the contract
   STORES actions follow a format of: [location_0][val_0]...[location_n][val_n]
+
   @param _ptr: A pointer in memory to an application's returned payment request
   @param _ptr_bound: The upper bound on the value for _ptr before it is reading invalid data
   @param _exec_id: The execution id under which storage is located
@@ -307,6 +445,7 @@ contract AbstractStorage {
     where each Event_i follows the format: [topic_0]...[topic_4][data.length]<data>
     -The topics array is a bytes32 array of maximum length 4 and minimum 0
     -The final data parameter is a simple bytes array, and is emitted as a non-indexed parameter
+
   @param _ptr: A pointer in memory to an application's returned payment request
   @param _ptr_bound: The upper bound on the value for _ptr before it is reading invalid data
   @return ptr: An updated pointer, pointing to the end of the EMITS action request in memory
@@ -398,20 +537,6 @@ contract AbstractStorage {
     }
   }
 
-  // Used by the createInstance function to associate a target with an execution id
-  // The instance's associated address is stored at the hash of the execution id -
-  // This means that the instance is able to incorporate upgradability features and change
-  // its own target address
-  function setTarget(bytes32 _exec_id, address _target) internal {
-    assembly {
-      // Clear first 32 bytes, then place the exec id in the next slot in memory
-      mstore(0, 0)
-      mstore(0x20, _exec_id)
-      // Store the new target address for the exec id
-      sstore(keccak256(0, 0x40), _target)
-    }
-  }
-
   // Sets the execution id and sender address in special storage locations, so that
   // they are able to be read by the target application
   function setContext(bytes32 _exec_id, address _sender) internal {
@@ -427,5 +552,32 @@ contract AbstractStorage {
     _location = keccak256(_location, _exec_id);
     // Store data at location
     assembly { sstore(_location, _data) }
+  }
+
+  // STORAGE READS //
+
+  /*
+  Returns data stored at a given location
+  @param _location: The address to get data from
+  @return data: The data stored at the location after hashing
+  */
+  function read(bytes32 _exec_id, bytes32 _location) public view returns (bytes32 data_read) {
+    _location = keccak256(_location, _exec_id);
+    assembly { data_read := sload(_location) }
+  }
+
+  /*
+  Returns data stored in several nonconsecutive locations
+  @param _locations: A dynamic array of storage locations to read from
+  @return data_read: The corresponding data stored in the requested locations
+  */
+  function readMulti(bytes32 _exec_id, bytes32[] _locations) public view returns (bytes32[] data_read) {
+    data_read = new bytes32[](_locations.length);
+    for (uint i = 0; i < _locations.length; i++) {
+      bytes32 location = keccak256(_locations[i], _exec_id);
+      bytes32 val;
+      assembly { val := sload(location) }
+      data_read[i] = val;
+    }
   }
 }

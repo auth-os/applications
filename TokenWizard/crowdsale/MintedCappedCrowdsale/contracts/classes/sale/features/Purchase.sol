@@ -1,11 +1,12 @@
 pragma solidity ^0.4.23;
 
 import "../Sale.sol";
-import "../../../lib/Contract.sol";
+import "../../../auth-os/Contract.sol";
 
 library Purchase {
 
   using Contract for *;
+  using SafeMath for uint;
 
   // event Purchase(address indexed buyer, uint indexed tier, uint amount)
   bytes32 internal constant BUY_SIG = keccak256('buy()');
@@ -34,11 +35,6 @@ library Purchase {
       tier_is_whitelisted,
       updated_tier
     ) = getCurrentTier();
-
-    if (
-      uint(Contract.read(Sale.is_init())) == 0 // Crowdsale is not yet initialized
-      || uint(Contract.read(Sale.is_final())) == 1         // Crowdsale is already finalized
-    ) revert('crowdsale invalid state');
 
     // Get amount of wei able to be spent, and tokens able to be purchased
     uint amount_spent;
@@ -158,9 +154,7 @@ library Purchase {
     Contract.log(
       PURCHASE(Contract.sender(), current_tier), bytes32(amount_purchased)
     );
-
   }
-
 
   /*
   Reads from storage and returns information about the current crowdsale tier
@@ -190,15 +184,14 @@ library Purchase {
         tier_ends_at
       ) = updateTier(tier_ends_at, current_tier, num_tiers);
       updated_tier = true;
-    }
-    else {
+    } else {
       (purchase_price, tier_is_whitelisted) = getTierInfo(current_tier);
       updated_tier = false;
     }
 
     // Ensure current tier information is valid -
     if (
-      current_tier >= num_tiers     // Invalid tier index
+      current_tier >= num_tiers       // Invalid tier index
       || purchase_price == 0          // Invalid purchase price
       || tier_ends_at <= now          // Invalid tier end time
     ) revert('invalid index, price, or end time');
@@ -220,7 +213,8 @@ library Purchase {
     // Get the crowdsale purchase price
     purchase_price = uint(Contract.read(Sale.tier_price(current_tier)));
     // Get the current tier's whitelist status
-    tier_is_whitelisted = Contract.read(Sale.tier_is_whitelisted(current_tier)) == bytes32(1) ? true : false;
+    tier_is_whitelisted
+      = Contract.read(Sale.tier_is_whitelisted(current_tier)) == bytes32(1) ? true : false;
   }
 
   /*
@@ -245,18 +239,14 @@ library Purchase {
       // Ensure valid tier setup
       if (tokens_remaining == 0 || purchase_price == 0 || tier_duration == 0)
         revert('invalid tier');
-      // Add returned duration to previous tier end time
-      if (ends_at + tier_duration <= ends_at)
-        revert('tier duration overflow');
 
-      ends_at += tier_duration;
+      ends_at = ends_at.add(tier_duration);
     }
     // If the updated current tier's index is not in the valid range, or the end time is still in the past, throw
     if (now >= ends_at || current_tier >= num_tiers)
       revert('crowdsale finished');
 
     tier_ends_at = ends_at;
-
   }
 
   function getPurchaseInfo(
@@ -268,10 +258,10 @@ library Purchase {
     bool tier_is_whitelisted
   ) private view returns (uint amount_spent, uint amount_purchased) {
     // Get amount of wei able to be spent, given the number of tokens remaining -
-    if ((msg.value * (10 ** token_decimals)) / purchase_price >= tokens_remaining) {
+    if (msg.value.mul(10 ** token_decimals).div(purchase_price) >= tokens_remaining) {
       // wei sent is able to purchase more tokens than are remaining in this tier -
       amount_spent =
-        (purchase_price * tokens_remaining) / (10 ** token_decimals);
+        purchase_price.mul(tokens_remaining).div(10 ** token_decimals);
     } else {
       // All of the wei sent can be used to purchase tokens
       amount_spent = msg.value;
@@ -282,7 +272,7 @@ library Purchase {
       if (amount_spent > maximum_spend_amount)
         amount_spent = maximum_spend_amount;
       // Decrease spender's spend amount remaining by the amount spent
-      maximum_spend_amount -= amount_spent;
+      maximum_spend_amount = maximum_spend_amount.sub(amount_spent);
     }
 
     // Ensure spend amount is valid -
@@ -291,7 +281,7 @@ library Purchase {
 
     // Get number of tokens able to be purchased with the amount spent -
     amount_purchased =
-      (amount_spent * (10 ** token_decimals) / purchase_price);
+      amount_spent.mul(10 ** token_decimals).div(purchase_price);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in this tier -
     if (amount_purchased > tokens_remaining || amount_purchased == 0)

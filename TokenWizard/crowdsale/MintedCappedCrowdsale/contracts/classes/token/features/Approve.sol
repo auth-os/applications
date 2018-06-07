@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
 import "../Token.sol";
-import "../../../lib/Contract.sol";
+import "../../../auth-os/Contract.sol";
 
 library Approve {
 
@@ -10,18 +10,11 @@ library Approve {
   // event Approval(address indexed owner, address indexed spender, uint tokens)
   bytes32 internal constant APPROVAL_SIG = keccak256('Approval(address,address,uint256)');
 
-  // Preconditions for Approve - none
-  function first() internal pure { }
-
-  // Postconditions for Approve - none
-  function last() internal pure { }
-
   // Returns the events and data for an 'Approval' event -
   function APPROVAL (address _owner, address _spender) private pure
   returns (bytes32[3] memory) {
     return [APPROVAL_SIG, bytes32(_owner), bytes32(_spender)];
   }
-
 
   // Implements the logic to create the storage buffer for a Token Approval
   function approve(address _spender, uint _amt) internal pure {
@@ -63,7 +56,7 @@ library Approve {
     Contract.decrease(
       Token.allowed(Contract.sender(), _spender)
     ).byMaximum(_amt);
-    
+
     // Finish storing, and begin logging events -
     Contract.emitting();
     // Log 'Approval' event -

@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import "../../../lib/Contract.sol";
+import "../../../auth-os/Contract.sol";
 import "../Token.sol";
 
 library Transfer {
@@ -15,17 +15,13 @@ library Transfer {
     return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)];
   }
 
-  // Function selectors
-  bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
-
-  // Preconditions for Transfer - none
-  function first() internal view {
-    if (msg.sig == TRANSFER_FROM_SEL) 
-      Contract.checks(isTransferAgent);
+  // Ensures the sender is a transfer agent, or that the tokens are unlocked
+  function canTransfer() internal view {
+    if (
+      Contract.read(Token.transferAgent(Contract.sender())) == 0 &&
+      Contract.read(Token.tokensUnlocked()) == 0
+    ) revert('transfers are locked');
   }
-
-  // Postconditions for Transfer - none
-  function last() internal pure { }
 
   // Implements the logic for a token transfer -
   function transfer(address _dest, uint _amt)
@@ -33,6 +29,9 @@ library Transfer {
     // Ensure valid input -
     if (_dest == address(0))
       revert('invalid recipient');
+
+    // Ensure the sender can currently transfer tokens
+    Contract.checks(canTransfer);
 
     // Begin updating balances -
     Contract.storing();
@@ -62,6 +61,12 @@ library Transfer {
     if (_owner == address(0))
       revert('invalid owner');
 
+    // Owner must be able to transfer tokens -
+    if (
+      Contract.read(Token.transferAgent(_owner)) == 0 &&
+      Contract.read(Token.tokensUnlocked()) == 0
+    ) revert('transfers are locked');
+
     // Begin updating balances -
     Contract.storing();
     // Update spender token allowance - reverts in case of underflow
@@ -84,13 +89,4 @@ library Transfer {
       TRANSFER(_owner, _dest), bytes32(_amt)
     );
   }
-
-  // Precondition for transferFrom
-  function isTransferAgent() internal view {
-    if (
-      uint(Contract.read(Token.transferAgent(Contract.sender()))) == 0
-      && uint(Contract.read(Token.tokensUnlocked())) == 0
-    ) revert('transfers are locked');
-  }
-
 }

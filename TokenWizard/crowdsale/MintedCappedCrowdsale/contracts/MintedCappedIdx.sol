@@ -1,8 +1,8 @@
 pragma solidity ^0.4.23;
 
-import './lib/Contract.sol';
-import './interfaces/GetterInterface.sol';
-import './lib/ArrayUtils.sol';
+import './auth-os/Contract.sol';
+import './auth-os/GetterInterface.sol';
+import './auth-os/ArrayUtils.sol';
 
 library MintedCappedIdx {
 
@@ -70,7 +70,7 @@ library MintedCappedIdx {
     ).to(_start_time);
     // Store initial crowdsale tier list length and initial tier information
     Contract.set(
-      crowdsale_tiers() 
+      crowdsale_tiers()
     ).to(uint(1));
     // Tier name
     Contract.set(
@@ -216,13 +216,13 @@ library MintedCappedIdx {
   function balances(address owner) internal pure returns (bytes32 location) {
     location = keccak256(keccak256(owner), TOKEN_BALANCES);
   }
-  
+
   // Storage seed for user allowances mapping
   bytes32 internal constant TOKEN_ALLOWANCES = keccak256("token_allowances");
-  
+
   function allowances(address owner, address spender) internal pure returns (bytes32 location) {
     location = keccak256(keccak256(spender), keccak256(keccak256(owner), TOKEN_ALLOWANCES));
-  } 
+  }
 
   // Storage seed for token 'transfer agent' status for any address
   // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
@@ -241,7 +241,7 @@ library MintedCappedIdx {
   function reserved_destinations() internal pure returns (bytes32 location) {
     location = keccak256("token_reserved_dest_list");
   }
-  
+
   // Storage seed for reserved token information for a given address
   // Maps an address for which tokens are reserved to a struct:
   // ReservedInfo { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
@@ -252,8 +252,6 @@ library MintedCappedIdx {
     location = keccak256(keccak256(destination), TOKEN_RESERVED_ADDR_INFO);
   }
 
-
-
   /*
   Returns the address of the admin of the crowdsale
   @param _storage: The application's storage address
@@ -261,7 +259,6 @@ library MintedCappedIdx {
   @return admin: The address of the admin of the crowdsale
   */
   function getAdmin(address _storage, bytes32 exec_id) external view returns (address _admin) {
-
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage and get return value
@@ -286,7 +283,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](5);
-    
+
     arr_indices[0] = wei_raised();
     arr_indices[1] = wallet();
     arr_indices[2] = min_cap();
@@ -367,7 +364,7 @@ library MintedCappedIdx {
 
     bytes32[] memory arr_indices = new bytes32[](2);
     arr_indices[0] = start_time();
-    arr_indices[1] = total_duration(); 
+    arr_indices[1] = total_duration();
     // Read from storage
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
     // Ensure correct return length
@@ -378,7 +375,7 @@ library MintedCappedIdx {
     _end_time = _start_time + read_values[1];
   }
 
-  /* 
+  /*
   Returns information on the current crowdsale tier
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -434,7 +431,7 @@ library MintedCappedIdx {
     whitelist_enabled = (read_values[3] == 0 ? false : true);
   }
 
-  /* 
+  /*
   Returns information on a given tier
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -449,12 +446,12 @@ library MintedCappedIdx {
   function getCrowdsaleTier(address _storage, bytes32 exec_id, uint _index) public view
   returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_duration, bool duration_is_modifiable, bool whitelist_enabled) {
     GetterInterface target = GetterInterface(_storage);
-    
+
     bytes32[] memory arr_indices = new bytes32[](6);
     // Get tier offset storage location
     uint tier_info_location = 32 + (192 * _index) + uint(crowdsale_tiers());
     // Push tier name, sell cap, duration, and modifiable status storage locations to buffer
-    arr_indices[0] = bytes32(tier_info_location); 
+    arr_indices[0] = bytes32(tier_info_location);
     arr_indices[1] = bytes32(32 + tier_info_location);
     arr_indices[2] = bytes32(64 + tier_info_location);
     arr_indices[3] = bytes32(96 + tier_info_location);
@@ -483,12 +480,12 @@ library MintedCappedIdx {
   */
   function getCrowdsaleMaxRaise(address _storage, bytes32 exec_id) public view returns (uint wei_raise_cap, uint total_sell_cap) {
     GetterInterface target = GetterInterface(_storage);
-    
+
     bytes32[] memory arr_indices = new bytes32[](3);
     // Push crowdsale tier list length, token decimals, and token name storage locations to buffer
     arr_indices[0] = crowdsale_tiers();
-    arr_indices[1] = token_decimals(); 
-    arr_indices[2] = token_name(); 
+    arr_indices[1] = token_decimals();
+    arr_indices[2] = token_name();
 
     // Read from storage
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -562,7 +559,7 @@ library MintedCappedIdx {
 
     // Add crowdsale tier list length and crowdsale start time to buffer
     arr_indices[0] = crowdsale_tiers();
-    arr_indices[1] = start_time(); 
+    arr_indices[1] = start_time();
     // Get storage read offset for initial tier duration, then loop over each tier until _index and add their duration storage locations to the read buffer
     bytes32 duration_offset = bytes32(128 + uint(crowdsale_tiers()));
 
@@ -665,7 +662,7 @@ library MintedCappedIdx {
 
   /// TOKEN GETTERS ///
 
-  /* 
+  /*
   Returns the balance of an address
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -680,7 +677,7 @@ library MintedCappedIdx {
     owner_balance = uint(target.read(exec_id, balances(_owner)));
   }
 
-  /* 
+  /*
   Returns the amount of tokens a spender may spend on an owner's behalf
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -696,7 +693,7 @@ library MintedCappedIdx {
     allowed = uint(target.read(exec_id, allowances(_owner, _spender)));
   }
 
-  /* 
+  /*
   Returns the number of display decimals for a token
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -710,7 +707,7 @@ library MintedCappedIdx {
     _token_decimals = uint(target.read(exec_id, token_decimals()));
   }
 
-  /* 
+  /*
   Returns the total token supply of a given token app instance
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -737,7 +734,7 @@ library MintedCappedIdx {
     _token_name = target.read(exec_id, token_name());
   }
 
-  /* 
+  /*
   Returns the ticker symbol of a given token app instance
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -750,7 +747,7 @@ library MintedCappedIdx {
     _token_symbol = target.read(exec_id, token_symbol());
   }
 
-  /* 
+  /*
   Returns general information on a token - name, symbol, decimals, and total supply
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under which storage for this instance is located
@@ -769,7 +766,7 @@ library MintedCappedIdx {
     arr_indices[1] = token_symbol();
     arr_indices[2] = token_decimals();
     arr_indices[3] = total_supply();
-    
+
     // Read from storage
     bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
     // Ensure correct return length
@@ -797,7 +794,7 @@ library MintedCappedIdx {
     is_transfer_agent = (target.read(exec_id, transfer_agent(_agent)) == 0 ? false : true);
   }
 
-  /* 
+  /*
   Returns information on a reserved token address (the crowdsale admin can set reserved tokens for addresses before initializing the crowdsale)
   @param _storage: The address where application storage is located
   @param exec_id: The application execution id under storage for this app instance is located
@@ -865,6 +862,4 @@ library MintedCappedIdx {
     num_percent = uint(read_values[2]);
     percent_decimals = uint(read_values[3]);
   }
-
-
 }

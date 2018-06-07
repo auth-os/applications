@@ -1,8 +1,8 @@
 pragma solidity ^0.4.23;
 
-import "../../MintedCapped.sol";
+import "../../auth-os/Contract.sol";
 import "./features/Transfer.sol";
-import "./features/Approve.sol"; 
+import "./features/Approve.sol";
 
 library Token {
 
@@ -51,108 +51,111 @@ library Token {
     location = keccak256('tokens_unlocked');
   }
 
-  // Token function selectors -
-  bytes4 private constant TRANSFER_SEL = bytes4(keccak256('transfer(address,uint256)'));
-  bytes4 private constant TRANSFER_FROM_SEL = bytes4(keccak256('transferFrom(address,address,uint256)'));
-  bytes4 private constant APPROVE_SEL = bytes4(keccak256('approve(address,uint256)'));
-  bytes4 private constant INCR_APPR_SEL = bytes4(keccak256('increaseApproval(address,uint256)'));
-  bytes4 private constant DECR_APPR_SEL = bytes4(keccak256('decreaseApproval(address,uint256)'));
-
-  // Token pre/post conditions for execution -
-
-  // Before each Transfer and Approve Feature executes, check that the token is initialized -
-  function first() internal view {
-    if (Contract.read(name()) == bytes32(0))
-      revert('Token not initialized');
-
-    if (msg.value != 0)
-      revert('Token is not payable');
-
-    // Check msg.sig, and check the appropriate preconditions -
-    if (msg.sig == TRANSFER_SEL || msg.sig == TRANSFER_FROM_SEL)
-      Contract.checks(Transfer.first);
-    else if (msg.sig == APPROVE_SEL || msg.sig == INCR_APPR_SEL || msg.sig == DECR_APPR_SEL)
-      Contract.checks(Approve.first);
-    else
-      revert('Invalid function selector');
-  }
-
-  // After each Transfer and Approve Feature executes, ensure that the result will
-  // both emit an event and store values in storage -
-  function last() internal pure {
+  // Ensures both storage and events have been pushed to the buffer
+  function emitAndStore() internal pure {
     if (Contract.emitted() == 0 || Contract.stored() == 0)
-      revert('Invalid state change');
+      revert('invalid state change');
   }
 
+  // Ensures the sale's token has been initialized
+  function tokenInit() internal view {
+    if (Contract.read(name()) == 0)
+      revert('token not initialized');
+  }
 
-  //// CLASS - Token: ////
+  /*
+  Allows a token holder to transfer tokens to another address
 
-  /// Feature - Transfer: ///
-  function transfer(address to, uint amount) external view {
+  @param _to: The destination that will recieve tokens
+  @param _amount: The number of tokens to transfer
+  */
+  function transfer(address _to, uint _amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the token is initialized -
+    Contract.checks(tokenInit);
     // Execute transfer function -
-    Transfer.transfer(to, amount);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    Transfer.transfer(_to, _amount);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  function transferFrom(address owner, address recipient, uint amount) external view {
+  /*
+  Allows an approved spender to transfer tokens to another address on an owner's behalf
+
+  @param _owner: The address from which tokens will be sent
+  @param _recipient: The destination to which tokens will be sent
+  @param _amount: The number of tokens to transfer
+  */
+  function transferFrom(address _owner, address _recipient, uint _amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the token is initialized -
+    Contract.checks(tokenInit);
     // Execute transfer function -
-    Transfer.transferFrom(owner, recipient, amount);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    Transfer.transferFrom(_owner, _recipient, _amount);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  /// Feature - Approve: ///
-  function approve(address spender, uint amount) external view {
+  /*
+  Approves a spender to spend an amount of your tokens on your behalf
+
+  @param _spender: The address allowed to spend your tokens
+  @param _amount: The number of tokens that will be approved
+  */
+  function approve(address _spender, uint _amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the token is initialized -
+    Contract.checks(tokenInit);
     // Execute approval function -
-    Approve.approve(spender, amount);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    Approve.approve(_spender, _amount);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  function increaseApproval(address spender, uint amount) external view {
+  /*
+  Increases a spender's approval amount
+
+  @param _spender: The address allowed to spend your tokens
+  @param _amount: The amount by which the spender's allowance will be increased
+  */
+  function increaseApproval(address _spender, uint _amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the token is initialized -
+    Contract.checks(tokenInit);
     // Execute approval function -
-    Approve.increaseApproval(spender, amount);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    Approve.increaseApproval(_spender, _amount);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  function decreaseApproval(address spender, uint amount) external view {
+  /*
+  Decreases a spender's approval amount
+
+  @param _spender: The address allowed to spend your tokens
+  @param _amount: The amount by which the spender's allowance will be decreased
+  */
+  function decreaseApproval(address _spender, uint _amount) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the token is initialized -
+    Contract.checks(tokenInit);
     // Execute approval function -
-    Approve.decreaseApproval(spender, amount);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    Approve.decreaseApproval(_spender, _amount);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
-
-
 }

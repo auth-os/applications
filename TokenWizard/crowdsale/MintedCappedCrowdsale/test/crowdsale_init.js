@@ -1,15 +1,17 @@
 // Abstract storage contract
 let AbstractStorage = artifacts.require('./AbstractStorage')
 // MintedCappedCrowdsale
-let InitMintedCapped = artifacts.require('./InitCrowdsale')
-let MintedCappedBuy = artifacts.require('./CrowdsaleBuyTokens')
-let MintedCappedCrowdsaleConsole = artifacts.require('./CrowdsaleConsole')
-let MintedCappedTokenConsole = artifacts.require('./TokenConsole')
-let MintedCappedTokenTransfer = artifacts.require('./TokenTransfer')
-let MintedCappedTokenTransferFrom = artifacts.require('./TokenTransferFrom')
-let MintedCappedTokenApprove = artifacts.require('./TokenApprove')
-// Utils
-let TestUtils = artifacts.require('./TestUtils')
+let Token = artifacts.require('./Token')
+let Sale = artifacts.require('./Sale')
+let TokenManager = artifacts.require('./TokenManager')
+let SaleManager = artifacts.require('./SaleManager')
+let MintedCapped = artifacts.require('./MintedCappedIdx')
+// Registry
+let RegistryUtil = artifacts.require('./RegistryUtil')
+let RegistryIdx = artifacts.require('./RegistryIdx')
+let Provider = artifacts.require('./Provider')
+// Util
+let MintedCappedUtils = artifacts.require('./MintedCappedUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')
@@ -30,22 +32,29 @@ contract('#MintedCappedInit', function (accounts) {
   let testUtils
 
   let exec = accounts[0]
-  let updater = accounts[1]
-  let crowdsaleAdmin = accounts[2]
-  let teamWallet = accounts[3]
+  let crowdsaleAdmin = accounts[1]
+  let teamWallet = accounts[2]
 
-  let initCrowdsale
-  let crowdsaleBuy
-  let crowdsaleConsole
-  let tokenConsole
-  let tokenTransfer
-  let tokenTransferFrom
-  let tokenApprove
+  let regExecID
+  let regUtil
+  let regProvider
+  let regIdx
+
+  let saleUtils
+  let saleAddrs
+  let saleSelectors
+
+  let saleIdx
+  let token
+  let sale
+  let tokenManager
+  let saleManager
 
   let executionID
   let initCalldata
   let initEvent
-  let finalizeEvent
+
+  let appName = 'MintedCappedCrowdsale'
 
   let startTime
   let initialTierName = 'Initial Tier'
@@ -57,7 +66,6 @@ contract('#MintedCappedInit', function (accounts) {
 
   // Event signatures
   let initHash = web3.sha3('ApplicationInitialized(bytes32,address,address,address)')
-  let finalHash = web3.sha3('ApplicationFinalization(bytes32,address)')
   let execHash = web3.sha3('ApplicationExecution(bytes32,address)')
   let payHash = web3.sha3('DeliveredPayment(bytes32,address,uint256)')
 
@@ -68,15 +76,35 @@ contract('#MintedCappedInit', function (accounts) {
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
-    testUtils = await TestUtils.new().should.be.fulfilled
 
-    initCrowdsale = await InitMintedCapped.new().should.be.fulfilled
-    crowdsaleBuy = await MintedCappedBuy.new().should.be.fulfilled
-    crowdsaleConsole = await MintedCappedCrowdsaleConsole.new().should.be.fulfilled
-    tokenConsole = await MintedCappedTokenConsole.new().should.be.fulfilled
-    tokenTransfer = await MintedCappedTokenTransfer.new().should.be.fulfilled
-    tokenTransferFrom = await MintedCappedTokenTransferFrom.new().should.be.fulfilled
-    tokenApprove = await MintedCappedTokenApprove.new().should.be.fulfilled
+    regUtil = await RegistryUtil.new().should.be.fulfilled
+    regProvider = await Provider.new().should.be.fulfilled
+    regIdx = await RegistryIdx.new().should.be.fulfilled
+
+    saleIdx = await MintedCapped.new().should.be.fulfilled
+    token = await Token.new().should.be.fulfilled
+    sale = await Sale.new().should.be.fulfilled
+    tokenManager = await TokenManager.new().should.be.fulfilled
+    saleManager = await SaleManager.new().should.be.fulfilled
+
+    saleUtils = await MintedCappedUtils.new().should.be.fulfilled
+
+    saleSelectors = await saleUtils.getSelectors.call().should.be.fulfilled
+    saleSelectors.length.should.be.eq(19)
+
+    saleAddrs = [
+      saleManager.address, saleManager.address, saleManager.address,
+      saleManager.address, saleManager.address, saleManager.address,
+
+      tokenManager.address, tokenManager.address, tokenManager.address,
+      tokenManager.address, tokenManager.address, tokenManager.address,
+      tokenManager.address,
+
+      sale.address,
+
+      token.address, token.address, token.address, token.address, token.address
+    ]
+    saleAddrs.length.should.be.eq(19)
   })
 
   describe('valid initialization', async () => {
@@ -84,62 +112,67 @@ contract('#MintedCappedInit', function (accounts) {
     beforeEach(async () => {
       startTime = getTime() + 3600 // Starts in 1 hour
 
+      let events = await storage.createRegistry(
+        regIdx.address, regProvider.address, { from: exec }
+      ).should.be.fulfilled.then((tx) => {
+        return tx.logs
+      })
+      events.should.not.eq(null)
+      events.length.should.be.eq(1)
+      events[0].event.should.be.eq('ApplicationInitialized')
+      regExecID = events[0].args['execution_id']
+      web3.toDecimal(regExecID).should.not.eq(0)
+
+      let registerCalldata = await regUtil.registerApp.call(
+        appName, saleIdx.address, saleSelectors, saleAddrs
+      ).should.be.fulfilled
+      registerCalldata.should.not.eq('0x0')
+
+      events = await storage.exec(
+        exec, regExecID, registerCalldata,
+        { from: exec }
+      ).should.be.fulfilled.then((tx) => {
+        return tx.logs;
+      })
+      events.should.not.eq(null)
+      events.length.should.be.eq(1)
+      events[0].event.should.be.eq('ApplicationExecution')
+      events[0].args['script_target'].should.be.eq(regProvider.address)
+
       // Get valid init calldata
-      initCalldata = await testUtils.init.call(
+      initCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       initCalldata.should.not.be.eq('0x')
 
-      // Initialize a valid sale
-      let events = await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, initCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
-      ).then((tx) => {
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, initCalldata,
+        { from: exec }
+      ).should.be.fulfilled.then((tx) => {
         return tx.logs
       })
       events.should.not.eq(null)
-      events.length.should.be.eq(2)
+      events.length.should.be.eq(1)
       initEvent = events[0]
-      finalizeEvent = events[1]
-
-      executionID = initEvent.args['execution_id']
-      executionID.should.not.eq(0)
+      executionID = events[0].args['execution_id']
+      web3.toDecimal(executionID).should.not.eq(0)
     })
 
     it('should emit an ApplicationInitialized event', async () => {
       initEvent.event.should.be.eq('ApplicationInitialized')
     })
 
-    it('should emit an ApplicationFinalization event', async () => {
-      finalizeEvent.event.should.be.eq('ApplicationFinalization')
-    })
-
     describe('the ApplicationInitialized event', async () => {
 
       it('should contain the indexed initialization address for the crowdsale', async () => {
-        let initAddress = initEvent.args['init_address']
-        initAddress.should.be.eq(initCrowdsale.address)
+        let initAddress = initEvent.args['index']
+        initAddress.should.be.eq(saleIdx.address)
       })
 
       it('should contain an indexed execution id', async () => {
         let execID = initEvent.args['execution_id']
-        web3.toDecimal(execID).should.not.eq(0)
-      })
-    })
-
-    describe('the ApplicationFinalization event', async () => {
-
-      it('should contain the indexed initialization address for the crowdsale', async () => {
-        let initAddress = finalizeEvent.args['init_address']
-        initAddress.should.be.eq(initCrowdsale.address)
-      })
-
-      it('should contain an indexed execution id', async () => {
-        let execID = finalizeEvent.args['execution_id']
         web3.toDecimal(execID).should.not.eq(0)
       })
     })
@@ -149,7 +182,7 @@ contract('#MintedCappedInit', function (accounts) {
       let adminAddr
 
       beforeEach(async () => {
-        adminAddr = await initCrowdsale.getAdmin.call(storage.address, executionID).should.be.fulfilled
+        adminAddr = await saleIdx.getAdmin.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should store the correct admin address', async () => {
@@ -162,7 +195,7 @@ contract('#MintedCappedInit', function (accounts) {
       let crowdsaleInfo
 
       beforeEach(async () => {
-        crowdsaleInfo = await initCrowdsale.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
         crowdsaleInfo.length.should.be.eq(5)
       })
 
@@ -189,7 +222,7 @@ contract('#MintedCappedInit', function (accounts) {
       let crowdsaleFullInfo
 
       beforeEach(async () => {
-        crowdsaleFullInfo = await initCrowdsale.isCrowdsaleFull.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleFullInfo = await saleIdx.isCrowdsaleFull.call(storage.address, executionID).should.be.fulfilled
         crowdsaleFullInfo.length.should.be.eq(2)
       })
 
@@ -207,7 +240,7 @@ contract('#MintedCappedInit', function (accounts) {
       let buyerInfo
 
       beforeEach(async () => {
-        buyerInfo = await initCrowdsale.getCrowdsaleUniqueBuyers.call(storage.address, executionID).should.be.fulfilled
+        buyerInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should not have any unique buyers', async () => {
@@ -220,7 +253,7 @@ contract('#MintedCappedInit', function (accounts) {
       let crowdsaleTimeInfo
 
       beforeEach(async () => {
-        crowdsaleTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleTimeInfo = await saleIdx.getCrowdsaleStartAndEndTimes.call(storage.address, executionID).should.be.fulfilled
         crowdsaleTimeInfo.length.should.be.eq(2)
       })
 
@@ -238,7 +271,7 @@ contract('#MintedCappedInit', function (accounts) {
       let curTierInfo
 
       beforeEach(async () => {
-        curTierInfo = await initCrowdsale.getCurrentTierInfo.call(storage.address, executionID).should.be.fulfilled
+        curTierInfo = await saleIdx.getCurrentTierInfo.call(storage.address, executionID).should.be.fulfilled
         curTierInfo.length.should.be.eq(7)
       })
 
@@ -277,7 +310,7 @@ contract('#MintedCappedInit', function (accounts) {
       let crowdsaleTier
 
       beforeEach(async () => {
-        crowdsaleTier = await initCrowdsale.getCrowdsaleTier.call(
+        crowdsaleTier = await saleIdx.getCrowdsaleTier.call(
           storage.address, executionID, 0
         ).should.be.fulfilled
         crowdsaleTier.length.should.be.eq(6)
@@ -314,7 +347,7 @@ contract('#MintedCappedInit', function (accounts) {
       let maxRaiseInfo
 
       beforeEach(async () => {
-        maxRaiseInfo = await initCrowdsale.getCrowdsaleMaxRaise.call(storage.address, executionID).should.be.fulfilled
+        maxRaiseInfo = await saleIdx.getCrowdsaleMaxRaise.call(storage.address, executionID).should.be.fulfilled
         maxRaiseInfo.length.should.be.eq(2)
       })
 
@@ -332,7 +365,7 @@ contract('#MintedCappedInit', function (accounts) {
       let tierListInfo
 
       beforeEach(async () => {
-        tierListInfo = await initCrowdsale.getCrowdsaleTierList.call(storage.address, executionID).should.be.fulfilled
+        tierListInfo = await saleIdx.getCrowdsaleTierList.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should return a list with one tier in it', async () => {
@@ -346,7 +379,7 @@ contract('#MintedCappedInit', function (accounts) {
       let tierTimeInfo
 
       beforeEach(async () => {
-        tierTimeInfo = await initCrowdsale.getTierStartAndEndDates.call(
+        tierTimeInfo = await saleIdx.getTierStartAndEndDates.call(
           storage.address, executionID, 0
         ).should.be.fulfilled
         tierTimeInfo.length.should.be.eq(2)
@@ -366,7 +399,7 @@ contract('#MintedCappedInit', function (accounts) {
       let soldInfo
 
       beforeEach(async () => {
-        soldInfo = await initCrowdsale.getTokensSold.call(storage.address, executionID).should.be.fulfilled
+        soldInfo = await saleIdx.getTokensSold.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should not have any tokens sold', async () => {
@@ -379,7 +412,7 @@ contract('#MintedCappedInit', function (accounts) {
       let whitelistInfo
 
       beforeEach(async () => {
-        whitelistInfo = await initCrowdsale.getTierWhitelist.call(
+        whitelistInfo = await saleIdx.getTierWhitelist.call(
           storage.address, executionID, 0
         ).should.be.fulfilled
         whitelistInfo.length.should.be.eq(2)
@@ -396,7 +429,7 @@ contract('#MintedCappedInit', function (accounts) {
       let tokenInfo
 
       beforeEach(async () => {
-        tokenInfo = await initCrowdsale.getTokenInfo.call(
+        tokenInfo = await saleIdx.getTokenInfo.call(
           storage.address, executionID
         ).should.be.fulfilled
         tokenInfo.length.should.be.eq(4)
@@ -424,7 +457,7 @@ contract('#MintedCappedInit', function (accounts) {
       let resInfo
 
       beforeEach(async () => {
-        resInfo = await initCrowdsale.getReservedTokenDestinationList.call(storage.address, executionID).should.be.fulfilled
+        resInfo = await saleIdx.getReservedTokenDestinationList.call(storage.address, executionID).should.be.fulfilled
         resInfo.length.should.be.eq(2)
       })
 
@@ -444,7 +477,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         invalidWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -453,11 +486,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -470,7 +501,7 @@ contract('#MintedCappedInit', function (accounts) {
     beforeEach(async () => {
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, invalidStartTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -479,11 +510,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -497,7 +526,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
         invalidTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -506,11 +535,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -524,7 +551,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
         initialTierPrice, invalidDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -533,11 +560,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -551,7 +576,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, invalidSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
@@ -560,11 +585,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -578,7 +601,7 @@ contract('#MintedCappedInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
         initialTierPrice, initialTierDuration, initialTierTokenSellCap,
         initialTierIsWhitelisted, initialTierDurIsModifiable, invalidAdmin
@@ -587,11 +610,9 @@ contract('#MintedCappedInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })

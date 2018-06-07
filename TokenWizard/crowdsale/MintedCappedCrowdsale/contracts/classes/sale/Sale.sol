@@ -1,6 +1,6 @@
 pragma solidity ^0.4.23;
 
-import "../../lib/Contract.sol";
+import "../../auth-os/Contract.sol";
 import "./features/Purchase.sol";
 
 library Sale {
@@ -8,7 +8,7 @@ library Sale {
   using Contract for *;
 
   /// CROWDSALE STORAGE ///
-  
+
   function ends_at() internal pure returns (bytes32 location) {
     location = keccak256('current_tier_ends_at');
   }
@@ -90,17 +90,17 @@ library Sale {
     location = bytes32(64 + (192 * tier) + uint(CROWDSALE_TIERS));
   }
 
-  // Returns the storage location of the tier's price 
+  // Returns the storage location of the tier's price
   function tier_price(uint tier) internal pure returns (bytes32 location) {
     location = bytes32(96 + (192 * tier) + uint(CROWDSALE_TIERS));
   }
 
-  // Returns the storage location of the tier's duration 
+  // Returns the storage location of the tier's duration
   function tier_duration(uint tier) internal pure returns (bytes32 location) {
     location = bytes32(128 + (192 * tier) + uint(CROWDSALE_TIERS));
   }
 
-  // Returns the storage location of the tier's whitelist status  
+  // Returns the storage location of the tier's whitelist status
   function tier_is_whitelisted(uint tier) internal pure returns (bytes32 location) {
     location = bytes32(192 + (192 * tier) + uint(CROWDSALE_TIERS));
   }
@@ -125,41 +125,31 @@ library Sale {
   function balances(address owner) internal pure returns (bytes32 location) {
     location = keccak256(owner, TOKEN_BALANCES);
   }
-  
-  // Function selector for buy
-  bytes4 internal constant BUY_SEL = bytes4(keccak256('buy()'));
 
-  // Sale pre/post conditions for execution -
-
-  // Check msg.sig, and check the appropriate preconditions
-  function first() internal pure {
-    if (msg.sig != BUY_SEL) 
-      revert("Invalid function selector");
+  // Ensures both storage and events have been pushed to the buffer
+  function emitStoreAndPay() internal pure {
+    if (Contract.emitted() == 0 || Contract.stored() == 0 || Contract.paid() != 1)
+      revert('invalid state change');
   }
 
+  function validState() internal view {
+    if (Contract.read(is_init()) == 0)
+      revert('sale not initialized');
 
-  // After each Purchase feature executes, ensure that the result
-  // will both emit an event and store values in storage
-  function last() internal pure {
-    if (Contract.emitted() == 0 || Contract.stored() == 0)
-      revert('Invalid state change');
+    if (Contract.read(is_final()) != 0)
+      revert('sale already finalized');
   }
 
-    //// CLASS - Sale: ////
-
-  /// Feature - Purchase: ///
   function buy() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
+    // Check that the sale is initialized and not yet finalized -
+    Contract.checks(validState);
     // Execute approval function -
     Purchase.buy();
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Check for valid storage buffer
+    Contract.checks(emitStoreAndPay);
     // Commit state changes to storage -
     Contract.commit();
-  } 
-
-
+  }
 }
