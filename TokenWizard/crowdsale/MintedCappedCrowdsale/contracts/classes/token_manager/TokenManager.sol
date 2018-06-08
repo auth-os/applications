@@ -68,7 +68,7 @@ library TokenManager {
 
   // Whether or not the token is unlocked for transfers
   function tokens_unlocked() internal pure returns (bytes32 location) {
-    location = keccak256("tokens_are_unlocked");
+    location = keccak256("crowdsale_tokens_unlocked");
   }
 
   /// Storage location for an array of addresses with some form of reserved tokens

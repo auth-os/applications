@@ -25,19 +25,9 @@ library SaleManager {
     location = keccak256("crowdsale_is_finalized");
   }
 
-  // Storage location of the CROWDSALE_TIERS index of the current tier. Return value minus 1 is the actual index of the tier. 0 is an invalid return
-  function current_tier() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_current_tier");
-  }
-
-  // Storage location of a list of the tiers the crowdsale will have
-  function crowdsale_tiers() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_list");
-  }
-
-  // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
-  function ends_at() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_ends_at");
+  // Storage location of the crowdsale's start time
+  function start_time() internal pure returns (bytes32 location) {
+    location = keccak256("crowdsale_start_time");
   }
 
   // Storage location of the amount of time the crowdsale will take, accounting for all tiers
@@ -45,19 +35,29 @@ library SaleManager {
     location = keccak256("crowdsale_total_duration");
   }
 
-  // Storage location of the minimum amount of tokens allowed to be purchased
+  // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
+  function tokens_sold() internal pure returns (bytes32 location) {
+    location = keccak256("crowdsale_tokens_sold");
+  }
+
+  // Storage location of the minimum amount of tokens that must be purchased
   function min_contrib() internal pure returns (bytes32 location) {
     location = keccak256("crowdsale_min_cap");
   }
 
-  // Storage location of the crowdsale's start time
-  function start_time() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_start_time");
+  // Storage location of a list of the tiers the crowdsale will have
+  function crowdsale_tiers() internal pure returns (bytes32 location) {
+    location = keccak256("crowdsale_tier_list");
   }
 
-  // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
+  // Storage location of the CROWDSALE_TIERS index of the current tier. Return value minus 1 is the actual index of the tier. 0 is an invalid return
+  function current_tier() internal pure returns (bytes32 location) {
+    location = keccak256("crowdsale_current_tier");
+  }
+
+  // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
+  function ends_at() internal pure returns (bytes32 location) {
+    location = keccak256("crowdsale_tier_ends_at");
   }
 
   // Storage location of amount of wei raised during the crowdsale, total
@@ -102,12 +102,12 @@ library SaleManager {
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
   function balances(address owner) internal pure returns (bytes32 location) {
-    return keccak256(keccak256(owner), TOKEN_BALANCES);
+    return keccak256(owner, TOKEN_BALANCES);
   }
 
   // Whether or not the token is unlocked for transfers
   function tokens_unlocked() internal pure returns (bytes32 location) {
-    location = keccak256("tokens_are_unlocked");
+    location = keccak256("crowdsale_tokens_unlocked");
   }
 
   /// Storage location for an array of addresses with some form of reserved tokens
@@ -123,7 +123,7 @@ library SaleManager {
 
   // Return storage location to reservation info
   function reserved_info(address reservee) internal pure returns (bytes32 location) {
-    return keccak256(keccak256(reservee), TOKEN_RESERVED_ADDR_INFO);
+    return keccak256(reservee, TOKEN_RESERVED_ADDR_INFO);
   }
 
 

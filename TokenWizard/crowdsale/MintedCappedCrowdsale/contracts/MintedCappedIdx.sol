@@ -214,14 +214,14 @@ library MintedCappedIdx {
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
   function balances(address owner) internal pure returns (bytes32 location) {
-    location = keccak256(keccak256(owner), TOKEN_BALANCES);
+    location = keccak256(owner, TOKEN_BALANCES);
   }
 
   // Storage seed for user allowances mapping
   bytes32 internal constant TOKEN_ALLOWANCES = keccak256("token_allowances");
 
   function allowances(address owner, address spender) internal pure returns (bytes32 location) {
-    location = keccak256(keccak256(spender), keccak256(keccak256(owner), TOKEN_ALLOWANCES));
+    location = keccak256(spender, keccak256(owner, TOKEN_ALLOWANCES));
   }
 
   // Storage seed for token 'transfer agent' status for any address
@@ -229,7 +229,7 @@ library MintedCappedIdx {
   bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
   function transfer_agent(address agent) internal pure returns (bytes32 location) {
-    location = keccak256(keccak256(agent), TOKEN_TRANSFER_AGENTS);
+    location = keccak256(agent, TOKEN_TRANSFER_AGENTS);
   }
 
   // Whether or not the token is unlocked for transfers
@@ -249,7 +249,7 @@ library MintedCappedIdx {
   bytes32 internal constant TOKEN_RESERVED_ADDR_INFO = keccak256("token_reserved_addr_info");
 
   function reserved_info(address destination) internal pure returns (bytes32 location) {
-    location = keccak256(keccak256(destination), TOKEN_RESERVED_ADDR_INFO);
+    location = keccak256(destination, TOKEN_RESERVED_ADDR_INFO);
   }
 
   /*
@@ -616,7 +616,7 @@ library MintedCappedIdx {
 
     bytes32[] memory arr_indices = new bytes32[](2);
     // Get buyer whitelist location for the tier -
-    bytes32 location = keccak256(keccak256(_buyer), keccak256(_tier_index, sale_whitelist()));
+    bytes32 location = keccak256(_buyer, keccak256(_tier_index, sale_whitelist()));
     // Push whitelist minimum contribution location to buffer
     arr_indices[0] = location;
     // Push whitlist maximum spend amount remaining location to buffer

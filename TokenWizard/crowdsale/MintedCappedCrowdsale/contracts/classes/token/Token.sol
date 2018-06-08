@@ -22,7 +22,7 @@ library Token {
 
   // Returns the storage location of the token's totalSupply
   function totalSupply() internal pure returns (bytes32 location) {
-    location = keccak256('token_supply');
+    location = keccak256('token_total_supply');
   }
 
   bytes32 private constant BALANCE_SEED = keccak256('token_balances');
@@ -39,7 +39,7 @@ library Token {
     location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
   }
 
-  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('transfer_agents');
+  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('token_transfer_agents');
 
   // Returns the storage location of an Agent's transfer agent status
   function transferAgent(address agent) internal pure returns (bytes32 location) {
@@ -48,7 +48,7 @@ library Token {
 
   // Returns the storage location for the unlock status of the token
   function tokensUnlocked() internal pure returns(bytes32 location) {
-    location = keccak256('tokens_unlocked');
+    location = keccak256('crowdsale_tokens_unlocked');
   }
 
   // Ensures both storage and events have been pushed to the buffer
