@@ -233,7 +233,7 @@ library TokenManager {
     // Execute approval function -
     ManageTokens.finalizeCrowdsaleAndToken();
     // Ensures state change will only affect storage -
-    Contract.checks(onlyStores);
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
