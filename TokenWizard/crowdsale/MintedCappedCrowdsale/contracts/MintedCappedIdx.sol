@@ -41,7 +41,7 @@ library MintedCappedIdx {
     bool _initial_tier_is_whitelisted,
     bool _initial_tier_duration_is_modifiable,
     address _admin
-  ) public view returns (bytes memory) {
+  ) public view {
     // Begin execution - we are initializing an instance of this application
     Contract.initialize();
 
