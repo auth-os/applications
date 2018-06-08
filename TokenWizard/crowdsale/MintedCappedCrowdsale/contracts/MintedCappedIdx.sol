@@ -10,7 +10,7 @@ library MintedCappedIdx {
   using SafeMath for uint;
   using ArrayUtils for bytes32[];
 
-  bytes32 internal constant EXEC_PERMISSIONS = keccak256('sricpt_exec_permissions');
+  bytes32 internal constant EXEC_PERMISSIONS = keccak256('script_exec_permissions');
 
   // Returns the storage location of a script execution address's permissions -
   function execPermissions(address _exec) internal pure returns (bytes32 location) {
