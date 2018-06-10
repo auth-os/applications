@@ -176,7 +176,7 @@ library SaleManager {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check that the sender is the admin and the sale is not initialized
-    Contract.checks(onlyAdminAndNotInit);
+    Contract.checks(onlyAdmin);
     // Execute function -
     ConfigureSale.updateGlobalMinContribution(_new_minimum);
     // Ensures state change will only affect storage and events -
