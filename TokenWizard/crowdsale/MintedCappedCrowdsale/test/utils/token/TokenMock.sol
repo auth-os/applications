@@ -13,7 +13,7 @@ library TokenMock {
     location = keccak256(_owner, BALANCE_SEED);
   }
 
-  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('transfer_agents');
+  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('token_transfer_agents');
 
   // Returns the storage location of an Agent's transfer agent status
   function transferAgent(address agent) internal pure returns (bytes32 location) {
@@ -27,7 +27,7 @@ library TokenMock {
 
   // Returns the storage location for the unlock status of the token
   function tokensUnlocked() internal pure returns(bytes32 location) {
-    location = keccak256('tokens_unlocked');
+    location = keccak256('crowdsale_tokens_unlocked');
   }
 
   function setBalance(address _acc, uint _amt) external view {

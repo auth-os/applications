@@ -2,7 +2,7 @@ pragma solidity ^0.4.23;
 
 contract MintedCappedUtils {
 
-  function getSelectors() public view returns (bytes4[] memory selectors) {
+  function getSelectors() public pure returns (bytes4[] memory selectors) {
     selectors = new bytes4[](19);
 
     selectors[0] = this.initializeCrowdsale.selector;
