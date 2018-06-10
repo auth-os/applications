@@ -46,7 +46,7 @@ library MintedCappedIdx {
 
     // Ensure valid input
     if (
-      _team_wallet == address(0)
+      _team_wallet == 0
       || _initial_tier_price == 0
       || _start_time < now
       || _start_time + _initial_tier_duration <= _start_time
@@ -61,51 +61,29 @@ library MintedCappedIdx {
     // Store admin address, team wallet, initial tier duration, and sale start time
     Contract.set(admin()).to(_admin);
     Contract.set(wallet()).to(_team_wallet);
-    Contract.set(
-      total_duration()
-    ).to(_initial_tier_duration);
-    Contract.set(
-      start_time()
-    ).to(_start_time);
+    Contract.set(totalDuration()).to(_initial_tier_duration);
+    Contract.set(startTime()).to(_start_time);
     // Store initial crowdsale tier list length and initial tier information
-    Contract.set(
-      crowdsale_tiers()
-    ).to(uint(1));
+    Contract.set(saleTierList()).to(uint(1));
     // Tier name
-    Contract.set(
-      bytes32(32 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_name);
+    Contract.set(tierName(uint(0))).to(_initial_tier_name);
     // Tier token sell cap
-    Contract.set(
-      bytes32(64 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_token_sell_cap);
+    Contract.set(tierCap(uint(0))).to(_initial_tier_token_sell_cap);
     // Tier purchase price
-    Contract.set(
-      bytes32(96 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_price);
+    Contract.set(tierPrice(uint(0))).to(_initial_tier_price);
     // Tier active duration
-    Contract.set(
-      bytes32(128 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_duration);
+    Contract.set(tierDuration(uint(0))).to(_initial_tier_duration);
     // Whether this tier's duration is modifiable prior to its start time
-    Contract.set(
-      bytes32(160 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_duration_is_modifiable);
+    Contract.set(tierModifiable(uint(0))).to(_initial_tier_duration_is_modifiable);
     // Whether this tier requires an address be whitelisted to complete token purchase
-    Contract.set(
-      bytes32(192 + uint(crowdsale_tiers()))
-    ).to(_initial_tier_is_whitelisted);
+    Contract.set(tierWhitelisted(uint(0))).to(_initial_tier_is_whitelisted);
 
     // Store current crowdsale tier (offset by 1)
-    Contract.set(current_tier()).to(uint(1));
+    Contract.set(currentTier()).to(uint(1));
     // Store current tier end time
-    Contract.set(
-      ends_at()
-    ).to(_initial_tier_duration.add(_start_time));
+    Contract.set(currentEndsAt()).to(_initial_tier_duration.add(_start_time));
     // Store current tier tokens remaining
-    Contract.set(
-      tokens_remaining()
-    ).to(_initial_tier_token_sell_cap);
+    Contract.set(currentTokensRemaining()).to(_initial_tier_token_sell_cap);
 
     Contract.commit();
   }
@@ -309,11 +287,11 @@ library MintedCappedIdx {
 
     bytes32[] memory arr_indices = new bytes32[](5);
 
-    arr_indices[0] = wei_raised();
+    arr_indices[0] = totalWeiRaised();
     arr_indices[1] = wallet();
-    arr_indices[2] = min_cap();
-    arr_indices[3] = is_init();
-    arr_indices[4] = is_final();
+    arr_indices[2] = globalMinPurchaseAmt();
+    arr_indices[3] = isConfigured();
+    arr_indices[4] = isFinished();
 
     bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
 
@@ -337,8 +315,8 @@ library MintedCappedIdx {
 
     bytes32[] memory initial_arr = new bytes32[](2);
     // Push crowdsale tier list length and total tokens sold storage locations to buffer
-    initial_arr[0] = crowdsale_tiers();
-    initial_arr[1] = tokens_sold();
+    initial_arr[0] = saleTierList();
+    initial_arr[1] = tokensSold();
     // Read from storage
     uint[] memory read_values = target.readMulti(exec_id, initial_arr).toUintArr();
 
@@ -349,7 +327,7 @@ library MintedCappedIdx {
     bytes32[] memory arr_indices = new bytes32[](num_tiers);
     // Loop through tier cap locations, and add each to the calldata buffer
     for (uint i = 0; i < num_tiers; i++)
-      arr_indices[i] = bytes32(64 + (192 * i) + uint(crowdsale_tiers()));
+      arr_indices[i] = tierCap(i);
 
     // Read from storage
     read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -374,7 +352,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage and return
-    num_unique = uint(target.read(exec_id, unique_contributors()));
+    num_unique = uint(target.read(exec_id, contributors()));
   }
 
   /*
@@ -388,8 +366,8 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](2);
-    arr_indices[0] = start_time();
-    arr_indices[1] = total_duration();
+    arr_indices[0] = startTime();
+    arr_indices[1] = totalDuration();
     // Read from storage
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
     // Ensure correct return length
@@ -418,9 +396,9 @@ library MintedCappedIdx {
 
     bytes32[] memory initial_arr = new bytes32[](3);
     // Push current tier expiration time, current tier index, and current tier tokens remaining storage locations to calldata buffer
-    initial_arr[0] = ends_at();
-    initial_arr[1] = current_tier();
-    initial_arr[2] = tokens_remaining();
+    initial_arr[0] = currentEndsAt();
+    initial_arr[1] = currentTier();
+    initial_arr[2] = currentTokensRemaining();
     // Read from storage and store return in buffer
     uint[] memory read_values = target.readMulti(exec_id, initial_arr).toUintArr();
     // Ensure correct return length
@@ -437,12 +415,10 @@ library MintedCappedIdx {
     tier_tokens_remaining = read_values[2];
 
     bytes32[] memory arr_indices = new bytes32[](4);
-    // Push tier name, tier token price, modifiable status, and tier whitelist status storage locations to buffer
-    uint name_storage_offset = 32 + (192 * tier_index) + uint(crowdsale_tiers());
-    arr_indices[0] = bytes32(name_storage_offset);
-    arr_indices[1] = bytes32(64 + name_storage_offset);
-    arr_indices[2] = bytes32(128 + name_storage_offset);
-    arr_indices[3] = bytes32(160 + name_storage_offset);
+    arr_indices[0] = tierName(tier_index);
+    arr_indices[1] = tierPrice(tier_index);
+    arr_indices[2] = tierModifiable(tier_index);
+    arr_indices[3] = tierWhitelisted(tier_index);
 
     // Read from storage and get return values
     read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -473,15 +449,13 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](6);
-    // Get tier offset storage location
-    uint tier_info_location = 32 + (192 * _index) + uint(crowdsale_tiers());
     // Push tier name, sell cap, duration, and modifiable status storage locations to buffer
-    arr_indices[0] = bytes32(tier_info_location);
-    arr_indices[1] = bytes32(32 + tier_info_location);
-    arr_indices[2] = bytes32(64 + tier_info_location);
-    arr_indices[3] = bytes32(96 + tier_info_location);
-    arr_indices[4] = bytes32(128 + tier_info_location);
-    arr_indices[5] = bytes32(160 + tier_info_location);
+    arr_indices[0] = tierName(_index);
+    arr_indices[1] = tierCap(_index);
+    arr_indices[2] = tierPrice(_index);
+    arr_indices[3] = tierDuration(_index);
+    arr_indices[4] = tierModifiable(_index);
+    arr_indices[5] = tierWhitelisted(_index);
     // Read from storage and store return in buffer
     bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
     // Ensure correct return length
@@ -508,9 +482,9 @@ library MintedCappedIdx {
 
     bytes32[] memory arr_indices = new bytes32[](3);
     // Push crowdsale tier list length, token decimals, and token name storage locations to buffer
-    arr_indices[0] = crowdsale_tiers();
-    arr_indices[1] = token_decimals();
-    arr_indices[2] = token_name();
+    arr_indices[0] = saleTierList();
+    arr_indices[1] = tokenDecimals();
+    arr_indices[2] = tokenName();
 
     // Read from storage
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -530,8 +504,8 @@ library MintedCappedIdx {
     bytes32[] memory last_arr = new bytes32[](2 * num_tiers);
     // Loop through tiers and get sell cap and purchase price for each tier
     for (uint i = 0; i < 2 * num_tiers; i+=2) {
-      last_arr[i] = bytes32(64 + (192 * (i / 2)) + uint(crowdsale_tiers()));
-      last_arr[i + 1] = bytes32(96 + (192 * (i / 2)) + uint(crowdsale_tiers()));
+      last_arr[i] = tierCap(i / 2);
+      last_arr[i + 1] = tierPrice(i / 2);
     }
 
     // Read from storage
@@ -556,12 +530,12 @@ library MintedCappedIdx {
   function getCrowdsaleTierList(address _storage, bytes32 exec_id) public view returns (bytes32[] memory _crowdsale_tiers) {
     GetterInterface target = GetterInterface(_storage);
     // Read from storage and get list length
-    uint list_length = uint(target.read(exec_id, crowdsale_tiers()));
+    uint list_length = uint(target.read(exec_id, saleTierList()));
 
     bytes32[] memory arr_indices = new bytes32[](list_length);
     // Loop over each tier name list location and add to buffer
     for (uint i = 0; i < list_length; i++)
-      arr_indices[i] = bytes32(32 + (192 * i) + uint(crowdsale_tiers()));
+      arr_indices[i] = tierName(i);
 
     // Read from storage and return
     _crowdsale_tiers = target.readMulti(exec_id, arr_indices);
@@ -583,16 +557,11 @@ library MintedCappedIdx {
     bytes32[] memory arr_indices = new bytes32[](3 + _index);
 
     // Add crowdsale tier list length and crowdsale start time to buffer
-    arr_indices[0] = crowdsale_tiers();
-    arr_indices[1] = start_time();
-    // Get storage read offset for initial tier duration, then loop over each tier until _index and add their duration storage locations to the read buffer
-    bytes32 duration_offset = bytes32(128 + uint(crowdsale_tiers()));
+    arr_indices[0] = saleTierList();
+    arr_indices[1] = startTime();
 
-    for (uint i = 0; i <= _index; i++) {
-      arr_indices[2 + i] = duration_offset;
-      // Increment the duration offset to the next index in the array
-      duration_offset = bytes32(192 + uint(duration_offset));
-    }
+    for (uint i = 0; i <= _index; i++)
+      arr_indices[2 + i] = tierDuration(i);
 
     // Read from storage and store return in buffer
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -623,7 +592,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage and return
-    _tokens_sold = uint(target.read(exec_id, tokens_sold()));
+    _tokens_sold = uint(target.read(exec_id, tokensSold()));
   }
 
   /*
@@ -640,12 +609,10 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](2);
-    // Get buyer whitelist location for the tier -
-    bytes32 = keccak256(_buyer, keccak256(_tier_index, sale_whitelist()));
     // Push whitelist minimum contribution location to buffer
-    arr_indices[0] = location;
+    arr_indices[0] = whitelistMinTok(_tier_index, _buyer);
     // Push whitlist maximum spend amount remaining location to buffer
-    arr_indices[1] = bytes32(32 + uint(location));
+    arr_indices[1] = whitelistMaxWei(_tier_index, _buyer);
 
     // Read from storage and return
     uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
@@ -668,7 +635,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage and get returned tier whitelist length
-    num_whitelisted = uint(target.read(exec_id, keccak256(_tier_index, sale_whitelist())));
+    num_whitelisted = uint(target.read(exec_id, tierWhitelist(_tier_index)));
 
     // If there are no whitelisted addresses, return
     if (num_whitelisted == 0)
@@ -677,7 +644,7 @@ library MintedCappedIdx {
     bytes32[] memory arr_indices = new bytes32[](num_whitelisted);
     // Loop through the number of whitelisted addresses, and push each to the calldata buffer to be read from storage
     for (uint i = 0; i < num_whitelisted; i++)
-      arr_indices[i] = bytes32(32 + (32 * i) + uint(keccak256(_tier_index, sale_whitelist())));
+      arr_indices[i] = bytes32(32 + (32 * i) + uint(tierWhitelist(_tier_index)));
 
     // Read from storage and return
     whitelist = target.readMulti(exec_id, arr_indices).toAddressArr();
@@ -708,14 +675,14 @@ library MintedCappedIdx {
   @param exec_id: The application execution id under which storage for this instance is located
   @param _owner: The address allowing spends from a spender
   @param _spender: The address allowed tokens by the owner
-  @return allowed: The amount of tokens that can be transferred from the owner to a location of the spender's choosing
+  @return amt: The amount of tokens that can be transferred from the owner to a location of the spender's choosing
   */
   function allowance(address _storage, bytes32 exec_id, address _owner, address _spender) public view
-  returns (uint allowed) {
+  returns (uint amt) {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    allowed = uint(target.read(exec_id, allowances(_owner, _spender)));
+    amt = uint(target.read(exec_id, allowed(_owner, _spender)));
   }
 
   /*
@@ -729,7 +696,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    _token_decimals = uint(target.read(exec_id, token_decimals()));
+    _token_decimals = uint(target.read(exec_id, tokenDecimals()));
   }
 
   /*
@@ -743,7 +710,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    _total_supply = uint(target.read(exec_id, total_supply()));
+    _total_supply = uint(target.read(exec_id, tokenTotalSupply()));
   }
 
   /*
@@ -756,7 +723,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    _token_name = target.read(exec_id, token_name());
+    _token_name = target.read(exec_id, tokenName());
   }
 
   /*
@@ -769,7 +736,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    _token_symbol = target.read(exec_id, token_symbol());
+    _token_symbol = target.read(exec_id, tokenSymbol());
   }
 
   /*
@@ -787,10 +754,10 @@ library MintedCappedIdx {
 
     bytes32[] memory arr_indices = new bytes32[](4);
     // Place token name, symbol, decimals, and total supply storage locations in buffer
-    arr_indices[0] = token_name();
-    arr_indices[1] = token_symbol();
-    arr_indices[2] = token_decimals();
-    arr_indices[3] = total_supply();
+    arr_indices[0] = tokenName();
+    arr_indices[1] = tokenSymbol();
+    arr_indices[2] = tokenDecimals();
+    arr_indices[3] = tokenTotalSupply();
 
     // Read from storage
     bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
@@ -816,7 +783,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read from storage
-    is_transfer_agent = (target.read(exec_id, transfer_agent(_agent)) == 0 ? false : true);
+    is_transfer_agent = (target.read(exec_id, transferAgents(_agent)) == 0 ? false : true);
   }
 
   /*
@@ -831,7 +798,7 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     // Read reserved destination list length from storage
-    num_destinations = uint(target.read(exec_id, reserved_destinations()));
+    num_destinations = uint(target.read(exec_id, reservedDestinations()));
 
     // If num_destinations is 0, return now
     if (num_destinations == 0)
@@ -842,7 +809,7 @@ library MintedCappedIdx {
     bytes32[] memory arr_indices = new bytes32[](num_destinations);
     // Add each destination index location to calldata
     for (uint i = 1; i <= num_destinations; i++)
-      arr_indices[i - 1] = (bytes32((32 * i) + uint(reserved_destinations())));
+      arr_indices[i - 1] = (bytes32((32 * i) + uint(reservedDestinations())));
 
     // Read from storage, and return data to buffer
     _reserved_destinations = target.readMulti(exec_id, arr_indices).toAddressArr();
@@ -865,12 +832,10 @@ library MintedCappedIdx {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](4);
-    // Push reserved destination information storage locations to buffer -
-    uint base_loc = uint(reserved_info(_destination));
-    arr_indices[0] = bytes32(base_loc);
-    arr_indices[1] = bytes32(32 + base_loc);
-    arr_indices[2] = bytes32(64 + base_loc);
-    arr_indices[3] = bytes32(96 + base_loc);
+    arr_indices[0] = destIndex(_destination);
+    arr_indices[1] = destTokens(_destination);
+    arr_indices[2] = destPercent(_destination);
+    arr_indices[3] = destPrecision(_destination);
 
     // Read from storage, and return data to buffer
     bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
