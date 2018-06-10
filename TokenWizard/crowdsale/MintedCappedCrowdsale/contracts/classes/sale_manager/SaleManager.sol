@@ -124,21 +124,6 @@ library SaleManager {
   function tokensUnlocked() internal pure returns (bytes32)
     { return keccak256('sale_tokens_unlocked'); }
 
-  /// RESERVED TOKENS ///
-
-  /// Storage location for an array of addresses with some form of reserved tokens
-  function reservedDestinations() internal pure returns (bytes32)
-    { return keccak256("reserved_token_dest_list"); }
-
-  // Storage seed for reserved token information for a given address
-  // Maps an address for which tokens are reserved to a struct:
-  // Reservation { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
-  // destination_list_index is the address's index in TOKEN_RESERVED_DESTINATIONS, plus 1. 0 means the address is not in the list
-  bytes32 internal constant TOKEN_RESERVED_ADDR_INFO = keccak256("token_reserved_addr_info");
-
-  function reservations(address _destination) internal pure returns (bytes32)
-    { return keccak256(_destination, TOKEN_RESERVED_ADDR_INFO); }
-
   /// CHECKS ///
 
   // Ensures that the sender is the admin address, and the sale is not initialized
@@ -180,7 +165,7 @@ library SaleManager {
       revert('expected storage');
   }
 
-  /// CHECKS ///
+  /// FUNCTIONS ///
 
   /*
   Allows the admin to update the global minimum number of tokens to purchase

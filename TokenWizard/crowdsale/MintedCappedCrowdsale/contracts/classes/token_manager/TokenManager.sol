@@ -7,89 +7,86 @@ library TokenManager {
 
   using Contract for *;
 
-  /// CROWDSALE STORAGE ///
+  /// SALE ///
 
   // Storage location of crowdsale admin address
-  function admin() internal pure returns (bytes32 location) {
-    location = keccak256("admin");
-  }
+  function admin() internal pure returns (bytes32)
+    { return keccak256('sale_admin'); }
 
-  // Whether the crowdsale and token are initialized, and the sale is ready to run
-  function is_init() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_init");
-  }
+  // Whether the crowdsale and token are configured, and the sale is ready to run
+  function isConfigured() internal pure returns (bytes32)
+    { return keccak256("sale_is_configured"); }
 
   // Whether or not the crowdsale is post-purchase
-  function is_final() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_finalized");
-  }
+  function isFinished() internal pure returns (bytes32)
+    { return keccak256("sale_is_completed"); }
 
   // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
-  }
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
 
-  /// TOKEN STORAGE ///
+  /// TOKEN ///
 
-  // Returns the storage location of the token's name
-  function name() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
+  // Storage location for token name
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  // Returns the storage location of the token's symbol
-  function symbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
+  // Storage location for token ticker symbol
+  function tokenSymbol() internal pure returns (bytes32)
+    { return keccak256("token_symbol"); }
 
-  // Returns the storage location of the token's decimals
-  function decimals() internal pure returns (bytes32 location) {
-    location = keccak256('token_decimals');
-  }
+  // Storage location for token decimals
+  function tokenDecimals() internal pure returns (bytes32)
+    { return keccak256("token_decimals"); }
 
   // Storage location for token totalSupply
-  function token_total_supply() internal pure returns (bytes32 location) {
-    location = keccak256("token_total_supply");
-  }
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
 
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
-  function balances(address owner) internal pure returns (bytes32 location) {
-    return keccak256(owner, TOKEN_BALANCES);
-  }
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
   // Storage seed for token 'transfer agent' status for any address
   // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
   bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
-  function transfer_agent(address agent) internal pure returns (bytes32 location) {
-    location = keccak256(agent, TOKEN_TRANSFER_AGENTS);
-  }
+  function transferAgents(address _agent) internal pure returns (bytes32)
+    { return keccak256(_agent, TOKEN_TRANSFER_AGENTS); }
 
   // Whether or not the token is unlocked for transfers
-  function tokens_unlocked() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_unlocked");
-  }
+  function tokensUnlocked() internal pure returns (bytes32)
+    { return keccak256('sale_tokens_unlocked'); }
 
-  /// Storage location for an array of addresses with some form of reserved tokens
-  function reserved_destinations() internal pure returns (bytes32 location) {
-    location = keccak256("token_reserved_dest_list");
-  }
+  /// RESERVED TOKENS ///
 
-  // Storage seed for reserved token information for a given address
-  // Maps an address for which tokens are reserved to a struct:
-  // ReservedInfo { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
-  // destination_list_index is the address's index in TOKEN_RESERVED_DESTINATIONS, plus 1. 0 means the address is not in the list
-  bytes32 internal constant TOKEN_RESERVED_ADDR_INFO = keccak256("token_reserved_addr_info");
+  // Stores the number of addresses for which tokens are reserved
+  function reservedDestinations() internal pure returns (bytes32)
+    { return keccak256("reserved_token_dest_list"); }
 
-  // Return storage location to reservation info
-  function reserved_info(address reservee) internal pure returns (bytes32 location) {
-    return keccak256(reservee, TOKEN_RESERVED_ADDR_INFO);
-  }
+  // Stores the index of an address in the reservedDestinations list (1-indexed)
+  function destIndex(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "index", reservedDestinations()); }
+
+  // Stores the number of tokens reserved for a destination
+  function destTokens(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "numtokens", reservedDestinations()); }
+
+  // Stores the number of percent of tokens sold reserved for a destination
+  function destPercent(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "numpercent", reservedDestinations()); }
+
+  // Stores the number of decimals in the previous percentage (2 are added by default)
+  function destPrecision(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "precision", reservedDestinations()); }
+
+  /// CHECKS ///
 
   // Ensures the sale is finalized
   function saleFinalized() internal view {
-    if (Contract.read(is_final()) == 0)
+    if (Contract.read(isFinished()) == 0)
       revert('sale must be finalized');
   }
 
@@ -104,7 +101,7 @@ library TokenManager {
     if (address(Contract.read(admin())) != Contract.sender())
       revert('sender is not admin');
 
-    if (Contract.read(is_init()) != 0)
+    if (Contract.read(isConfigured()) != 0)
       revert('sale has already been initialized');
   }
 
@@ -128,9 +125,11 @@ library TokenManager {
     if (Contract.sender() != address(Contract.read(admin())))
       revert('sender is not admin');
 
-    if (Contract.read(is_init()) == 0 || Contract.read(is_final()) != 0)
+    if (Contract.read(isConfigured()) == 0 || Contract.read(isFinished()) != 0)
       revert('invalid sale state');
   }
+
+  /// FUNCTIONS ///
 
   /*
   Initializes the token to be sold during the crowdsale -
@@ -177,7 +176,12 @@ library TokenManager {
   @param _num_percents: The decimal number of percents of total tokens sold each destination will be reserved
   @param _percent_decimals: The number of decimals in each of the percent figures
   */
-  function updateMultipleReservedTokens(address[] _destinations, uint[] _num_tokens, uint[] _num_percents, uint[] _percent_decimals) external view {
+  function updateMultipleReservedTokens(
+    address[] _destinations,
+    uint[] _num_tokens,
+    uint[] _num_percents,
+    uint[] _percent_decimals
+  ) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin and the sale is not initialized -

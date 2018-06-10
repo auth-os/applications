@@ -257,18 +257,25 @@ library MintedCappedIdx {
 
   /// RESERVED TOKENS ///
 
-  /// Storage location for an array of addresses with some form of reserved tokens
+  // Stores the number of addresses for which tokens are reserved
   function reservedDestinations() internal pure returns (bytes32)
     { return keccak256("reserved_token_dest_list"); }
 
-  // Storage seed for reserved token information for a given address
-  // Maps an address for which tokens are reserved to a struct:
-  // Reservation { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
-  // destination_list_index is the address's index in TOKEN_RESERVED_DESTINATIONS, plus 1. 0 means the address is not in the list
-  bytes32 internal constant TOKEN_RESERVED_ADDR_INFO = keccak256("token_reserved_addr_info");
+  // Stores the index of an address in the reservedDestinations list (1-indexed)
+  function destIndex(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "index", reservedDestinations()); }
 
-  function reservations(address _destination) internal pure returns (bytes32)
-    { return keccak256(_destination, TOKEN_RESERVED_ADDR_INFO); }
+  // Stores the number of tokens reserved for a destination
+  function destTokens(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "numtokens", reservedDestinations()); }
+
+  // Stores the number of percent of tokens sold reserved for a destination
+  function destPercent(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "numpercent", reservedDestinations()); }
+
+  // Stores the number of decimals in the previous percentage (2 are added by default)
+  function destPrecision(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, "precision", reservedDestinations()); }
 
   /*
   Returns the address of the admin of the crowdsale
