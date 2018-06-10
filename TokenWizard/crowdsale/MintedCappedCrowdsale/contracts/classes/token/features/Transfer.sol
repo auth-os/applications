@@ -11,23 +11,21 @@ library Transfer {
   bytes32 private constant TRANSFER_SIG = keccak256('Transfer(address,address,uint256)');
 
   // Returns the topics for a Transfer event -
-  function TRANSFER (address _owner, address _dest) private pure returns (bytes32[3] memory) {
-    return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)];
-  }
+  function TRANSFER (address _owner, address _dest) private pure returns (bytes32[3] memory)
+    { return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)]; }
 
   // Ensures the sender is a transfer agent, or that the tokens are unlocked
   function canTransfer() internal view {
     if (
-      Contract.read(Token.transferAgent(Contract.sender())) == 0 &&
+      Contract.read(Token.transferAgents(Contract.sender())) == 0 &&
       Contract.read(Token.tokensUnlocked()) == 0
     ) revert('transfers are locked');
   }
 
   // Implements the logic for a token transfer -
-  function transfer(address _dest, uint _amt)
-  internal view {
+  function transfer(address _dest, uint _amt) internal view {
     // Ensure valid input -
-    if (_dest == address(0))
+    if (_dest == 0)
       revert('invalid recipient');
 
     // Ensure the sender can currently transfer tokens
@@ -36,13 +34,9 @@ library Transfer {
     // Begin updating balances -
     Contract.storing();
     // Update sender token balance - reverts in case of underflow
-    Contract.decrease(
-      Token.balances(Contract.sender())
-    ).by(_amt);
+    Contract.decrease(Token.balances(Contract.sender())).by(_amt);
     // Update recipient token balance - reverts in case of overflow
-    Contract.increase(
-      Token.balances(_dest)
-    ).by(_amt);
+    Contract.increase(Token.balances(_dest)).by(_amt);
 
     // Finish updating balances: log event -
     Contract.emitting();
@@ -53,34 +47,27 @@ library Transfer {
   }
 
   // Implements the logic for a token transferFrom -
-  function transferFrom(address _owner, address _dest, uint _amt)
-  internal view {
+  function transferFrom(address _owner, address _dest, uint _amt) internal view {
     // Ensure valid input -
-    if (_dest == address(0))
+    if (_dest == 0)
       revert('invalid recipient');
-    if (_owner == address(0))
+    if (_owner == 0)
       revert('invalid owner');
 
     // Owner must be able to transfer tokens -
     if (
-      Contract.read(Token.transferAgent(_owner)) == 0 &&
+      Contract.read(Token.transferAgents(_owner)) == 0 &&
       Contract.read(Token.tokensUnlocked()) == 0
     ) revert('transfers are locked');
 
     // Begin updating balances -
     Contract.storing();
     // Update spender token allowance - reverts in case of underflow
-    Contract.decrease(
-      Token.allowed(_owner, Contract.sender())
-    ).by(_amt);
+    Contract.decrease(Token.allowed(_owner, Contract.sender())).by(_amt);
     // Update owner token balance - reverts in case of underflow
-    Contract.decrease(
-      Token.balances(Contract.sender())
-    ).by(_amt);
+    Contract.decrease(Token.balances(_owner)).by(_amt);
     // Update recipient token balance - reverts in case of overflow
-    Contract.increase(
-      Token.balances(_dest)
-    ).by(_amt);
+    Contract.increase(Token.balances(_dest)).by(_amt);
 
     // Finish updating balances: log event -
     Contract.emitting();

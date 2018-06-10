@@ -8,132 +8,146 @@ library SaleManager {
 
   using Contract for *;
 
-  /// CROWDSALE STORAGE ///
+  /// SALE ///
 
   // Storage location of crowdsale admin address
-  function admin() internal pure returns (bytes32 location) {
-    location = keccak256("admin");
-  }
+  function admin() internal pure returns (bytes32)
+    { return keccak256('sale_admin'); }
 
-  // Whether the crowdsale and token are initialized, and the sale is ready to run
-  function is_init() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_init");
-  }
+  // Whether the crowdsale and token are configured, and the sale is ready to run
+  function isConfigured() internal pure returns (bytes32)
+    { return keccak256("sale_is_configured"); }
 
   // Whether or not the crowdsale is post-purchase
-  function is_final() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_is_finalized");
-  }
+  function isFinished() internal pure returns (bytes32)
+    { return keccak256("sale_is_completed"); }
 
   // Storage location of the crowdsale's start time
-  function start_time() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_start_time");
-  }
+  function startTime() internal pure returns (bytes32)
+    { return keccak256("sale_start_time"); }
 
   // Storage location of the amount of time the crowdsale will take, accounting for all tiers
-  function total_duration() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_total_duration");
-  }
+  function totalDuration() internal pure returns (bytes32)
+    { return keccak256("sale_total_duration"); }
 
   // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
-  }
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
 
-  // Storage location of the minimum amount of tokens that must be purchased
-  function min_contrib() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_min_cap");
-  }
+  // Storage location of the minimum amount of tokens allowed to be purchased
+  function globalMinPurchaseAmt() internal pure returns (bytes32)
+    { return keccak256("sale_min_purchase_amt"); }
 
-  // Storage location of a list of the tiers the crowdsale will have
-  function crowdsale_tiers() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_list");
-  }
+  /// TIERS ///
 
-  // Storage location of the CROWDSALE_TIERS index of the current tier. Return value minus 1 is the actual index of the tier. 0 is an invalid return
-  function current_tier() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_current_tier");
-  }
+  // Stores the number of tiers in the sale
+  function saleTierList() internal pure returns (bytes32)
+    { return keccak256("sale_tier_list"); }
+
+  // Stores the name of the tier
+  function tierName(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "name", saleTierList()); }
+
+  // Stores the number of tokens that will be sold in the tier
+  function tierCap(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "cap", saleTierList()); }
+
+  // Stores the price of a token (1 * 10^decimals units), in wei
+  function tierPrice(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "price", saleTierList()); }
+
+  // Stores the duration of a tier
+  function tierDuration(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "duration", saleTierList()); }
+
+  // Whether or not the tier's duration is modifiable (before it has begin)
+  function tierModifiable(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "mod_stat", saleTierList()); }
+
+  // Returns the storage location of the tier's whitelist status
+  function tierWhitelisted(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "wl_stat", saleTierList()); }
+
+  // Storage location of the index of the current tier. If zero, no tier is currently active
+  function currentTier() internal pure returns (bytes32)
+    { return keccak256("sale_current_tier"); }
 
   // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
-  function ends_at() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tier_ends_at");
-  }
+  function currentEndsAt() internal pure returns (bytes32)
+    { return keccak256("current_tier_ends_at"); }
+
+  /// FUNDS ///
 
   // Storage location of amount of wei raised during the crowdsale, total
-  function wei_raised() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_wei_raised");
-  }
+  function totalWeiRaised() internal pure returns (bytes32)
+    { return keccak256("sale_tot_wei_raised"); }
 
-  // Storage seed for crowdsale whitelist mappings - maps each tier's index to a mapping of addresses to whtielist information
-  bytes32 internal constant SALE_WHITELIST = keccak256("crowdsale_purchase_whitelist");
+  /// WHITELIST ///
 
-  function whitelist(uint tier) internal pure returns (bytes32 location) {
-    location = keccak256(tier, SALE_WHITELIST);
-  }
+  // Stores a tier's whitelist
+  function tierWhitelist(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "tier_whitelists"); }
 
-  function address_whitelist(address to_add, uint tier) internal pure returns (bytes32 location) {
-    location = keccak256(to_add, keccak256(tier, SALE_WHITELIST));
-  }
+  // Stores a spender's maximum wei spend amount for a given whitelisted tier
+  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
 
-  /// TOKEN STORAGE ///
+  // Stores a spender's minimum token purchase amount for a given whitelisted tier
+  function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "min_tok", tierWhitelist(_idx)); }
 
-  // Returns the storage location of the token's name
-  function name() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
+  /// TOKEN ///
 
-  // Returns the storage location of the token's symbol
-  function symbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
+  // Storage location for token name
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  // Returns the storage location of the token's decimals
-  function decimals() internal pure returns (bytes32 location) {
-    location = keccak256('token_decimals');
-  }
+  // Storage location for token ticker symbol
+  function tokenSymbol() internal pure returns (bytes32)
+    { return keccak256("token_symbol"); }
+
+  // Storage location for token decimals
+  function tokenDecimals() internal pure returns (bytes32)
+    { return keccak256("token_decimals"); }
 
   // Storage location for token totalSupply
-  function token_total_supply() internal pure returns (bytes32 location) {
-    location = keccak256("token_total_supply");
-  }
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
 
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
-  function balances(address owner) internal pure returns (bytes32 location) {
-    return keccak256(owner, TOKEN_BALANCES);
-  }
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
   // Whether or not the token is unlocked for transfers
-  function tokens_unlocked() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_unlocked");
-  }
+  function tokensUnlocked() internal pure returns (bytes32)
+    { return keccak256('sale_tokens_unlocked'); }
+
+  /// RESERVED TOKENS ///
 
   /// Storage location for an array of addresses with some form of reserved tokens
-  function reserved_destinations() internal pure returns (bytes32 location) {
-    location = keccak256("token_reserved_dest_list");
-  }
+  function reservedDestinations() internal pure returns (bytes32)
+    { return keccak256("reserved_token_dest_list"); }
 
   // Storage seed for reserved token information for a given address
   // Maps an address for which tokens are reserved to a struct:
-  // ReservedInfo { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
+  // Reservation { uint destination_list_index; uint num_tokens; uint num_percent; uint percent_decimals; }
   // destination_list_index is the address's index in TOKEN_RESERVED_DESTINATIONS, plus 1. 0 means the address is not in the list
   bytes32 internal constant TOKEN_RESERVED_ADDR_INFO = keccak256("token_reserved_addr_info");
 
-  // Return storage location to reservation info
-  function reserved_info(address reservee) internal pure returns (bytes32 location) {
-    return keccak256(reservee, TOKEN_RESERVED_ADDR_INFO);
-  }
+  function reservations(address _destination) internal pure returns (bytes32)
+    { return keccak256(_destination, TOKEN_RESERVED_ADDR_INFO); }
 
+  /// CHECKS ///
 
   // Ensures that the sender is the admin address, and the sale is not initialized
   function onlyAdminAndNotInit() internal view {
     if (address(Contract.read(admin())) != Contract.sender())
       revert('sender is not admin');
 
-    if (Contract.read(is_init()) != 0)
-      revert('sale has already been initialized');
+    if (Contract.read(isConfigured()) != 0)
+      revert('sale has already been configured');
   }
 
   // Ensures that the sender is the admin address, and the sale is not finalized
@@ -141,7 +155,7 @@ library SaleManager {
     if (address(Contract.read(admin())) != Contract.sender())
       revert('sender is not admin');
 
-    if (Contract.read(is_final()) != 0)
+    if (Contract.read(isFinished()) != 0)
       revert('sale has already been finalized');
   }
 
@@ -166,13 +180,14 @@ library SaleManager {
       revert('expected storage');
   }
 
+  /// CHECKS ///
+
   /*
   Allows the admin to update the global minimum number of tokens to purchase
 
   @param _new_minimum: The new minimum number of tokens that must be purchased
   */
-  function updateGlobalMinContribution(uint _new_minimum)
-  external view {
+  function updateGlobalMinContribution(uint _new_minimum) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check that the sender is the admin and the sale is not initialized
@@ -258,7 +273,7 @@ library SaleManager {
     Contract.commit();
   }
 
-  // Feature - ManageSale: ///
+  // Allows the admin to initialize a crowdsale, marking it configured
   function initializeCrowdsale() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
@@ -272,6 +287,7 @@ library SaleManager {
     Contract.commit();
   }
 
+  // Allows the admin to finalize a crowdsale, marking it completed
   function finalizeCrowdsale() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);

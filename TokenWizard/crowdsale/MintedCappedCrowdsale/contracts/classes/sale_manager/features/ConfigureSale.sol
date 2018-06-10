@@ -14,13 +14,11 @@ library ConfigureSale {
   // event CrowdsaleTiersAdded(bytes32 indexed exec_id, uint current_tier_list_len)
   bytes32 private constant CROWDSALE_TIERS_ADDED = keccak256("CrowdsaleTiersAdded(bytes32,uint256)");
 
-  function MIN_UPDATE(bytes32 exec_id) private pure returns (bytes32[2] memory) {
-    return [GLOBAL_MIN_UPDATE, exec_id];
-  }
+  function MIN_UPDATE(bytes32 _exec_id) private pure returns (bytes32[2] memory)
+    { return [GLOBAL_MIN_UPDATE, _exec_id]; }
 
-  function ADD_TIERS(bytes32 exec_id) private pure returns (bytes32[2] memory) {
-    return [CROWDSALE_TIERS_ADDED, exec_id];
-  }
+  function ADD_TIERS(bytes32 _exec_id) private pure returns (bytes32[2] memory)
+    { return [CROWDSALE_TIERS_ADDED, _exec_id]; }
 
   // Checks input and then creates storage buffer to update minimum
   function updateGlobalMinContribution(uint _new_minimum) internal pure {
@@ -28,7 +26,7 @@ library ConfigureSale {
     Contract.storing();
 
     // Store new crowdsale minimum token purchase amount
-    Contract.set(SaleManager.min_contrib()).to(_new_minimum);
+    Contract.set(SaleManager.globalMinPurchaseAmt()).to(_new_minimum);
 
     // Set up EMITS action requests -
     Contract.emitting();
@@ -54,62 +52,41 @@ library ConfigureSale {
       || _tier_names.length == 0
     ) revert("array length mismatch");
 
-    uint total_duration = uint(Contract.read(SaleManager.total_duration()));
-    uint num_tiers = uint(Contract.read(SaleManager.crowdsale_tiers()));
-    uint base_storage = 0;
+    uint durations_sum = uint(Contract.read(SaleManager.totalDuration()));
+    uint num_tiers = uint(Contract.read(SaleManager.saleTierList()));
 
+    // Begin storing values in buffer
     Contract.storing();
 
     // Store new tier list length
-    Contract.set(
-      SaleManager.crowdsale_tiers()
-    ).to(num_tiers.add(_tier_names.length));
+    Contract.increase(SaleManager.saleTierList()).by(_tier_names.length);
 
-    // Place crowdsale tier storage base location in tiers struct
-    base_storage = 32 + (192 * num_tiers) + uint(SaleManager.crowdsale_tiers());
     // Loop over each new tier, and add to storage buffer. Keep track of the added duration
     for (uint i = 0; i < _tier_names.length; i++) {
       // Ensure valid input -
       if (
-        _tier_caps[i] == 0
-        || total_duration + _tier_durations[i] <= total_duration
-        || _tier_prices[i] == 0
+        _tier_caps[i] == 0 || _tier_prices[i] == 0 || _tier_durations[i] == 0
       ) revert("invalid tier vals");
 
       // Increment total duration of the crowdsale
-      total_duration = total_duration.add(_tier_durations[i]);
-      // Store tier information
-      Contract.set(
-        bytes32(base_storage)
-      ).to(_tier_names[i]);
+      durations_sum = durations_sum.add(_tier_durations[i]);
 
-      Contract.set(
-        bytes32(32 + base_storage)
-      ).to(_tier_caps[i]);
-
-      Contract.set(
-        bytes32(64 + base_storage)
-      ).to(_tier_prices[i]);
-
-      Contract.set(
-        bytes32(96 + base_storage)
-      ).to(_tier_durations[i]);
-
-      Contract.set(
-        bytes32(128 + base_storage)
-      ).to(_tier_modifiable[i]);
-
-      Contract.set(
-        bytes32(160 + base_storage)
-      ).to(_tier_whitelisted[i]);
-
-      // Increment base storage location -
-      base_storage += 192;
+      // Store tier information -
+      // Tier name
+      Contract.set(SaleManager.tierName(num_tiers + i)).to(_tier_names[i]);
+      // Tier maximum token sell cap
+      Contract.set(SaleManager.tierCap(num_tiers + i)).to(_tier_caps[i]);
+      // Tier purchase price (in wei/10^decimals units)
+      Contract.set(SaleManager.tierPrice(num_tiers + i)).to(_tier_prices[i]);
+      // Tier duration
+      Contract.set(SaleManager.tierDuration(num_tiers + i)).to(_tier_durations[i]);
+      // Tier duration modifiability status
+      Contract.set(SaleManager.tierModifiable(num_tiers + i)).to(_tier_modifiable[i]);
+      // Whether tier is whitelisted
+      Contract.set(SaleManager.tierWhitelisted(num_tiers + i)).to(_tier_whitelisted[i]);
     }
     // Store new total crowdsale duration
-    Contract.set(
-      SaleManager.total_duration()
-    ).to(total_duration);
+    Contract.increase(SaleManager.totalDuration()).by(durations_sum);
 
     // Set up EMITS action requests -
     Contract.emitting();
@@ -132,37 +109,38 @@ library ConfigureSale {
     ) revert("mismatched input lengths");
 
     // Get tier whitelist length
-    uint tier_whitelist_length = uint(Contract.read(SaleManager.whitelist(_tier_index)));
+    uint tier_whitelist_length = uint(Contract.read(SaleManager.tierWhitelist(_tier_index)));
 
     // Set up STORES action requests -
     Contract.storing();
 
     // Loop over input and add whitelist storage information to buffer
     for (uint i = 0; i < _to_whitelist.length; i++) {
-      // Get storage location for address whitelist struct
-      bytes32 whitelist_status_loc = SaleManager.address_whitelist(_to_whitelist[i], _tier_index);
-      // Store user's minimum token purchase amount and maximum wei spend amount
+      // Store user's minimum token purchase amount
       Contract.set(
-        whitelist_status_loc
+        SaleManager.whitelistMinTok(_tier_index, _to_whitelist[i])
       ).to(_min_token_purchase[i]);
+      // Store user maximum wei spend amount
       Contract.set(
-        bytes32(32 + uint(whitelist_status_loc))
+        SaleManager.whitelistMaxWei(_tier_index, _to_whitelist[i])
       ).to(_max_wei_spend[i]);
 
-      // Push whitelisted address to end of tier whitelist array, unless the values being pushed are zero
-      if (_min_token_purchase[i] != 0 || _max_wei_spend[i] != 0) {
+      // If the user does not currently have whitelist information in storage,
+      // push them to the sale's whitelist array
+      if (
+        Contract.read(SaleManager.whitelistMinTok(_tier_index, _to_whitelist[i])) == 0 &&
+        Contract.read(SaleManager.whitelistMaxWei(_tier_index, _to_whitelist[i])) == 0
+      ) {
         Contract.set(
-          bytes32(32 + (32 * tier_whitelist_length) + uint(SaleManager.whitelist(_tier_index)))
+          bytes32(32 + (32 * tier_whitelist_length) + uint(SaleManager.tierWhitelist(_tier_index)))
         ).to(_to_whitelist[i]);
-        // Increment tier whitelist
+        // Increment tier whitelist length
         tier_whitelist_length++;
       }
     }
 
     // Store new tier whitelist length
-    Contract.set(
-      SaleManager.whitelist(_tier_index)
-    ).to(tier_whitelist_length);
+    Contract.set(SaleManager.tierWhitelist(_tier_index)).to(tier_whitelist_length);
   }
 
   // Checks input and then creates storage buffer to update a tier's duration
@@ -171,14 +149,20 @@ library ConfigureSale {
     if (_new_duration == 0)
       revert('invalid duration');
 
-    uint starts_at = uint(Contract.read(SaleManager.start_time()));
-    uint current_tier = uint(Contract.read(SaleManager.current_tier()));
-    uint total_duration = uint(Contract.read(SaleManager.total_duration()));
-    uint ends_at = uint(Contract.read(SaleManager.ends_at()));
-    uint previous_duration = uint(Contract.read(
-      bytes32(128 + (192 * _tier_index) + uint(SaleManager.crowdsale_tiers())))
-    );
+    // Get sale start time -
+    uint starts_at = uint(Contract.read(SaleManager.startTime()));
+    // Get current tier in storage -
+    uint current_tier = uint(Contract.read(SaleManager.currentTier()));
+    // Get total sale duration -
+    uint total_duration = uint(Contract.read(SaleManager.totalDuration()));
+    // Get the time at which the current tier will end -
+    uint cur_ends_at = uint(Contract.read(SaleManager.currentEndsAt()));
+    // Get the current duration of the tier marked for update -
+    uint previous_duration
+      = uint(Contract.read(SaleManager.tierDuration(_tier_index)));
 
+    // Normalize returned current tier index
+    current_tier = current_tier.sub(1);
 
     // Ensure an update is being performed
     if (previous_duration == _new_duration)
@@ -186,45 +170,40 @@ library ConfigureSale {
     // Total crowdsale duration should always be minimum the previous duration for the tier to update
     if (total_duration < previous_duration)
       revert("total duration invalid");
-    // Indices are off-by-one in storage - so the stored current tier index should never be 0
-    if (current_tier == 0)
-      revert("invalid crowdsale setup");
+    // Ensure tier to update is within range of existing tiers -
+    if (uint(Contract.read(SaleManager.saleTierList())) <= _tier_index)
+      revert("tier does not exist");
+    // Ensure tier to update has not already passed -
+    if (current_tier > _tier_index)
+      revert("tier has already completed");
+    // Ensure the tier targeted was marked as 'modifiable' -
+    if (Contract.read(SaleManager.tierModifiable(_tier_index)) == 0)
+      revert("tier duration not modifiable");
 
     Contract.storing();
 
-    // Normalize returned current tier index
-    current_tier--;
-
-    // Check returned values for valid crowdsale and tier status -
-    if (
-      uint(Contract.read(SaleManager.crowdsale_tiers())) <= _tier_index
-      || current_tier > _tier_index
-      || (current_tier == _tier_index && _tier_index != 0)
-      || Contract.read(bytes32(160 + (192 * _tier_index) + uint(SaleManager.crowdsale_tiers()))) == 0
-    ) revert("invalid crowdsale status");
-
-    if (_tier_index == 0 && current_tier == 0) {
+    // If the tier to update is tier 0, the sale should not have started yet -
+    if (_tier_index == 0) {
       if (now >= starts_at)
         revert("cannot modify current tier");
 
       // Store current tier end time
-      Contract.set(
-        SaleManager.ends_at()
-      ).to(_new_duration.add(starts_at));
-
-    } else if (_tier_index > current_tier && now >= ends_at) {
-      if (_tier_index - current_tier == 1)
+      Contract.set(SaleManager.currentEndsAt()).to(_new_duration.add(starts_at));
+    } else if (_tier_index > current_tier) {
+      // If the end time has passed, and we are trying to update the next tier, the tier
+      // is already in progress and cannot be updated
+      if (_tier_index - current_tier == 1 && now >= cur_ends_at)
         revert("cannot modify current tier");
 
+      // Loop over tiers in storage and increment end time -
       for (uint i = current_tier; i < _tier_index; i++)
-        ends_at = ends_at.add(uint(Contract.read(bytes32(128 + (192 * i) + uint(SaleManager.crowdsale_tiers())))));
+        cur_ends_at = cur_ends_at.add(uint(Contract.read(SaleManager.tierDuration(i))));
 
-      if (now <= ends_at)
+      if (cur_ends_at >= now)
         revert("cannot modify current tier");
-
-    } else if (_tier_index <= current_tier || now >= ends_at) {
+    } else {
       // Not a valid state to update - throw
-      revert('invalid state');
+      revert('cannot update tier');
     }
 
     // Get new overall crowdsale duration -
@@ -234,13 +213,9 @@ library ConfigureSale {
       total_duration = total_duration.add(_new_duration - previous_duration);
 
     // Store updated tier duration
-    Contract.set(
-      bytes32(128 + (192 * _tier_index) + uint(SaleManager.crowdsale_tiers()))
-    ).to(_new_duration);
+    Contract.set(SaleManager.tierDuration(_tier_index)).to(_new_duration);
 
     // Update total crowdsale duration
-    Contract.set(
-      SaleManager.total_duration()
-    ).to(total_duration);
+    Contract.set(SaleManager.totalDuration()).to(total_duration);
   }
 }

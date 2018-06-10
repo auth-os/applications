@@ -9,13 +9,11 @@ library Purchase {
   using SafeMath for uint;
 
   // event Purchase(address indexed buyer, uint indexed tier, uint amount)
-  bytes32 internal constant BUY_SIG = keccak256('buy()');
+  bytes32 internal constant BUY_SIG = keccak256('Purchase(address,uint256,uint256)');
 
   // Returns the events and data for an 'Approval' event -
-  function PURCHASE(address _buyer, uint tier) private pure
-  returns (bytes32[3] memory) {
-    return [BUY_SIG, bytes32(_buyer), bytes32(tier)];
-  }
+  function PURCHASE(address _buyer, uint _tier) private pure returns (bytes32[3] memory)
+    { return [BUY_SIG, bytes32(_buyer), bytes32(_tier)]; }
 
 
   // Implements the logic to create the storage buffer for a Crowdsale Purchase
@@ -26,7 +24,7 @@ library Purchase {
     uint tier_ends_at;
     bool tier_is_whitelisted;
     bool updated_tier;
-    // Get information on the current tier of the crowdsale, and create a CrowdsaleTier struct to hold all of the information
+    // Get information on the current tier of the crowdsale
     (
       current_tier,
       tokens_remaining,
@@ -36,36 +34,39 @@ library Purchase {
       updated_tier
     ) = getCurrentTier();
 
-    // Get amount of wei able to be spent, and tokens able to be purchased
+    // Declare amount of wei that will be spent, and amount of tokens that will be purchased
     uint amount_spent;
     uint amount_purchased;
 
     if (tier_is_whitelisted) {
-      if (Contract.read(Sale.has_contributed(Contract.sender())) == bytes32(1)) {
+      // If the tier is whitelisted, and the sender has contributed, get the spend and purchase
+      // amounts with '0' as the minimum token purchase amount
+      if (Contract.read(Sale.hasContributed(Contract.sender())) == bytes32(1)) {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(Sale.decimals())),
+          uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
-          uint(Contract.read(Sale.whitelist_max_cap(Contract.sender(), current_tier))),
+          uint(Contract.read(Sale.whitelistMaxWei(current_tier, Contract.sender()))),
           0,
           tier_is_whitelisted
         );
-
       } else {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(Sale.decimals())),
+          uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
-          uint(Contract.read(Sale.whitelist_max_cap(Contract.sender(), current_tier))),
-          uint(Contract.read(Sale.whitelist_min_cap(Contract.sender(), current_tier))),
+          uint(Contract.read(Sale.whitelistMaxWei(current_tier, Contract.sender()))),
+          uint(Contract.read(Sale.whitelistMinTok(current_tier, Contract.sender()))),
           tier_is_whitelisted
         );
 
       }
     } else {
-      if (Contract.read(Sale.has_contributed(Contract.sender())) == bytes32(1)) {
+      // If the tier is not whitelisted, and the sender has contributed, get spend and purchase
+      // amounts with '0' set as maximum spend and '0' as minimum purchase size
+      if (Contract.read(Sale.hasContributed(Contract.sender())) == bytes32(1)) {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(Sale.decimals())),
+          uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
           0,
@@ -74,80 +75,65 @@ library Purchase {
         );
       } else {
         (amount_spent, amount_purchased) = getPurchaseInfo(
-          uint(Contract.read(Sale.decimals())),
+          uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
           0,
-          uint(Contract.read(Sale.min_contribution())),
+          uint(Contract.read(Sale.globalMinPurchaseAmt())),
           tier_is_whitelisted
         );
       }
     }
 
-    // Begin paying
+    // Set up payment buffer -
     Contract.paying();
-    // Designate amount spent for forwarding to the team wallet
+    // Forward spent wei to team wallet -
     Contract.pay(amount_spent).toAcc(address(Contract.read(Sale.wallet())));
 
-    // Begin storing values
+    // Move buffer to storing values -
     Contract.storing();
 
-    // Store updated purchaser's token balance
-    Contract.increase(
-      Sale.balances(Contract.sender())
-    ).by(amount_purchased);
+    // Update purchaser's token balance -
+    Contract.increase(Sale.balances(Contract.sender())).by(amount_purchased);
 
-    // Update tokens remaining for sale in the tier
-    Contract.decrease(
-      Sale.tokens_remaining()
-    ).by(amount_purchased);
+    // Update current tier tokens remaining for sale -
+    Contract.decrease(Sale.currentTokensRemaining()).by(amount_purchased);
 
-    // Update total tokens sold during the sale
-    Contract.increase(
-      Sale.tokens_sold()
-    ).by(amount_purchased);
+    // Update total tokens sold during the sale -
+    Contract.increase(Sale.tokensSold()).by(amount_purchased);
 
-    // Update total token supply
-    Contract.increase(
-      Sale.total_supply()
-    ).by(amount_purchased);
+    // Mint tokens (update total supply) -
+    Contract.increase(Sale.tokenTotalSupply()).by(amount_purchased);
 
-    // Update total wei raised
-    Contract.increase(
-      Sale.wei_raised()
-    ).by(amount_spent);
+    // Update total wei raised -
+    Contract.increase(Sale.totalWeiRaised()).by(amount_spent);
 
-    // If the sender had not previously contributed to the sale, push new unique contributor count and sender contributor status to buffer
-    if (Contract.read(Sale.has_contributed(Contract.sender())) == bytes32(0)) {
-      Contract.increase(
-        Sale.contributors()
-      ).by(1);
-      Contract.set(
-        Sale.has_contributed(Contract.sender())
-      ).to(true);
+    // If the sender had not previously contributed to the sale,
+    // increase unique contributor count and mark the sender as having contributed
+    if (Contract.read(Sale.hasContributed(Contract.sender())) == 0) {
+      Contract.increase(Sale.contributors()).by(1);
+      Contract.set(Sale.hasContributed(Contract.sender())).to(true);
     }
 
-    // If this tier was whitelisted, update sender's whitelist spend caps
+    // If the tier was whitelisted, update the spender's whitelist information -
     if (tier_is_whitelisted) {
+      // Set new minimum purchase size to 0
       Contract.set(
-        Sale.whitelist_max_cap(Contract.sender(), current_tier)
+        Sale.whitelistMinTok(current_tier, Contract.sender())
       ).to(uint(0));
-      Contract.set(
-        Sale.whitelist_min_cap(Contract.sender(), current_tier)
-      ).to(Contract.read(Sale.whitelist_max_cap(Contract.sender(), current_tier)));
+      // Decrease maximum spend amount remaining by amount spent
+      Contract.decrease(
+        Sale.whitelistMaxWei(current_tier, Contract.sender())
+      ).by(amount_spent);
     }
 
-    // If this tier was updated, set storage 'current tier' information -
+    // If the 'current tier' needs to be updated, set storage 'current tier' information -
     if (updated_tier) {
-      Contract.increase(
-        Sale.current_tier()
-      ).by(1);
-      Contract.set(
-        Sale.ends_at()
-      ).to(tier_ends_at);
+      Contract.set(Sale.currentTier()).to(current_tier.add(1));
+      Contract.set(Sale.currentEndsAt()).to(tier_ends_at);
     }
 
-    // Set up EMITS action requests -
+    // Move buffer to logging events -
     Contract.emitting();
 
     // Add PURCHASE signature and topics
@@ -156,11 +142,7 @@ library Purchase {
     );
   }
 
-  /*
-  Reads from storage and returns information about the current crowdsale tier
-  @param _exec_id: The execution id under which the crowdsale is registered
-  @returns cur_tier: A struct representing the current tier of the crowdsale
-  */
+  // Reads from storage and returns information about the current crowdsale tier
   function getCurrentTier() private view
   returns (
     uint current_tier,
@@ -170,10 +152,10 @@ library Purchase {
     bool tier_is_whitelisted,
     bool updated_tier
   ) {
-    uint num_tiers = uint(Contract.read(Sale.crowdsale_tiers()));
-    current_tier = uint(Contract.read(Sale.current_tier())) - 1;
-    tier_ends_at = uint(Contract.read(Sale.ends_at()));
-    tokens_remaining = uint(Contract.read(Sale.tokens_remaining()));
+    uint num_tiers = uint(Contract.read(Sale.saleTierList()));
+    current_tier = uint(Contract.read(Sale.currentTier())).sub(1);
+    tier_ends_at = uint(Contract.read(Sale.currentEndsAt()));
+    tokens_remaining = uint(Contract.read(Sale.currentTokensRemaining()));
 
     // If the current tier has ended, we need to update the current tier in storage
     if (now >= tier_ends_at) {
@@ -181,7 +163,8 @@ library Purchase {
         tokens_remaining,
         purchase_price,
         tier_is_whitelisted,
-        tier_ends_at
+        tier_ends_at,
+        current_tier
       ) = updateTier(tier_ends_at, current_tier, num_tiers);
       updated_tier = true;
     } else {
@@ -201,79 +184,76 @@ library Purchase {
       revert('tier sold out');
   }
 
-  /*
-  Loads information about the current crowdsale tier into the CrowdsaleTier struct
-  @param _exec_id: The execution id under which this crowdsale application is registered
-  @param _ptr: A pointer to a buffer in memory
-  @param _tier_info: An array containing information about the current tier in memory
-  @param _cur_tier: A struct representing information about the current crowdsale tier
-  */
-  function getTierInfo(uint current_tier) private view
+  // Returns information about the current crowdsale tier
+  function getTierInfo(uint _current_tier) private view
   returns (uint purchase_price, bool tier_is_whitelisted) {
     // Get the crowdsale purchase price
-    purchase_price = uint(Contract.read(Sale.tier_price(current_tier)));
+    purchase_price = uint(Contract.read(Sale.tierPrice(_current_tier)));
     // Get the current tier's whitelist status
     tier_is_whitelisted
-      = Contract.read(Sale.tier_is_whitelisted(current_tier)) == bytes32(1) ? true : false;
+      = Contract.read(Sale.tierWhitelisted(_current_tier)) == bytes32(1) ? true : false;
   }
 
-  /*
-  Takes an input CrowdsaleTier struct and updates it to reflect information about the latest tier
-  @param _exec_id: The execution id under which this crowdsale application is registered
-  @param _ptr: A pointer to a buffer in memory
-  @param _tier_info: An array containing information about the current tier in memory
-  @param _cur_tier: A struct representing information about the current crowdsale tier
-  */
-  function updateTier(uint ends_at, uint current_tier, uint num_tiers) private view
-  returns (uint tokens_remaining, uint purchase_price, bool tier_is_whitelisted, uint tier_ends_at) {
-    // While the current timestamp is beyond the current tier's end time, and while the current tier's index is within a valid range:
-    while (now >= ends_at && ++current_tier < num_tiers) {
-      // Push tier token sell cap storage location to buffer
-      tokens_remaining = uint(Contract.read(Sale.tier_sell_cap(current_tier)));
-      // Push tier token price storage location to buffer
-      purchase_price = uint(Contract.read(Sale.tier_price(current_tier)));
-      // Push tier duration storage location to buffer
-      uint tier_duration = uint(Contract.read(Sale.tier_duration(current_tier)));
-      // Push tier 'is-whitelisted' status storage location to buffer
-      tier_is_whitelisted = Contract.read(Sale.tier_is_whitelisted(current_tier)) == bytes32(1) ? true : false;
-      // Ensure valid tier setup
+  // Returns information about the current crowdsale tier by time, so that storage can be updated
+  function updateTier(uint _ends_at, uint _current_tier, uint _num_tiers) private view
+  returns (
+    uint tokens_remaining,
+    uint purchase_price,
+    bool tier_is_whitelisted,
+    uint tier_ends_at,
+    uint current_tier
+  ) {
+    // While the current timestamp is beyond the current tier's end time,
+    // and while the current tier's index is within a valid range:
+    while (now >= _ends_at && ++_current_tier < _num_tiers) {
+      // Read tier remaining tokens -
+      tokens_remaining = uint(Contract.read(Sale.tierCap(_current_tier)));
+      // Read tier price -
+      purchase_price = uint(Contract.read(Sale.tierPrice(_current_tier)));
+      // Read tier duration -
+      uint tier_duration = uint(Contract.read(Sale.tierDuration(_current_tier)));
+      // Read tier 'whitelisted' status -
+      tier_is_whitelisted
+        = Contract.read(Sale.tierWhitelisted(_current_tier)) == bytes32(1) ? true : false;
+      // Ensure valid tier setup -
       if (tokens_remaining == 0 || purchase_price == 0 || tier_duration == 0)
         revert('invalid tier');
 
-      ends_at = ends_at.add(tier_duration);
+      _ends_at = _ends_at.add(tier_duration);
     }
-    // If the updated current tier's index is not in the valid range, or the end time is still in the past, throw
-    if (now >= ends_at || current_tier >= num_tiers)
+    // If the updated current tier's index is not in the valid range, or the
+    // end time is still in the past, throw
+    if (now >= _ends_at || _current_tier >= _num_tiers)
       revert('crowdsale finished');
 
-    tier_ends_at = ends_at;
+    // Set return values -
+    tier_ends_at = _ends_at;
+    current_tier = _current_tier;
   }
 
+  // Calculates the amount of wei spent and number of tokens purchased from sale details
   function getPurchaseInfo(
-    uint token_decimals,
-    uint purchase_price,
-    uint tokens_remaining,
-    uint maximum_spend_amount,
-    uint minimum_purchase_amount,
-    bool tier_is_whitelisted
+    uint _token_decimals,
+    uint _purchase_price,
+    uint _tokens_remaining,
+    uint _maximum_spend_amount,
+    uint _minimum_purchase_amount,
+    bool _tier_is_whitelisted
   ) private view returns (uint amount_spent, uint amount_purchased) {
     // Get amount of wei able to be spent, given the number of tokens remaining -
-    if (msg.value.mul(10 ** token_decimals).div(purchase_price) >= tokens_remaining) {
+    if (msg.value.mul(10 ** _token_decimals).div(_purchase_price) >= _tokens_remaining) {
       // wei sent is able to purchase more tokens than are remaining in this tier -
       amount_spent =
-        purchase_price.mul(tokens_remaining).div(10 ** token_decimals);
+        _purchase_price.mul(_tokens_remaining).div(10 ** _token_decimals);
     } else {
       // All of the wei sent can be used to purchase tokens
       amount_spent = msg.value;
     }
 
-    // If the current tier is whitelisted, the sender has a maximum wei contribution cap. If amount spent exceeds this cap, adjust amount spent -
-    if (tier_is_whitelisted) {
-      if (amount_spent > maximum_spend_amount)
-        amount_spent = maximum_spend_amount;
-      // Decrease spender's spend amount remaining by the amount spent
-      maximum_spend_amount = maximum_spend_amount.sub(amount_spent);
-    }
+    // If the current tier is whitelisted, the sender has a maximum wei contribution cap.
+    // If amount spent exceeds this cap, adjust amount spent -
+    if (_tier_is_whitelisted && amount_spent > _maximum_spend_amount)
+      amount_spent = _maximum_spend_amount;
 
     // Ensure spend amount is valid -
     if (amount_spent == 0 || amount_spent > msg.value)
@@ -281,14 +261,14 @@ library Purchase {
 
     // Get number of tokens able to be purchased with the amount spent -
     amount_purchased =
-      amount_spent.mul(10 ** token_decimals).div(purchase_price);
+      amount_spent.mul(10 ** _token_decimals).div(_purchase_price);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in this tier -
-    if (amount_purchased > tokens_remaining || amount_purchased == 0)
+    if (amount_purchased > _tokens_remaining || amount_purchased == 0)
       revert('invalid purchase amount');
 
     // Ensure amount of tokens to purchase is greater than the spender's minimum contribution cap -
-    if (amount_purchased < minimum_purchase_amount)
+    if (amount_purchased < _minimum_purchase_amount)
       revert('under min cap');
   }
 }

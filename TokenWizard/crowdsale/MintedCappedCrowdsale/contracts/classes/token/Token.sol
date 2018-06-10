@@ -8,48 +8,44 @@ library Token {
 
   using Contract for *;
 
-  // Token fields -
+  /// TOKEN ///
 
-  // Returns the storage location of the token's name
-  function name() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
+  // Storage location for token name
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  // Returns the storage location of the token's symbol
-  function symbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
+  // Storage location for token ticker symbol
+  function tokenSymbol() internal pure returns (bytes32)
+    { return keccak256("token_symbol"); }
 
-  // Returns the storage location of the token's totalSupply
-  function totalSupply() internal pure returns (bytes32 location) {
-    location = keccak256('token_total_supply');
-  }
+  // Storage location for token totalSupply
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
 
-  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
+  // Storage seed for user balances mapping
+  bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
-  // Returns the storage location of an owner's token balance
-  function balances(address _owner) internal pure returns (bytes32 location) {
-    location = keccak256(_owner, BALANCE_SEED);
-  }
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
-  bytes32 private constant ALLOWANCE_SEED = keccak256('token_allowed');
+  // Storage seed for user allowances mapping
+  bytes32 internal constant TOKEN_ALLOWANCES = keccak256("token_allowances");
 
-  // Returns the storage location of a spender's token allowance from the owner
-  function allowed(address _owner, address _spender) internal pure returns (bytes32 location) {
-    location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
-  }
+  function allowed(address _owner, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, keccak256(_owner, TOKEN_ALLOWANCES)); }
 
-  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('token_transfer_agents');
+  // Storage seed for token 'transfer agent' status for any address
+  // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
+  bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
-  // Returns the storage location of an Agent's transfer agent status
-  function transferAgent(address agent) internal pure returns (bytes32 location) {
-    location = keccak256(agent, TRANSFER_AGENT_SEED);
-  }
+  function transferAgents(address _agent) internal pure returns (bytes32)
+    { return keccak256(_agent, TOKEN_TRANSFER_AGENTS); }
 
-  // Returns the storage location for the unlock status of the token
-  function tokensUnlocked() internal pure returns(bytes32 location) {
-    location = keccak256('crowdsale_tokens_unlocked');
-  }
+  // Whether or not the token is unlocked for transfers
+  function tokensUnlocked() internal pure returns (bytes32)
+    { return keccak256('sale_tokens_unlocked'); }
+
+  /// CHECKS ///
 
   // Ensures both storage and events have been pushed to the buffer
   function emitAndStore() internal pure {
@@ -59,9 +55,11 @@ library Token {
 
   // Ensures the sale's token has been initialized
   function tokenInit() internal view {
-    if (Contract.read(name()) == 0)
+    if (Contract.read(tokenName()) == 0)
       revert('token not initialized');
   }
+
+  /// FUNCTIONS ///
 
   /*
   Allows a token holder to transfer tokens to another address
