@@ -8,7 +8,11 @@ contract SaleProxy is ISale, Proxy {
 
   // Allows a sender to purchase tokens from the active sale
   function buy() public payable {
-    app_storage.exec.value(msg.value)(msg.sender, app_exec_id, msg.data);
+    if (address(app_storage).call.value(msg.value)(abi.encodeWithSelector(
+      EXEC_SEL, msg.sender, app_exec_id, msg.data
+    )) == false) checkErrors(); // Call failed - emit errors
+    // Return unspent wei to sender
+    address(msg.sender).transfer(address(this).balance);
   }
 }
 
@@ -215,9 +219,10 @@ contract MintedCappedProxy is IMintedCapped, TokenProxy {
   }
 
   // Executes an arbitrary function in this application
-  function exec(bytes32 _exec_id, bytes _calldata) external payable returns (bool success) {
+  function exec(bytes _calldata) external payable returns (bool success) {
+    require(app_exec_id != 0 && _calldata.length >= 4);
     // Call 'exec' in AbstractStorage, passing in the sender's address, the app exec id, and the calldata to forward -
-    app_storage.exec.value(msg.value)(msg.sender, _exec_id, _calldata);
+    app_storage.exec.value(msg.value)(msg.sender, app_exec_id, _calldata);
 
     // Get returned data
     success = checkReturn();

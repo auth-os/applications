@@ -503,7 +503,7 @@ library MintedCappedIdx {
     // Overwrite previous buffer - push exec id, data read offset, and read size to buffer
     bytes32[] memory last_arr = new bytes32[](2 * num_tiers);
     // Loop through tiers and get sell cap and purchase price for each tier
-    for (uint i = 0; i < 2 * num_tiers; i+=2) {
+    for (uint i = 0; i < 2 * num_tiers; i += 2) {
       last_arr[i] = tierCap(i / 2);
       last_arr[i + 1] = tierPrice(i / 2);
     }
