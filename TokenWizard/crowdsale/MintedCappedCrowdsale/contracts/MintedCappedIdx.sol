@@ -1,8 +1,8 @@
 pragma solidity ^0.4.23;
 
-import './auth-os/Contract.sol';
-import './auth-os/GetterInterface.sol';
-import './auth-os/ArrayUtils.sol';
+import "authos-solidity/contracts/core/Contract.sol";
+import "authos-solidity/contracts/interfaces/GetterInterface.sol";
+import "authos-solidity/contracts/lib/ArrayUtils.sol";
 
 library MintedCappedIdx {
 

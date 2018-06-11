@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
-import "./auth-os/Proxy.sol";
-import "./auth-os/StringUtils.sol";
+import "authos-solidity/contracts/core/Proxy.sol";
+import "authos-solidity/contracts/lib/StringUtils.sol";
 import "./IMintedCapped.sol";
 
 contract SaleProxy is ISale, Proxy {

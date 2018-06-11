@@ -1,39 +1,39 @@
 pragma solidity ^0.4.23;
 
-import "../../auth-os/core/Contract.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library TokenMock {
 
   using Contract for *;
 
-  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  // Returns the storage location of an owner's token balance
-  function balances(address _owner) internal pure returns (bytes32 location) {
-    location = keccak256(_owner, BALANCE_SEED);
-  }
+  bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
-  bytes32 private constant TRANSFER_AGENT_SEED = keccak256('token_transfer_agents');
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
-  // Returns the storage location of an Agent's transfer agent status
-  function transferAgent(address agent) internal pure returns (bytes32 location) {
-    location = keccak256(agent, TRANSFER_AGENT_SEED);
-  }
+  // Storage seed for token 'transfer agent' status for any address
+  // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
+  bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
+
+  function transferAgents(address _agent) internal pure returns (bytes32)
+    { return keccak256(_agent, TOKEN_TRANSFER_AGENTS); }
 
   // Returns the storage location of the number of tokens sold
-  function tokens_sold() internal pure returns (bytes32 location) {
-    location = keccak256("crowdsale_tokens_sold");
-  }
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
 
   // Returns the storage location for the unlock status of the token
-  function tokensUnlocked() internal pure returns(bytes32 location) {
-    location = keccak256('crowdsale_tokens_unlocked');
-  }
+  function tokensUnlocked() internal pure returns (bytes32)
+    { return keccak256('sale_tokens_unlocked'); }
 
   function setBalance(address _acc, uint _amt) external view {
     Contract.authorize(msg.sender);
     Contract.storing();
     Contract.set(balances(_acc)).to(_amt);
+    Contract.set(tokenName()).to(bytes32("NameToken"));
     Contract.commit();
   }
 
@@ -47,14 +47,14 @@ library TokenMock {
   function setTransferAgent(address _agent, bool _stat) external view {
     Contract.authorize(msg.sender);
     Contract.storing();
-    Contract.set(transferAgent(_agent)).to(_stat);
+    Contract.set(transferAgents(_agent)).to(_stat);
     Contract.commit();
   }
 
   function setTotalSold(uint _sold) external view {
     Contract.authorize(msg.sender);
     Contract.storing();
-    Contract.set(tokens_sold()).to(_sold);
+    Contract.set(tokensSold()).to(_sold);
     Contract.commit();
   }
 }

@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
 import "../Sale.sol";
-import "../../../auth-os/Contract.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library Purchase {
 

@@ -1,7 +1,7 @@
 pragma solidity ^0.4.23;
 
-import "../../auth-os/Contract.sol";
 import "./features/ManageTokens.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library TokenManager {
 

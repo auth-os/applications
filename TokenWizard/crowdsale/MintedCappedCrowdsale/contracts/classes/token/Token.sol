@@ -1,8 +1,8 @@
 pragma solidity ^0.4.23;
 
-import "../../auth-os/Contract.sol";
 import "./features/Transfer.sol";
 import "./features/Approve.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library Token {
 
