@@ -1,15 +1,16 @@
 // Abstract storage contract
 let AbstractStorage = artifacts.require('./AbstractStorage')
-// DutchCrowdsale
-let InitDutch = artifacts.require('./InitCrowdsale')
-let DutchBuy = artifacts.require('./CrowdsaleBuyTokens')
-let DutchCrowdsaleConsole = artifacts.require('./CrowdsaleConsole')
-let DutchTokenConsole = artifacts.require('./TokenConsole')
-let DutchTokenTransfer = artifacts.require('./TokenTransfer')
-let DutchTokenTransferFrom = artifacts.require('./TokenTransferFrom')
-let DutchTokenApprove = artifacts.require('./TokenApprove')
+// Registry
+let RegistryUtil = artifacts.require('./RegistryUtil')
+let RegistryIdx = artifacts.require('./RegistryIdx')
+let Provider = artifacts.require('./Provider')
+// DutchAuction
+let Token = artifacts.require('./Token')
+let Sale = artifacts.require('./Sale')
+let Admin = artifacts.require('./Admin')
+let DutchSale = artifacts.require('./DutchCrowdsaleIdx')
 // Utils
-let TestUtils = artifacts.require('./TestUtils')
+let DutchUtils = artifacts.require('./utils/DutchUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')
@@ -27,25 +28,30 @@ function hexStrEquals(hex, expected) {
 contract('#DutchCrowdsaleInit', function (accounts) {
 
   let storage
-  let testUtils
 
   let exec = accounts[0]
-  let updater = accounts[1]
-  let crowdsaleAdmin = accounts[2]
-  let teamWallet = accounts[3]
+  let crowdsaleAdmin = accounts[1]
+  let teamWallet = accounts[2]
 
-  let initCrowdsale
-  let crowdsaleBuy
-  let crowdsaleConsole
-  let tokenConsole
-  let tokenTransfer
-  let tokenTransferFrom
-  let tokenApprove
+  let regExecID
+  let regUtil
+  let regProvider
+  let regIdx
+
+  let saleUtils
+  let saleAddrs
+  let saleSelectors
+
+  let saleIdx
+  let token
+  let sale
+  let admin
 
   let executionID
   let initCalldata
   let initEvent
-  let finalizeEvent
+
+  let appName = 'DutchCrowdsale'
 
   let startTime
   let totalSupply = 100000
@@ -57,15 +63,62 @@ contract('#DutchCrowdsaleInit', function (accounts) {
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
-    testUtils = await TestUtils.new().should.be.fulfilled
 
-    initCrowdsale = await InitDutch.new().should.be.fulfilled
-    crowdsaleBuy = await DutchBuy.new().should.be.fulfilled
-    crowdsaleConsole = await DutchCrowdsaleConsole.new().should.be.fulfilled
-    tokenConsole = await DutchTokenConsole.new().should.be.fulfilled
-    tokenTransfer = await DutchTokenTransfer.new().should.be.fulfilled
-    tokenTransferFrom = await DutchTokenTransferFrom.new().should.be.fulfilled
-    tokenApprove = await DutchTokenApprove.new().should.be.fulfilled
+    regUtil = await RegistryUtil.new().should.be.fulfilled
+    regProvider = await Provider.new().should.be.fulfilled
+    regIdx = await RegistryIdx.new().should.be.fulfilled
+
+    saleIdx = await DutchSale.new().should.be.fulfilled
+    token = await Token.new().should.be.fulfilled
+    sale = await Sale.new().should.be.fulfilled
+    admin = await Admin.new().should.be.fulfilled
+
+    saleUtils = await DutchUtils.new().should.be.fulfilled
+
+    saleSelectors = await saleUtils.getSelectors.call().should.be.fulfilled
+    saleSelectors.length.should.be.eq(13)
+
+    saleAddrs = [
+      // admin
+      admin.address, admin.address, admin.address, admin.address,
+      admin.address, admin.address, admin.address,
+
+      // sale
+      sale.address,
+
+      // token
+      token.address, token.address, token.address, token.address, token.address
+    ]
+    saleAddrs.length.should.be.eq(saleSelectors.length)
+  })
+
+  beforeEach(async () => {
+    let events = await storage.createRegistry(
+      regIdx.address, regProvider.address, { from: exec }
+    ).should.be.fulfilled.then((tx) => {
+      return tx.logs
+    })
+    events.should.not.eq(null)
+    events.length.should.be.eq(1)
+    events[0].event.should.be.eq('ApplicationInitialized')
+    regExecID = events[0].args['execution_id']
+    web3.toDecimal(regExecID).should.not.eq(0)
+
+    let registerCalldata = await regUtil.registerApp.call(
+      appName, saleIdx.address, saleSelectors, saleAddrs
+    ).should.be.fulfilled
+    registerCalldata.should.not.eq('0x0')
+
+    events = await storage.exec(
+      exec, regExecID, registerCalldata,
+      { from: exec }
+    ).should.be.fulfilled.then((tx) => {
+      return tx.logs;
+    })
+    events.should.not.eq(null)
+    events.length.should.be.eq(1)
+    events[0].event.should.be.eq('ApplicationExecution')
+    events[0].args['script_target'].should.be.eq(regProvider.address)
   })
 
   describe('valid initialization', async () => {
@@ -74,60 +127,38 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get valid init calldata
-      initCalldata = await testUtils.init.call(
+      initCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
       initCalldata.should.not.be.eq('0x')
 
-      // Initialize a valid sale
-      let events = await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, initCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
-      ).then((tx) => {
+      events = await storage.createInstance(
+        exec, appName, exec, regExecID, initCalldata,
+        { from: exec }
+      ).should.be.fulfilled.then((tx) => {
         return tx.logs
       })
       events.should.not.eq(null)
-      events.length.should.be.eq(2)
+      events.length.should.be.eq(1)
       initEvent = events[0]
-      finalizeEvent = events[1]
-
-      executionID = initEvent.args['execution_id']
-      executionID.should.not.eq(0)
+      executionID = events[0].args['execution_id']
+      web3.toDecimal(executionID).should.not.eq(0)
     })
 
     it('should emit an ApplicationInitialized event', async () => {
       initEvent.event.should.be.eq('ApplicationInitialized')
     })
 
-    it('should emit an ApplicationFinalization event', async () => {
-      finalizeEvent.event.should.be.eq('ApplicationFinalization')
-    })
-
     describe('the ApplicationInitialized event', async () => {
 
       it('should contain the indexed initialization address for the crowdsale', async () => {
-        let initAddress = initEvent.args['init_address']
-        initAddress.should.be.eq(initCrowdsale.address)
+        let initAddress = initEvent.args['index']
+        initAddress.should.be.eq(saleIdx.address)
       })
 
       it('should contain an indexed execution id', async () => {
         let execID = initEvent.args['execution_id']
-        web3.toDecimal(execID).should.not.eq(0)
-      })
-    })
-
-    describe('the ApplicationFinalization event', async () => {
-
-      it('should contain the indexed initialization address for the crowdsale', async () => {
-        let initAddress = finalizeEvent.args['init_address']
-        initAddress.should.be.eq(initCrowdsale.address)
-      })
-
-      it('should contain an indexed execution id', async () => {
-        let execID = finalizeEvent.args['execution_id']
         web3.toDecimal(execID).should.not.eq(0)
       })
     })
@@ -137,7 +168,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let adminAddr
 
       beforeEach(async () => {
-        adminAddr = await initCrowdsale.getAdmin.call(storage.address, executionID).should.be.fulfilled
+        adminAddr = await saleIdx.getAdmin.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should store the correct admin address', async () => {
@@ -150,7 +181,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let crowdsaleInfo
 
       beforeEach(async () => {
-        crowdsaleInfo = await initCrowdsale.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
         crowdsaleInfo.length.should.be.eq(5)
       })
 
@@ -177,7 +208,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let crowdsaleFullInfo
 
       beforeEach(async () => {
-        crowdsaleFullInfo = await initCrowdsale.isCrowdsaleFull.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleFullInfo = await saleIdx.isCrowdsaleFull.call(storage.address, executionID).should.be.fulfilled
         crowdsaleFullInfo.length.should.be.eq(2)
       })
 
@@ -195,7 +226,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let buyerInfo
 
       beforeEach(async () => {
-        buyerInfo = await initCrowdsale.getCrowdsaleUniqueBuyers.call(storage.address, executionID).should.be.fulfilled
+        buyerInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should not have any unique buyers', async () => {
@@ -208,7 +239,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let crowdsaleTimeInfo
 
       beforeEach(async () => {
-        crowdsaleTimeInfo = await initCrowdsale.getCrowdsaleStartAndEndTimes.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleTimeInfo = await saleIdx.getCrowdsaleStartAndEndTimes.call(storage.address, executionID).should.be.fulfilled
         crowdsaleTimeInfo.length.should.be.eq(2)
       })
 
@@ -226,7 +257,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let crowdsaleStatusInfo
 
       beforeEach(async () => {
-        crowdsaleStatusInfo = await initCrowdsale.getCrowdsaleStatus.call(storage.address, executionID).should.be.fulfilled
+        crowdsaleStatusInfo = await saleIdx.getCrowdsaleStatus.call(storage.address, executionID).should.be.fulfilled
         crowdsaleStatusInfo.length.should.be.eq(6)
       })
 
@@ -256,25 +287,12 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       })
     })
 
-    describe('#getTokensSold', async () => {
-
-      let soldInfo
-
-      beforeEach(async () => {
-        soldInfo = await initCrowdsale.getTokensSold.call(storage.address, executionID).should.be.fulfilled
-      })
-
-      it('should not have any tokens sold', async () => {
-        soldInfo.toNumber().should.be.eq(0)
-      })
-    })
-
     describe('#getCrowdsaleWhitelist', async () => {
 
       let saleWhitelist
 
       beforeEach(async () => {
-        saleWhitelist = await initCrowdsale.getCrowdsaleWhitelist.call(storage.address, executionID).should.be.fulfilled
+        saleWhitelist = await saleIdx.getCrowdsaleWhitelist.call(storage.address, executionID).should.be.fulfilled
         saleWhitelist.length.should.be.eq(2)
       })
 
@@ -292,7 +310,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let adminBalance
 
       beforeEach(async () => {
-        adminBalance = await initCrowdsale.balanceOf.call(
+        adminBalance = await saleIdx.balanceOf.call(
           storage.address, executionID, crowdsaleAdmin
         ).should.be.fulfilled
       })
@@ -307,7 +325,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let supplyInfo
 
       beforeEach(async () => {
-        supplyInfo = await initCrowdsale.totalSupply.call(storage.address, executionID).should.be.fulfilled
+        supplyInfo = await saleIdx.totalSupply.call(storage.address, executionID).should.be.fulfilled
       })
 
       it('should correctly store the total supply of the token', async () => {
@@ -320,7 +338,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       let tokenInfo
 
       beforeEach(async () => {
-        tokenInfo = await initCrowdsale.getTokenInfo.call(
+        tokenInfo = await saleIdx.getTokenInfo.call(
           storage.address, executionID
         ).should.be.fulfilled
         tokenInfo.length.should.be.eq(4)
@@ -353,7 +371,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         invalidWallet, totalSupply, sellCap, startPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -361,11 +379,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -376,7 +392,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     let invalidInitCalldata
 
     beforeEach(async () => {
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
         duration, invalidStartTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -384,11 +400,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -400,7 +414,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
 
     beforeEach(async () => {
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
         invalidDuration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -408,11 +422,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -426,7 +438,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, invalidSellCap, startPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -434,11 +446,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -452,7 +462,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, invalidSellCap, startPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -460,11 +470,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -478,7 +486,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -486,11 +494,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -504,7 +510,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -512,11 +518,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -530,7 +534,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -538,11 +542,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -556,7 +558,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -564,11 +566,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -582,7 +582,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -590,11 +590,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -608,7 +606,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init.call(
+      invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
         duration, startTime, isWhitelisted, crowdsaleAdmin
       ).should.be.fulfilled
@@ -616,11 +614,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })
@@ -634,7 +630,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       startTime = getTime() + 3600 // Starts in 1 hour
 
       // Get invalid init calldata
-      invalidInitCalldata = await testUtils.init(
+      invalidInitCalldata = await saleUtils.init(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
         duration, startTime, isWhitelisted, invalidAdmin
       ).should.be.fulfilled
@@ -642,11 +638,9 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     })
 
     it('should throw', async () => {
-      await storage.initAndFinalize(
-        updater, true, initCrowdsale.address, invalidInitCalldata, [
-          crowdsaleBuy.address, crowdsaleConsole.address, tokenConsole.address,
-          tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-        ], { from: exec }
+      await storage.createInstance(
+        exec, appName, exec, regExecID, invalidInitCalldata,
+        { from: exec }
       ).should.not.be.fulfilled
     })
   })

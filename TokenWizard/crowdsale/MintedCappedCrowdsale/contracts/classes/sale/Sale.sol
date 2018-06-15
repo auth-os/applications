@@ -43,10 +43,6 @@ library Sale {
   function saleTierList() internal pure returns (bytes32)
     { return keccak256("sale_tier_list"); }
 
-  // Returns the storage location of the tier's token sell cap
-  function tierName(uint _idx) internal pure returns (bytes32)
-    { return keccak256(_idx, "name", saleTierList()); }
-
   // Stores the number of tokens that will be sold in the tier
   function tierCap(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "cap", saleTierList()); }
@@ -125,6 +121,15 @@ library Sale {
 
   // Ensures the sale has been configured, and that the sale has not finished
   function validState() internal view {
+    if (msg.value == 0)
+      revert('no wei sent');
+
+    if (uint(Contract.read(startTime())) > now)
+      revert('sale has not started');
+
+    if (Contract.read(wallet()) == 0)
+  	  revert('invalid Crowdsale wallet');
+
     if (Contract.read(isConfigured()) == 0)
       revert('sale not initialized');
 

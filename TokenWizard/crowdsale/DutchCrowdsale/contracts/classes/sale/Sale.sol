@@ -1,180 +1,150 @@
 pragma solidity ^0.4.23;
 
-import "../../DutchCrowdsale.sol";
-import "../../lib/Contract.sol";
 import "./features/Purchase.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library Sale {
-  
+
   using Contract for *;
 
-  // Crowdsale fields - 
+  /// SALE ///
 
-  //Returns the storage location of the admin of the crowdsale
-  function admin() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_admin");
-  }
+  // Whether the crowdsale and token are configured, and the sale is ready to run
+  function isConfigured() internal pure returns (bytes32)
+    { return keccak256("sale_is_configured"); }
 
-  // Returns the storage location of the crowdsale_is_init variable
-  function isInit() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_init");
-  }
+  // Whether or not the crowdsale is post-purchase
+  function isFinished() internal pure returns (bytes32)
+    { return keccak256("sale_is_completed"); }
 
-  // Returns the storage location of crowdsale_is_finalized variable
-  function isFinalized() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_finalized");
-  }
+  // Storage location of the crowdsale's start time
+  function startTime() internal pure returns (bytes32)
+    { return keccak256("sale_start_time"); }
+
+  // Storage location of the amount of time the crowdsale will take, accounting for all tiers
+  function totalDuration() internal pure returns (bytes32)
+    { return keccak256("sale_total_duration"); }
 
   // Returns the storage location of number of tokens remaining in crowdsale
-  function tokensRemaining() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_tokens_remaining");
-  }
-
-  // Returns the storage location of crowdsale's minimum contribution
-  function minContribution() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_min_cap");
-  }  
-  
-  // Storage seed for crowdsale's unique contributors
-  bytes32 internal constant CROWDSALE_UNIQUE_CONTRIBUTORS = keccak256("crowdsale_contributors");
-
-  //Returns the storage location of the number of unique contributors in the crowdsale
-  function uniqueContributors() internal pure returns (bytes32 location) {
-  	location = CROWDSALE_UNIQUE_CONTRIBUTORS;
-  }
-  // Returns the storage location of whether or not _sender is a unique contributor to this crowdsale
-  function hasContributed(address _sender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_sender), CROWDSALE_UNIQUE_CONTRIBUTORS);
-  }
-
-  // Returns the storage location of crowdsale's starting time
-  function startTime() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_starts_at");
-  }
-
-  // Returns the storage location of crowdsale's duration
-  function duration() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_duration");
-  }
+  function tokensRemaining() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_remaining"); }
 
   // Returns the storage location of crowdsale's starting sale rate
-  function startRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_start_rate");
-  }
+  function startRate() internal pure returns (bytes32)
+    { return keccak256("sale_start_rate"); }
 
   // Returns the storage location of crowdsale's ending sale rate
-  function endRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_end_rate");
-  }
+  function endRate() internal pure returns (bytes32)
+    { return keccak256("sale_end_rate"); }
 
-  // Returns the storage location of the crowdsale's wallet
-  function wallet() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wallet");
-  }
+  // Storage location of the minimum amount of tokens allowed to be purchased
+  function globalMinPurchaseAmt() internal pure returns (bytes32)
+    { return keccak256("sale_min_purchase_amt"); }
 
-  // Returns the storage location of crowdsale's wei raised
-  function weiRaised() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wei_raised");
-  }
+  // Stores the amount of unique contributors so far in this crowdsale
+  function contributors() internal pure returns (bytes32)
+    { return keccak256("sale_contributors"); }
 
-  // Returns the storage location of crowdsale's whitelist status
-  function isWhitelisted() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_whiteliste");
-  }
+  // Maps addresses to a boolean indicating whether or not this address has contributed
+  function hasContributed(address _purchaser) internal pure returns (bytes32)
+    { return keccak256(_purchaser, contributors()); }
 
-  // Storage seed for crowdsale's whitelist 
-  bytes32 internal constant SALE_WHITELIST = keccak256("crowdsale_purchase_whitelist");
+  /// FUNDS ///
 
-  // Returns the storage location of user's minimum contribution in whitelisted crowdsale
-  function whitelistMinContrib(address _spender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_spender), SALE_WHITELIST);
-  }
+  // Storage location of team funds wallet
+  function wallet() internal pure returns (bytes32)
+    { return keccak256("sale_destination_wallet"); }
 
-  //Returns the storage location for the user's remaining spending amount in a whitelisted crowdsale
-  function whitelistSpendRemaining(address _spender) internal pure returns (bytes32 location) {
-  	location = bytes32(32 + uint(keccak256(keccak256(_spender), SALE_WHITELIST)));
-  }
+  // Storage location of amount of wei raised during the crowdsale, total
+  function totalWeiRaised() internal pure returns (bytes32)
+    { return keccak256("sale_tot_wei_raised"); }
 
-  // Returns storage location for crowdsale token's number of decimals
-  function decimals() internal pure returns (bytes32 location) {
-  	location = keccak256("token_decimals");
-  }
+  /// WHITELIST ///
 
-  // Token fields - 
+  // Whether or not the sale is whitelist-enabled
+  function isWhitelisted() internal pure returns (bytes32)
+    { return keccak256('sale_is_whitelisted'); }
 
-  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
+  // Stores the sale's whitelist
+  function saleWhitelist() internal pure returns (bytes32)
+    { return keccak256("sale_whitelist"); }
 
-  // Returns the storage location of an owner's token balance
-  function balances(address _owner) internal pure returns (bytes32 location) {
-    location = keccak256(_owner, BALANCE_SEED);
-  }
+  // Stores a spender's maximum wei spend amount
+  function whitelistMaxWei(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_wei", saleWhitelist()); }
 
-  bytes32 private constant ALLOWANCE_SEED = keccak256('token_allowed');
+  // Stores a spender's minimum token purchase amount
+  function whitelistMinTok(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "min_tok", saleWhitelist()); }
 
-  // Returns the storage location of a spender's token allowance from the owner
-  function allowed(address _owner, address _spender) internal pure returns (bytes32 location) {
-    location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
-  }
+  /// TOKEN ///
 
-  // Function selector 
-  bytes4 internal constant BUY_SEL = bytes4(keccak256("buy()"));
+  // Storage location for token decimals
+  function tokenDecimals() internal pure returns (bytes32)
+    { return keccak256("token_decimals"); }
 
-  function first() internal view {
-  	if (msg.value == 0)
-  	  revert('no wei sent');
+  // Storage seed for user balances mapping
+  bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 
-  	if (bytes32(now) < Contract.read(startTime()))
-  	  revert('attempting to buy before Crowdsale start time');
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
-  	if (Contract.read(tokensRemaining()) == bytes32(0))
-  	  revert('Crowdsale is sold out');
+  /// CHECKS ///
 
-  	if (Contract.read(wallet()) == bytes32(0))
+  // Ensures the sale has been configured, and that the sale has not finished
+  function validState() internal view {
+    // Ensure ETH was sent with the transaction
+    if (msg.value == 0)
+      revert('no wei sent');
+
+    // Ensure the sale has started
+    if (uint(Contract.read(startTime())) > now)
+      revert('sale has not started');
+
+    // Ensure the team wallet is correct
+    if (Contract.read(wallet()) == 0)
   	  revert('invalid Crowdsale wallet');
 
-  	if (Contract.read(decimals()) > bytes32(18))
-  	  revert("too many decimals in token");
+    // Ensure the sale was configured
+    if (Contract.read(isConfigured()) == 0)
+      revert('sale not initialized');
 
-  	if (Contract.read(isInit()) == bytes32(0) || Contract.read(isFinalized()) == bytes32(1))
-  	  revert("Crowdsale is in invalid state");
+    // Ensure the sale is not finished
+    if (Contract.read(isFinished()) != 0)
+      revert('sale already finalized');
 
-  	// checks if the starting sale rate is less than the ending sale rate
+    // Ensure the sale is not sold out
+  	if (Contract.read(tokensRemaining()) == 0)
+  	  revert('Crowdsale is sold out');
+
+  	// Ensure the start and end rate were correctly set
   	if (Contract.read(startRate()) <= Contract.read(endRate()))
   	  revert("end sale rate is greater than starting sale rate");
 
-  	// checks if the crowdsale is over
-  	if (now > uint(Contract.read(startTime())) + uint(Contract.read(duration())))
+  	// Ensure the sale is not over
+  	if (now > uint(Contract.read(startTime())) + uint(Contract.read(totalDuration())))
   	  revert("the crowdsale is over");
-
-  	//Check for invalid function selector
-    if (msg.sig == BUY_SEL) {
-      Contract.checks(Purchase.first);
-    } else {
-      revert("Invalid function selector");
-    }
   }
 
-  // After each Purchase Feature executes, ensure that the result will
-  // both emit an event and store values in storage -
-  function last() internal pure {
-    if (Contract.emitted() == 0 || Contract.stored() == 0)
+  // Ensures both storage and events have been pushed to the buffer
+  function emitStoreAndPay() internal pure {
+    if (Contract.emitted() == 0 || Contract.stored() == 0 || Contract.paid() != 1)
       revert('invalid state change');
   }
 
-  //// CLASS - Sale: ////
+  /// FUNCTIONS ///
 
-  /// Feature - Purchase: ///
+  // Allows the sender to purchase tokens -
   function buy() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute buy function -
+    // Check that the sale is initialized and not yet finalized -
+    Contract.checks(validState);
+    // Execute approval function -
     Purchase.buy();
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Check for valid storage buffer
+    Contract.checks(emitStoreAndPay);
     // Commit state changes to storage -
     Contract.commit();
-  }   
-
+  }
 }

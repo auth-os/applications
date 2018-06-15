@@ -185,7 +185,7 @@ library ConfigureSale {
     // If the tier to update is tier 0, the sale should not have started yet -
     if (_tier_index == 0) {
       if (now >= starts_at)
-        revert("cannot modify current tier");
+        revert("cannot modify initial tier once sale has started");
 
       // Store current tier end time
       Contract.set(SaleManager.currentEndsAt()).to(_new_duration.add(starts_at));
@@ -193,7 +193,7 @@ library ConfigureSale {
       // If the end time has passed, and we are trying to update the next tier, the tier
       // is already in progress and cannot be updated
       if (_tier_index - current_tier == 1 && now >= cur_ends_at)
-        revert("cannot modify current tier");
+        revert("cannot modify tier after it has begun");
 
       // Loop over tiers in storage and increment end time -
       for (uint i = current_tier; i < _tier_index; i++)

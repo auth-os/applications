@@ -1,233 +1,204 @@
 pragma solidity ^0.4.23;
 
-import "./lib/Contract.sol";
-import "./interfaces/GetterInterface.sol";
-import "./lib/ArrayUtils.sol";
+import "authos-solidity/contracts/core/Contract.sol";
+import "authos-solidity/contracts/interfaces/GetterInterface.sol";
+import "authos-solidity/contracts/lib/ArrayUtils.sol";
 
 library DutchCrowdsaleIdx {
 
   using Contract for *;
-  using ArrayUtils for bytes32[]; 
+  using SafeMath for uint;
+  using ArrayUtils for bytes32[];
 
   bytes32 internal constant EXEC_PERMISSIONS = keccak256('script_exec_permissions');
 
   // Returns the storage location of a script execution address's permissions -
-  function execPermissions(address _exec) internal pure returns (bytes32 location) {
-    location = keccak256(_exec, EXEC_PERMISSIONS);
-  }
+  function execPermissions(address _exec) internal pure returns (bytes32)
+    { return keccak256(_exec, EXEC_PERMISSIONS); }
 
-  // Crowdsale fields - 
+  /// SALE ///
 
-  //Returns the storage location of the admin of the crowdsale
-  function admin() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_admin");
-  }
+  // Storage location of crowdsale admin address
+  function admin() internal pure returns (bytes32)
+    { return keccak256('sale_admin'); }
 
-  // Returns the storage location of the crowdsale_is_init variable
-  function isInit() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_init");
-  }
+  // Whether the crowdsale and token are configured, and the sale is ready to run
+  function isConfigured() internal pure returns (bytes32)
+    { return keccak256("sale_is_configured"); }
 
-  // Returns the storage location of crowdsale_is_finalized variable
-  function isFinalized() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_finalized");
-  }
+  // Whether or not the crowdsale is post-purchase
+  function isFinished() internal pure returns (bytes32)
+    { return keccak256("sale_is_completed"); }
+
+  // Storage location of the crowdsale's start time
+  function startTime() internal pure returns (bytes32)
+    { return keccak256("sale_start_time"); }
+
+  // Storage location of the amount of time the crowdsale will take, accounting for all tiers
+  function totalDuration() internal pure returns (bytes32)
+    { return keccak256("sale_total_duration"); }
 
   // Returns the storage location of number of tokens remaining in crowdsale
-  function tokensRemaining() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_tokens_remaining");
-  }
+  function tokensRemaining() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_remaining"); }
 
-  // Returns the storage location of crowdsale's minimum contribution
-  function minContribution() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_min_cap");
-  }  
-  
   // Returns the storage location of crowdsale's max number of tokens to sell
-  function maxSellCap() internal pure returns (bytes32 location) {
-    location = keccak256("token_sell_cap");
-  } 
-
-  // Storage seed for crowdsale's unique contributors
-  bytes32 internal constant CROWDSALE_UNIQUE_CONTRIBUTORS = keccak256("crowdsale_contributors");
-
-  //Returns the storage location of the number of unique contributors in the crowdsale
-  function uniqueContributors() internal pure returns (bytes32 location) {
-  	location = CROWDSALE_UNIQUE_CONTRIBUTORS;
-  }
-  // Returns the storage location of whether or not _sender is a unique contributor to this crowdsale
-  function hasContributed(address _sender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_sender), CROWDSALE_UNIQUE_CONTRIBUTORS);
-  }
-
-  // Returns the storage location of crowdsale's starting time
-  function startTime() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_starts_at");
-  }
-
-  // Returns the storage location of crowdsale's duration
-  function duration() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_duration");
-  }
+  function maxSellCap() internal pure returns (bytes32)
+    { return keccak256("token_sell_cap"); }
 
   // Returns the storage location of crowdsale's starting sale rate
-  function startRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_start_rate");
-  }
+  function startRate() internal pure returns (bytes32)
+    { return keccak256("sale_start_rate"); }
 
   // Returns the storage location of crowdsale's ending sale rate
-  function endRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_end_rate");
-  }
+  function endRate() internal pure returns (bytes32)
+    { return keccak256("sale_end_rate"); }
 
-  // Returns the storage location of the crowdsale's wallet
-  function wallet() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wallet");
-  }
+  // Storage location of the minimum amount of tokens allowed to be purchased
+  function globalMinPurchaseAmt() internal pure returns (bytes32)
+    { return keccak256("sale_min_purchase_amt"); }
 
-  // Returns the storage location of crowdsale's wei raised
-  function weiRaised() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wei_raised");
-  }
+  // Stores the amount of unique contributors so far in this crowdsale
+  function contributors() internal pure returns (bytes32)
+    { return keccak256("sale_contributors"); }
 
-  // Returns the storage location of crowdsale's whitelist status
-  function isWhitelisted() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_whiteliste");
-  }
+  // Maps addresses to a boolean indicating whether or not this address has contributed
+  function hasContributed(address _purchaser) internal pure returns (bytes32)
+    { return keccak256(_purchaser, contributors()); }
 
-  // Storage seed for crowdsale's whitelist 
-  bytes32 internal constant SALE_WHITELIST = keccak256("crowdsale_purchase_whitelist");
+  /// FUNDS ///
 
-  // Returns the storage location of user's minimum contribution in whitelisted crowdsale
-  function whitelistMinContrib(address _spender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_spender), SALE_WHITELIST);
-  }
+  // Storage location of team funds wallet
+  function wallet() internal pure returns (bytes32)
+    { return keccak256("sale_destination_wallet"); }
 
-  //Returns the storage location for the user's remaining spending amount in a whitelisted crowdsale
-  function whitelistSpendRemaining(address _spender) internal pure returns (bytes32 location) {
-  	location = bytes32(32 + uint(keccak256(keccak256(_spender), SALE_WHITELIST)));
-  }
+  // Storage location of amount of wei raised during the crowdsale, total
+  function totalWeiRaised() internal pure returns (bytes32)
+    { return keccak256("sale_tot_wei_raised"); }
 
-  // Returns storage location for crowdsale token's number of decimals
-  function decimals() internal pure returns (bytes32 location) {
-  	location = keccak256("token_decimals");
-  }
+  /// WHITELIST ///
 
-  // Token fields - 
+  // Whether or not the sale is whitelist-enabled
+  function isWhitelisted() internal pure returns (bytes32)
+    { return keccak256('sale_is_whitelisted'); }
 
-  // Returns the storage location of the token's name
-  function tokenName() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
+  // Stores the sale's whitelist
+  function saleWhitelist() internal pure returns (bytes32)
+    { return keccak256("sale_whitelist"); }
 
-  // Returns the storage location of the token's symbol
-  function tokenSymbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
+  // Stores a spender's maximum wei spend amount
+  function whitelistMaxWei(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_wei", saleWhitelist()); }
 
-  // Returns the storage location of the token's totalSupply
-  function tokenTotalSupply() internal pure returns (bytes32 location) {
-    location = keccak256('token_supply');
-  }
+  // Stores a spender's minimum token purchase amount
+  function whitelistMinTok(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "min_tok", saleWhitelist()); }
 
-  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
+  /// TOKEN ///
 
-  // Returns the storage location of an owner's token balance
-  function balances(address _owner) internal pure returns (bytes32 location) {
-    location = keccak256(_owner, BALANCE_SEED);
-  }
+  // Storage location for token name
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  bytes32 private constant ALLOWANCE_SEED = keccak256('token_allowed');
+  // Storage location for token ticker symbol
+  function tokenSymbol() internal pure returns (bytes32)
+    { return keccak256("token_symbol"); }
 
-  // Returns the storage location of a spender's token allowance from the owner
-  function allowed(address _owner, address _spender) internal pure returns (bytes32 location) {
-    location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
-  }
+  // Storage location for token decimals
+  function tokenDecimals() internal pure returns (bytes32)
+    { return keccak256("token_decimals"); }
 
-  // Storage seed of token_transfer_agent status
+  // Storage location for token totalSupply
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
+
+  // Storage seed for user balances mapping
+  bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
+
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
+
+  // Storage seed for user allowances mapping
+  bytes32 internal constant TOKEN_ALLOWANCES = keccak256("token_allowances");
+
+  function allowed(address _owner, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, keccak256(_owner, TOKEN_ALLOWANCES)); }
+
+  // Storage seed for token 'transfer agent' status for any address
+  // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
   bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
-  function transferAgentStatus(address _sender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_sender), TOKEN_TRANSFER_AGENTS); 
-  }
+  function transferAgents(address _agent) internal pure returns (bytes32)
+    { return keccak256(_agent, TOKEN_TRANSFER_AGENTS); }
 
   /// INIT FUNCTION ///
 
   /*
-  Creates a DutchCrowdsale with the specified initial conditions. The admin should now initialize the crowdsale's token, 
-  as well as any additional features of the crowdsale that will exist. Then, initialize the crowdsale as a whole.
+  Creates a crowdsale with initial conditions. The admin should now configure the crowdsale's token.
+
+  @param _wallet: The team funds wallet, where crowdsale purchases are forwarded
+  @param _total_supply: The total supply of the token that will exist
+  @param _max_amount_to_sell: The maximum number of tokens that will be sold during the sale
+  @param _starting_rate: The price of 1 token (10^decimals) in wei at the start of the sale
+  @param _ending_rate: The price of 1 token (10^decimals) in wei at the end of the sale
+  @param _duration: The amount of time the sale will be open
+  @param _start_time: The time after which purchases will be enabled
+  @param _sale_is_whitelisted: Whether the sale will be configured with a whitelist
+  @param _admin: The address given permissions to complete configuration of the sale
   */
   function init(
     address _wallet, uint _total_supply, uint _max_amount_to_sell, uint _starting_rate,
     uint _ending_rate, uint _duration, uint _start_time, bool _sale_is_whitelisted,
     address _admin
-  ) internal view {
-    //Ensure valid input
+  ) external view {
+    // Ensure valid input
     if (
-      _wallet == address(0)
+      _wallet == 0
       || _max_amount_to_sell == 0
       || _max_amount_to_sell > _total_supply
       || _starting_rate <= _ending_rate
       || _ending_rate == 0
       || _start_time <= now
       || _duration + _start_time <= _start_time
-      || _admin == address(0)
+      || _admin == 0
     ) revert("Improper Initialization");
 
-    // Begin storing values
+    // Begin execution - we are initializing an instance of this application
+    Contract.initialize();
+    
+    // Set up STORES action requests -
     Contract.storing();
-    //Set instance script exec address permission - 
+    // Authorize sender as an executor for this instance -
     Contract.set(execPermissions(msg.sender)).to(true);
-    // Store wallet address
+    // Store admin address, team wallet, sale duration, and sale start time
     Contract.set(wallet()).to(_wallet);
-    //store total supply of token
-    Contract.set(tokenTotalSupply()).to(_total_supply);
-    //store max amount of token to sell in tokens_remaining and max_token_sell_cap
-    Contract.set(tokensRemaining()).to(_max_amount_to_sell);
-    Contract.set(maxSellCap()).to(_max_amount_to_sell);
-    //store starting rate of token
+    Contract.set(admin()).to(_admin);
+    Contract.set(totalDuration()).to(_duration);
+    Contract.set(startTime()).to(_start_time);
+    // Set sale starting and ending rate, and token supply, sell cap, and number remaining
     Contract.set(startRate()).to(_starting_rate);
-    //store ending rate of token
-     Contract.set(endRate()).to(_ending_rate);
-    //store duration of crowdsale
-     Contract.set(duration()).to(_duration); 
-    //store start time of crowdsale
-     Contract.set(startTime()).to(_start_time);
-    // store whether or not the crowdsale is whitelisted
-     Contract.set(isWhitelisted()).to(_sale_is_whitelisted);
-    // store the admin address
-     Contract.set(admin()).to(_admin);
-    //assign all excess tokens to the admin
-    Contract.set(
-      balances(_admin)
-    ).to(_total_supply - _max_amount_to_sell);
+    Contract.set(endRate()).to(_ending_rate);
+    Contract.set(tokenTotalSupply()).to(_total_supply);
+    Contract.set(maxSellCap()).to(_max_amount_to_sell);
+    Contract.set(tokensRemaining()).to(_max_amount_to_sell);
+    // Set sale whitelist status and admin initial balance (difference bw totalSupply and maxSellCap)
+    Contract.set(isWhitelisted()).to(_sale_is_whitelisted);
+    Contract.set(balances(_admin)).to(_total_supply - _max_amount_to_sell);
 
+    // Commit state changes to storage -
     Contract.commit();
   }
 
-
   /// CROWDSALE GETTERS ///
 
-  /*
-  Returns the address of the admin of the crowdsale
-  @param _storage: The application's storage address
-  @param _exec_id: The execution id to pull the admin address from
-  @return admin: The address of the admin of the crowdsale
-  */
-  function getAdmin(address _storage, bytes32 _exec_id) external view returns (address _admin) {
-    // Obtain storage seed for crowdsale admin 
-    bytes32 seed = admin();
-
-    // Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return admin address
-    _admin = address(target.read(_exec_id, seed));
-  } 
+  // Returns the address of the admin of the crowdsale
+  function getAdmin(address _storage, bytes32 _exec_id) external view returns (address)
+    { return address(GetterInterface(_storage).read(_exec_id, admin())); }
 
   /*
   Returns sale information on a crowdsale
-  @param _storage: The address where application storage is located
+
+  @param _storage: The address where storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
   @return wei_raised: The amount of wei raised in the crowdsale so far
   @return team_wallet: The address to which funds are forwarded during this crowdsale
@@ -237,32 +208,30 @@ library DutchCrowdsaleIdx {
   */
   function getCrowdsaleInfo(address _storage, bytes32 _exec_id) external view
   returns (uint wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized) {
-    //Set up bytes32 array to store storage seeds 
+    // Set up bytes32 array to store storage seeds
     bytes32[] memory seed_arr = new bytes32[](5);
 
-    //Assign each location of seed_arr to its respective seed 
-    seed_arr[0] = weiRaised();
+    //Assign each location of seed_arr to its respective seed
+    seed_arr[0] = totalWeiRaised();
     seed_arr[1] = wallet();
-    seed_arr[2] = minContribution();
-    seed_arr[3] = isInit();
-    seed_arr[4] = isFinalized();
+    seed_arr[2] = globalMinPurchaseAmt();
+    seed_arr[3] = isConfigured();
+    seed_arr[4] = isFinished();
 
-    //Declare GetterInterface instance
-    GetterInterface target = GetterInterface(_storage);
+    //Read and return all wei_raised, wallet address, min_contribution, and init/finalization status
+    bytes32[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr);
 
-    //Read and return all wei_raised, wallet address, min_contribution, and init/finalization status 
-    bytes32[] memory values_arr = target.readMulti(_exec_id, seed_arr);
-
-    //Assign all return values 
+    // Assign all return values
     wei_raised = uint(values_arr[0]);
     team_wallet = address(values_arr[1]);
     minimum_contribution = uint(values_arr[2]);
-    is_initialized = (values_arr[3] == bytes32(1) ? true : false);
-    is_finalized = (values_arr[4] == bytes32(1) ? true : false);
+    is_initialized = (values_arr[3] != 0 ? true : false);
+    is_finalized = (values_arr[4] != 0 ? true : false);
   }
 
   /*
-  Returns true if all tiers have been completely sold out
+  Returns true if the all tokens have been sold
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
   @return is_crowdsale_full: Whether or not the total number of tokens to sell in the crowdsale has been reached
@@ -271,72 +240,53 @@ library DutchCrowdsaleIdx {
   function isCrowdsaleFull(address _storage, bytes32 _exec_id) external view returns (bool is_crowdsale_full, uint max_sellable) {
     //Set up bytes32 array to store storage seeds
     bytes32[] memory seed_arr = new bytes32[](2);
-
-    //Assign each location of seed_arr to its respective seed 
     seed_arr[0] = tokensRemaining();
     seed_arr[1] = maxSellCap();
 
-    //Declare GetterInterface instance
-    GetterInterface target = GetterInterface(_storage);
+    // Read and return tokens remaining and max token sell cap
+    uint[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
 
-    //Read and return tokens remaining and max token sell cap 
-    uint[] memory values_arr = target.readMulti(_exec_id, seed_arr).toUintArr();
-
-    //Assign return values
+    // Assign return values
     is_crowdsale_full = (values_arr[0] == 0 ? true : false);
     max_sellable = values_arr[1];
   }
 
-  /*
-  Returns the number of unique contributors to a crowdsale
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return num_unique: The number of unique contributors in a crowdsale so far
-  */
-  function getCrowdsaleUniqueBuyers(address _storage, bytes32 _exec_id) external view returns (uint num_unique) {
-    //Get storage seed of num unique contributors 
-    bytes32 seed = uniqueContributors();
-
-    //Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Assign return value
-    num_unique = uint(target.read(_exec_id, seed));
-  }
+  // Returns the number of unique contributors to a crowdsale
+  function getCrowdsaleUniqueBuyers(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, contributors())); }
 
   /*
   Returns the start and end time of the crowdsale
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
   @return start_time: The start time of the crowdsale
   @return end_time: The time at which the crowdsale ends
   */
-  function getCrowdsaleStartAndEndTimes(address _storage, bytes32 _exec_id) external view 
-  returns (uint start_time, uint end_time) {
+  function getCrowdsaleStartAndEndTimes(address _storage, bytes32 _exec_id) external view returns (uint start_time, uint end_time) {
     //Set up bytes32 array to store storage seeds
     bytes32[] memory seed_arr = new bytes32[](2);
-
-    //Assign seeds to locations of array
     seed_arr[0] = startTime();
-    seed_arr[1] = duration(); 
+    seed_arr[1] = totalDuration();
 
-    //Declare GetterInterface instance
-    GetterInterface target = GetterInterface(_storage);
+    // Read and return start time and duration
+    uint[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
 
-    //Read and return start time and duration 
-    bytes32[] memory values_arr = target.readMulti(_exec_id, seed_arr);
-
-    //Assign return values 
-    start_time = uint(values_arr[0]);
-    end_time = uint(values_arr[1]) + start_time;
-  }  
+    // Assign return values
+    start_time = values_arr[0];
+    end_time = values_arr[1] + start_time;
+  }
 
   /*
-  Returns information on the status of the sale
+  Returns basic information on the status of the sale
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
-  @return current_rate: The current rate at which tokens are being sold. Rate is in wei/10^18 units
-  @return time_remaining: The amount of time remaining in the crowdsale
+  @return start_rate: The price of 1 token (10^decimals) in wei at the start of the sale
+  @return end_rate: The price of 1 token (10^decimals) in wei at the end of the sale
+  @return current_rate: The price of 1 token (10^decimals) currently
+  @return sale_duration: The total duration of the sale
+  @return time_remaining: The amount of time remaining in the sale (factors in time till sale starts)
   @return tokens_remaining: The amount of tokens still available to be sold
   */
   function getCrowdsaleStatus(address _storage, bytes32 _exec_id) external view
@@ -348,43 +298,41 @@ library DutchCrowdsaleIdx {
     seed_arr[0] = startRate();
     seed_arr[1] = endRate();
     seed_arr[2] = startTime();
-    seed_arr[3] = duration();
+    seed_arr[3] = totalDuration();
     seed_arr[4] = tokensRemaining();
 
-    //Declare GetterInterface instance
-    GetterInterface target = GetterInterface(_storage);
+    //Read and return values
+    uint[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
 
-    //Read and return values 
-    uint[] memory values_arr = target.readMulti(_exec_id, seed_arr).toUintArr();
-
-    //Assign return values and intermediary values 
+    // Assign return values
     start_rate = values_arr[0];
     end_rate = values_arr[1];
     uint start_time = values_arr[2];
     sale_duration = values_arr[3];
     tokens_remaining = values_arr[4];
 
-    (current_rate, time_remaining) = 
+    (current_rate, time_remaining) =
       getRateAndTimeRemaining(start_time, sale_duration, start_rate, end_rate);
   }
 
   /*
-  Gets the current token sale rate and time remaining, given various information
+  Returns the current token sale rate and time remaining
+
   @param _start_time: The start time of the crowdsale
   @param _duration: The duration of the crowdsale
-  @param _start_rate: The amount of tokens recieved per wei at the beginning of the sale
-  @param _end_rate: The amount of tokens recieved per wei at the end of the sale
-  @return current_rate: The current rate of wei/10^18 token units
-  @return time_remaining: The amount of time remaining in the crowdsale
+  @param _start_rate: The price of 1 token (10^decimals) in wei at the start of the sale
+  @param _end_rate: The price of 1 token (10^decimals) in wei at the end of the sale
+  @return current_rate: The price of 1 token (10^decimals) currently
+  @return time_remaining: The amount of time remaining in the sale (factors in time till sale starts)
   */
   function getRateAndTimeRemaining(uint _start_time, uint _duration, uint _start_rate, uint _end_rate) internal view
   returns (uint current_rate, uint time_remaining)  {
-    // If the sale has not started, return 0
+    // If the sale has not started, return start rate and duration plus time till start
     if (now <= _start_time)
       return (_start_rate, (_duration + _start_time - now));
 
     uint time_elapsed = now - _start_time;
-    // If the sale has ended, return 0
+    // If the sale has ended, return 0 for end rate and time remaining
     if (time_elapsed >= _duration)
       return (0, 0);
 
@@ -394,210 +342,87 @@ library DutchCrowdsaleIdx {
     time_elapsed *= (10 ** 18);
     current_rate = ((_start_rate - _end_rate) * time_elapsed) / _duration;
     current_rate /= (10 ** 18); // Remove additional precision decimals
-    current_rate = _start_rate - current_rate;   
-  }
-
-  /*
-  Returns the number of tokens sold - maximum number to sell minus tokens remaining
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return tokens_sold: The number of tokens sold this crowdsale so far
-  */
-  function getTokensSold(address _storage, bytes32 _exec_id) external view returns (uint tokens_sold) {
-    //Set up bytes32 array to hold storage seeds 
-    bytes32[] memory seed_arr = new bytes32[](2);
-
-    //Assign seeds to locations in array
-    seed_arr[0] = maxSellCap();
-    seed_arr[1] = tokensRemaining(); 
-
-    //Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return values 
-    uint[] memory values_arr = target.readMulti(_exec_id, seed_arr).toUintArr();
-
-    //Get return value 
-    tokens_sold = values_arr[0] - values_arr[1];
-
-
+    current_rate = _start_rate - current_rate;
   }
 
   /*
   Returns whitelist information for a given buyer
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
   @param _buyer: The address of the user whose whitelist status will be returned
-  @return minimum_contribution: The minimum ammount of tokens the buyer must purchase
+  @return minimum_purchase_amt: The minimum ammount of tokens the buyer must purchase
   @return max_spend_remaining: The maximum amount of wei able to be spent
   */
   function getWhitelistStatus(address _storage, bytes32 _exec_id, address _buyer) external view
-  returns (uint minimum_contribution, uint max_spend_remaining) {
-    //Set up bytes32 array to hold storage seeds 
+  returns (uint minimum_purchase_amt, uint max_spend_remaining) {
     bytes32[] memory seed_arr = new bytes32[](2);
+    seed_arr[0] = whitelistMinTok(_buyer);
+    seed_arr[1] = whitelistMaxWei(_buyer);
 
-    //Assign locations of seed_arry to respective seeds 
-    seed_arr[0] = whitelistMinContrib(_buyer);
-    seed_arr[1] = whitelistSpendRemaining(_buyer);
+    // Read values from storage
+    uint[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
 
-    //Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return values
-    uint[] memory values_arr = target.readMulti(_exec_id, seed_arr).toUintArr();
-
-    //Assign return values 
-    minimum_contribution = values_arr[0];
+    // Assign return values
+    minimum_purchase_amt = values_arr[0];
     max_spend_remaining = values_arr[1];
-  } 
+  }
 
   /*
   Returns the list of whitelisted buyers for the crowdsale
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
-  @return num_whitelisted: The length of the crowdsale's whitelist array
-  @return whitelist: The crowdsale's whitelisted addresses
+  @return num_whitelisted: The length of the sale's whitelist
+  @return whitelist: The sale's whitelisted addresses
   */
-  function getCrowdsaleWhitelist(address _storage, bytes32 _exec_id) external view
-  returns (uint num_whitelisted, address[] memory whitelist) {
-    //Storage seed for sale's whitelist 
-    bytes32 seed = SALE_WHITELIST;
+  function getCrowdsaleWhitelist(address _storage, bytes32 _exec_id) external view returns (uint num_whitelisted, address[] whitelist) {
+    // Read whitelist length from storage
+    num_whitelisted = uint(GetterInterface(_storage).read(_exec_id, saleWhitelist()));
 
-    //Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
+    if (num_whitelisted == 0)
+      return (num_whitelisted, whitelist);
 
-    //Read and return values
-    uint whitelist_length = uint(target.read(_exec_id, seed));
+    // Set up storage seed array for whitelisted addresses
+    bytes32[] memory seed_arr = new bytes32[](num_whitelisted);
 
-    if (whitelist_length == 0)
-      return (whitelist_length, whitelist);
+    // Assign storage locations of each whitelisted address to array
+    for (uint i = 0; i < num_whitelisted; i++)
+    	seed_arr[i] = bytes32(32 * (i + 1) + uint(saleWhitelist()));
 
-    //Set up storage seed arr fir whitelisted addresses
-    bytes32[] memory seed_arr = new bytes32[](whitelist_length);
-
-    //Assign seeds to seed array 
-    for (uint i = 0; i < whitelist_length; i++) {
-    	seed_arr[i] = bytes32(32 * (i + 1) + uint(SALE_WHITELIST));
-    }
-
-    //Read and assign the values 
-    whitelist = target.readMulti(_exec_id, seed_arr).toAddressArr();
+    // Read from storage an assign return value
+    whitelist = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toAddressArr();
   }
 
   /// TOKEN GETTERS ///
 
-  /*
-  Returns the balance of an address
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @param _owner: The address to look up the balance of
-  @return owner_balance: The token balance of the owner
-  */
-  function balanceOf(address _storage, bytes32 _exec_id, address _owner) external view
-  returns (uint owner_balance) {
-    // Get seed
-  	bytes32 seed = balances(_owner);
+  // Returns the token balance of an address
+  function balanceOf(address _storage, bytes32 _exec_id, address _owner) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, balances(_owner))); }
 
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
+  // Returns the amount of tokens a spender may spend on an owner's behalf
+  function allowance(address _storage, bytes32 _exec_id, address _owner, address _spender) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, allowed(_owner, _spender))); }
 
-    //Read and return value
-    owner_balance = uint(target.read(_exec_id, seed));
+  // Returns the number of display decimals for a token
+  function decimals(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokenDecimals())); }
 
-  }
+  // Returns the total token supply
+  function totalSupply(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokenTotalSupply())); }
 
-  /*
-  Returns the amount of tokens a spender may spend on an owner's behalf
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @param _owner: The address allowing spends from a spender
-  @param _spender: The address allowed tokens by the owner
-  @return allowed: The amount of tokens that can be transferred from the owner to a location of the spender's choosing
-  */
-  function allowance(address _storage, bytes32 _exec_id, address _owner, address _spender) external view
-  returns (uint _allowed) {
-    // Get seed
-  	bytes32 seed = allowed(_owner, _spender);
+  // Returns the token's name
+  function name(address _storage, bytes32 _exec_id) external view returns (bytes32)
+    { return GetterInterface(_storage).read(_exec_id, tokenName()); }
 
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return value
-    _allowed = uint(target.read(_exec_id, seed));
-  }
-
-  /*
-  Returns the number of display decimals for a token
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return token_decimals: The number of decimals associated with token balances
-  */
-  function decimals(address _storage, bytes32 _exec_id) external view
-  returns (uint token_decimals) {
-    // Get seed
-  	bytes32 seed = decimals();
-
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return value
-    token_decimals = uint(target.read(_exec_id, seed));
-  }
-
-  /*
-  Returns the total token supply of a given token app instance
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return total_supply: The total token supply
-  */
-  function totalSupply(address _storage, bytes32 _exec_id) external view
-  returns (uint total_supply) {
-    // Get seed
-  	bytes32 seed = tokenTotalSupply();
-
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return value
-    total_supply = uint(target.read(_exec_id, seed));
-  }
-
-  /*
-  Returns the name field of a given token app instance
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return token_name: The name of the token
-  */
-  function name(address _storage, bytes32 _exec_id) external view returns (bytes32 token_name) {
-    // Get seed
-  	bytes32 seed = tokenName();
-
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return value
-    token_name = target.read(_exec_id, seed);
-  }
-
-  /*
-  Returns the ticker symbol of a given token app instance
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under which storage for this instance is located
-  @return token_symbol: The token's ticker symbol
-  */
-  function symbol(address _storage, bytes32 _exec_id) external view returns (bytes32 token_symbol) {
-    // Get seed
-  	bytes32 seed = tokenSymbol();
-
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Read and return value
-    token_symbol = target.read(_exec_id, seed);
-  }
+  // Returns token's symbol
+  function symbol(address _storage, bytes32 _exec_id) external view returns (bytes32)
+    { return GetterInterface(_storage).read(_exec_id, tokenSymbol()); }
 
   /*
   Returns general information on a token - name, symbol, decimals, and total supply
+
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
   @return token_name: The name of the token
@@ -607,48 +432,26 @@ library DutchCrowdsaleIdx {
   */
   function getTokenInfo(address _storage, bytes32 _exec_id) external view
   returns (bytes32 token_name, bytes32 token_symbol, uint token_decimals, uint total_supply) {
-    //Set up bytes32 array to hold storage seeds 
+    //Set up bytes32 array to hold storage seeds
     bytes32[] memory seed_arr = new bytes32[](4);
 
-    //Assign locations of array to respective seeds 
+    //Assign locations of array to respective seeds
     seed_arr[0] = tokenName();
     seed_arr[1] = tokenSymbol();
-    seed_arr[2] = decimals();
+    seed_arr[2] = tokenDecimals();
     seed_arr[3] = tokenTotalSupply();
 
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-    
     //Read and return values from storage
-    bytes32[] memory values_arr = target.readMulti(_exec_id, seed_arr);
+    bytes32[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr);
 
-    //Assign values to return params 
+    //Assign values to return params
     token_name = values_arr[0];
     token_symbol = values_arr[1];
     token_decimals = uint(values_arr[2]);
     total_supply = uint(values_arr[3]);
+  }
 
-  } 
-
-  /*
-  Returns whether or not an address is a transfer agent, meaning they can transfer tokens before the crowdsale is finalized
-  @param _storage: The address where application storage is located
-  @param _exec_id: The application execution id under storage for this app instance is located
-  @param _agent: The address about which to look up information
-  @return is_transfer_agent: Whether the passed-in address is a transfer agent
-  */
-  function getTransferAgentStatus(address _storage, bytes32 _exec_id, address _agent) external view
-  returns (bool is_transfer_agent) {
-  	//Obtain storage seed 
-  	bytes32 seed = transferAgentStatus(_agent);
-
-  	//Declare GetterInterface instance 
-    GetterInterface target = GetterInterface(_storage);
-
-    //Obtain value from storage and assign to return param 
-    is_transfer_agent = (target.read(_exec_id, seed) == bytes32(1) ? true : false);
-
-  } 
-  
-
+  // Returns whether or not an address is a transfer agent, meaning they can transfer tokens before the crowdsale is finished
+  function getTransferAgentStatus(address _storage, bytes32 _exec_id, address _agent) external view returns (bool)
+    { return GetterInterface(_storage).read(_exec_id, transferAgents(_agent)) != 0 ? true : false; }
 }

@@ -2,7 +2,7 @@ pragma solidity ^0.4.23;
 
 import "authos-solidity/contracts/core/Proxy.sol";
 import "authos-solidity/contracts/lib/StringUtils.sol";
-import "./IMintedCapped.sol";
+import "./IDutchCrowdsale.sol";
 
 contract SaleProxy is ISale, Proxy {
 
@@ -16,7 +16,7 @@ contract SaleProxy is ISale, Proxy {
   }
 }
 
-contract SaleManagerProxy is ISaleManager, SaleProxy {
+contract AdminProxy is IAdmin, SaleProxy {
 
   /*
   Returns information about the ongoing sale -
@@ -28,7 +28,7 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   @return bool: Whether the sale has completed
   */
   function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool) {
-    return SaleManagerIdx(app_index).getCrowdsaleInfo(app_storage, app_exec_id);
+    return AdminIdx(app_index).getCrowdsaleInfo(app_storage, app_exec_id);
   }
 
   /*
@@ -38,7 +38,7 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   @return uint: The total number of tokens for sale
   */
   function isCrowdsaleFull() external view returns (bool, uint) {
-    return SaleManagerIdx(app_index).isCrowdsaleFull(app_storage, app_exec_id);
+    return AdminIdx(app_index).isCrowdsaleFull(app_storage, app_exec_id);
   }
 
   /*
@@ -48,101 +48,36 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   @return uint: The time at which the sale will end
   */
   function getCrowdsaleStartAndEndTimes() external view returns (uint, uint) {
-    return SaleManagerIdx(app_index).getCrowdsaleStartAndEndTimes(app_storage, app_exec_id);
+    return AdminIdx(app_index).getCrowdsaleStartAndEndTimes(app_storage, app_exec_id);
   }
 
   /*
   Returns information about the current sale tier
 
-  @return bytes32: The tier's name
-  @return uint: The index of the tier
-  @return uint: The time at which the tier will end
-  @return uint: The number of tokens remaining for sale during this tier
-  @return uint: The price of 1 token (10^decimals units) in wei
-  @return bool: Whether the tier's duration can be modified by the sale admin, prior to it beginning
-  @return bool: Whether the tier is whitelisted
+  @return uint: The price of 1 token (10^decimals) in wei at the start of the sale
+  @return uint: The price of 1 token (10^decimals) in wei at the end of the sale
+  @return uint: The price of 1 token (10^decimals) currently
+  @return uint: The total duration of the sale
+  @return uint: The amount of time remaining in the sale (factors in time till sale starts)
+  @return uint: The amount of tokens still available to be sold
   */
-  function getCurrentTierInfo() external view returns (bytes32, uint, uint, uint, uint, bool, bool) {
-    return SaleManagerIdx(app_index).getCurrentTierInfo(app_storage, app_exec_id);
+  function getCrowdsaleStatus() external view returns (uint, uint, uint, uint, uint, uint) {
+    return AdminIdx(app_index).getCrowdsaleStatus(app_storage, app_exec_id);
   }
 
   /*
-  Returns information about the tier represented by the given index
+  Returns whitelist information for a buyer
 
-  @param _idx: The index of the tier about which information will be returned
-  @return bytes32: The tier's name
-  @return uint: The number of tokens available for sale during this tier, in total
-  @return uint: The price of 1 token (10^decimals units) in wei
-  @return uint: The duration the tier lasts
-  @return bool: Whether the tier's duration can be modified by the sale admin, prior to it beginning
-  @return bool: Whether the tier is whitelisted
-  */
-  function getCrowdsaleTier(uint _idx) external view returns (bytes32, uint, uint, uint, bool, bool) {
-    return SaleManagerIdx(app_index).getCrowdsaleTier(app_storage, app_exec_id, _idx);
-  }
-
-  /*
-  Returns the maximum amount of wei that can be raised, as well as the total number of tokens that can be sold
-
-  @return uint: The maximum amount of wei that can be raised
-  @return uint: The total number of tokens that can be sold
-  */
-  function getCrowdsaleMaxRaise() external view returns (uint, uint) {
-    return SaleManagerIdx(app_index).getCrowdsaleMaxRaise(app_storage, app_exec_id);
-  }
-
-  /*
-  Returns a list of the sale's tier names
-
-  @return bytes32[]: A list of the names of each of the tiers of the sale (names may not be unique)
-  */
-  function getCrowdsaleTierList() external view returns (bytes32[]) {
-    return SaleManagerIdx(app_index).getCrowdsaleTierList(app_storage, app_exec_id);
-  }
-
-  /*
-  Returns the number of unique contributors to the sale
-
-  @return uint: The number of unique contributors to the sale
-  */
-  function getCrowdsaleUniqueBuyers() external view returns (uint) {
-    return SaleManagerIdx(app_index).getCrowdsaleUniqueBuyers(app_storage, app_exec_id);
-  }
-
-  /*
-  Returns the start and end time of the given tier
-
-  @param _idx: The index of the tier about which information will be returned
-  @return uint: The time at which the tier will begin
-  @return uint: The time at which the tier will end
-  */
-  function getTierStartAndEndDates(uint _idx) external view returns (uint, uint) {
-    return SaleManagerIdx(app_index).getTierStartAndEndDates(app_storage, app_exec_id, _idx);
-  }
-
-  /*
-  Returns the total number of tokens sold during the sale
-
-  @return uint: The total number of tokens sold during the sale
-  */
-  function getTokensSold() external view returns (uint) {
-    return SaleManagerIdx(app_index).getTokensSold(app_storage, app_exec_id);
-  }
-
-  /*
-  Returns whitelist information for a buyer during a given tier
-
-  @param _tier: The index of the tier whose whitelist will be queried
   @param _buyer: The address about which the whitelist information will be retrieved
   @return uint: The minimum number of tokens the buyer must make during the sale
   @return uint: The maximum amount of wei allowed to be spent by the buyer
   */
-  function getWhitelistStatus(uint _tier, address _buyer) external view returns (uint, uint) {
-    return SaleManagerIdx(app_index).getWhitelistStatus(app_storage, app_exec_id, _tier, _buyer);
+  function getWhitelistStatus(address _buyer) external view returns (uint, uint) {
+    return AdminIdx(app_index).getWhitelistStatus(app_storage, app_exec_id, _buyer);
   }
 }
 
-contract TokenProxy is IToken, SaleManagerProxy {
+contract TokenProxy is IToken, AdminProxy {
 
   using StringUtils for bytes32;
 
@@ -212,14 +147,14 @@ contract TokenProxy is IToken, SaleManagerProxy {
   }
 }
 
-contract MintedCappedProxy is IMintedCapped, TokenProxy {
+contract DutchProxy is IDutchCrowdsale, TokenProxy {
 
   // Constructor - sets storage address, registry id, provider, and app name
   constructor (address _storage, bytes32 _registry_exec_id, address _provider, bytes32 _app_name) public
     Proxy(_storage, _registry_exec_id, _provider, _app_name) { }
 
   // Constructor - creates a new instance of the application in storage, and sets this proxy's exec id
-  function init(address, uint, bytes32, uint, uint, uint, bool, bool, address) public {
+  function init(address, uint, uint, uint, uint, uint, uint, bool, address) public {
     require(msg.sender == proxy_admin && app_exec_id == 0 && app_name != 0);
     (app_exec_id, app_version) = app_storage.createInstance(
       msg.sender, app_name, provider, registry_exec_id, msg.data

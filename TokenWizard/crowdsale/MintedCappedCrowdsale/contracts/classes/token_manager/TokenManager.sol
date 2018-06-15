@@ -133,6 +133,7 @@ library TokenManager {
 
   /*
   Initializes the token to be sold during the crowdsale -
+
   @param _name: The name of the token to be sold
   @param _symbol: The symbol of the token to be sold
   @param _decimals: The number of decimals the token will have
@@ -153,6 +154,7 @@ library TokenManager {
 
   /*
   Sets the status of an account as a transfer agent. Transfer agents are allowed to transfer tokens at any time
+
   @param _agent: The address whose status will be updated
   @param _is_agent: Whether or not the agent is a transfer agent
   */
@@ -171,6 +173,7 @@ library TokenManager {
 
   /*
   Updates multiple reserved token listings
+
   @param _destinations: The addresses for which listings will be updated
   @param _num_tokens: The number of tokens each destination will have reserved
   @param _num_percents: The decimal number of percents of total tokens sold each destination will be reserved
@@ -196,6 +199,7 @@ library TokenManager {
 
   /*
   Removes a reserved token listing
+
   @param _destination: The addresses for which listings will be removed
   */
   function removeReservedTokens(address _destination) external view {
@@ -213,6 +217,7 @@ library TokenManager {
 
   /*
   Allows anyone to distribute reserved tokens, assuming the sale is finalized
+
   @param _num_destinations: The number of reserved destinations to distribute for
   */
   function distributeReservedTokens(uint _num_destinations) external view {

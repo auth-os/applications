@@ -14,14 +14,6 @@ library Token {
   function tokenName() internal pure returns (bytes32)
     { return keccak256("token_name"); }
 
-  // Storage location for token ticker symbol
-  function tokenSymbol() internal pure returns (bytes32)
-    { return keccak256("token_symbol"); }
-
-  // Storage location for token totalSupply
-  function tokenTotalSupply() internal pure returns (bytes32)
-    { return keccak256("token_total_supply"); }
-
   // Storage seed for user balances mapping
   bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
 

@@ -11,10 +11,9 @@ library Purchase {
   // event Purchase(address indexed buyer, uint indexed tier, uint amount)
   bytes32 internal constant BUY_SIG = keccak256('Purchase(address,uint256,uint256)');
 
-  // Returns the events and data for an 'Approval' event -
+  // Returns the event topics for a 'Purchase' event -
   function PURCHASE(address _buyer, uint _tier) private pure returns (bytes32[3] memory)
     { return [BUY_SIG, bytes32(_buyer), bytes32(_tier)]; }
-
 
   // Implements the logic to create the storage buffer for a Crowdsale Purchase
   function buy() internal view {

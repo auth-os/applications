@@ -1,205 +1,150 @@
 pragma solidity ^0.4.23;
 
 import "../Sale.sol";
-import "../../../lib/Contract.sol";
-import "../../token/Token.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library Purchase {
-  
+
   using Contract for *;
+  using SafeMath for uint;
 
-  // 'Buy' event selector
-  bytes32 private constant BUY_SIG = keccak256('buy(bytes)');
+  // event Purchase(bytes32 indexed exec_id, uint256 indexed current_rate, uint256 indexed current_time, uint256 tokens)
+  bytes32 internal constant BUY_SIG = keccak256('Purchase(bytes32,uint256,uint256,uint256)');
 
-  bytes4 internal constant BUY_SEL = bytes4(keccak256('buy(bytes)'));
+  // Returns the event topics for a 'Purchase' event -
+  function PURCHASE(bytes32 _exec_id, uint _current_rate) private view returns (bytes32[4] memory)
+    { return [BUY_SIG, _exec_id, bytes32(_current_rate), bytes32(now)]; }
 
-  // Returns the events and data for a 'Buy' event -
-  function BUY (address _buyer, uint wei_spent) private pure 
-  returns (bytes32[3]) {
-  	return [BUY_SIG, bytes32(_buyer), bytes32(wei_spent)];
-  }
-
-  // Preconditions for Purchase - none
-  function first() internal pure { }
-  
-  // Postconditions for Purchase - none
-  function last() internal pure { }
-
+  // Implements the logic to create the storage buffer for a Crowdsale Purchase
   function buy() internal view {
-    // declare only the most necessary variables
-    bytes32 sale_is_whitelisted = Contract.read(Sale.isWhitelisted());
-    bytes32 sender_has_contributed = Contract.read(Sale.hasContributed(Contract.sender()));
-  	// Get current sale rate, first arg is crowdsale start time and last arg is crowdsale duration:
-  	uint curr_rate;
-  	curr_rate = getCurrentRate( 
-  	  uint(Contract.read(Sale.startTime())), 
-  	  uint(Contract.read(Sale.startRate())), 
-  	  uint(Contract.read(Sale.endRate())), 
-  	  uint(Contract.read(Sale.duration()))
+    bool sale_is_whitelisted = Contract.read(Sale.isWhitelisted()) != 0 ? true : false;
+    bool sender_has_contributed = Contract.read(Sale.hasContributed(Contract.sender())) != 0 ? true : false;
+
+    // Calculate current sale rate from start time, start and end rates, and duration
+  	uint current_rate = getCurrentRate(
+  	  uint(Contract.read(Sale.startTime())),
+  	  uint(Contract.read(Sale.startRate())),
+  	  uint(Contract.read(Sale.endRate())),
+  	  uint(Contract.read(Sale.totalDuration()))
   	);
 
   	// If sender has already purchased tokens then change minimum contribution amount to 0;
   	uint min_contribution;
-  	if (sender_has_contributed == bytes32(0)) {
-  	  min_contribution = 0;
-  	} else {
-  	  min_contribution = uint(Contract.read(Sale.minContribution()));
-  	}
-  	
+    // If the sale is whitelisted -
+    if (sale_is_whitelisted && !sender_has_contributed)
+      min_contribution = uint(Contract.read(Sale.whitelistMinTok(Contract.sender())));
+    else if (!sale_is_whitelisted && !sender_has_contributed)
+      min_contribution = uint(Contract.read(Sale.globalMinPurchaseAmt()));
 
-  	/// Get total amount of wei that can be spend, given the amount sent and the number of tokens remaining - 
+  	// Get total amount of wei that can be spent and number of tokens purchased
   	uint spend_amount;
-  	uint spend_amount_remaining;
   	uint tokens_purchased;
-  	// set spend_amount, spend_amount_remaining, tokens_purchased
-  	(spend_amount, spend_amount_remaining, tokens_purchased) = getPurchaseInfo(
-  	  uint(Contract.read(Sale.decimals())),
-  	  curr_rate, 
-  	  msg.value,
-  	  uint(Contract.read(Sale.tokensRemaining())), 
+  	(spend_amount, tokens_purchased) = getPurchaseInfo(
+  	  uint(Contract.read(Sale.tokenDecimals())),
+  	  current_rate,
+  	  uint(Contract.read(Sale.tokensRemaining())),
   	  sale_is_whitelisted,
-  	  uint(Contract.read(Sale.whitelistSpendRemaining(Contract.sender()))),
+  	  uint(Contract.read(Sale.whitelistMaxWei(Contract.sender()))),
   	  min_contribution
   	);
+    // Sanity checks -
+    assert(spend_amount != 0 && spend_amount <= msg.value && tokens_purchased != 0);
 
-  	// Begin paying
-  	Contract.paying();
-  	// Send amount_spent in spend_stat to wallet
-  	Contract.pay(
-  	  spend_amount
-  	).toAcc(address(Contract.read(Sale.wallet())));
+    // Set up payment buffer -
+    Contract.paying();
+    // Forward spent wei to team wallet -
+    Contract.pay(spend_amount).toAcc(address(Contract.read(Sale.wallet())));
 
-  	// Begin storing values
-  	Contract.storing();
+    // Move buffer to storing values -
+    Contract.storing();
 
-  	// Store new token balance for buyer
-  	Contract.increase(
-  	  Token.balances(Contract.sender())
-  	).by(tokens_purchased);
+  	// Update purchaser's token balance -
+  	Contract.increase(Sale.balances(Contract.sender())).by(tokens_purchased);
 
-  	// Update tokens remaining for Crowdsale
-  	Contract.decrease(
-  	  Sale.tokensRemaining()
-  	).by(tokens_purchased);
+  	// Update tokens remaining in sale -
+  	Contract.decrease(Sale.tokensRemaining()).by(tokens_purchased);
 
-  	// Store updated total wei raised 
-  	Contract.increase(
-  	  Sale.weiRaised()
-  	).by(spend_amount);
+  	// Update total wei raised -
+  	Contract.increase(Sale.totalWeiRaised()).by(spend_amount);
 
-  	if (sender_has_contributed == bytes32(0)) {
-  	  Contract.increase(
-  	    Sale.uniqueContributors()
-  	  ).by(1);
-  	  Contract.set(
-  	    Sale.hasContributed(Contract.sender())
-  	  ).to(true);
+    // If the sender had not previously contributed to the sale,
+    // increase unique contributor count and mark the sender as having contributed
+  	if (sender_has_contributed == false) {
+  	  Contract.increase(Sale.contributors()).by(1);
+  	  Contract.set(Sale.hasContributed(Contract.sender())).to(true);
   	}
 
-	if (sale_is_whitelisted == bytes32(1)) {
-	  Contract.set(
-        Sale.whitelistMinContrib(Contract.sender())
-      ).to(uint(0));
-      Contract.set(
-        Sale.whitelistSpendRemaining(Contract.sender())
-      ).to(spend_amount_remaining);
-	}
+    // If the sale is whitelisted, update the spender's whitelist information -
+	  if (sale_is_whitelisted) {
+	    Contract.set(Sale.whitelistMinTok(Contract.sender())).to(uint(0));
+      Contract.decrease(Sale.whitelistMaxWei(Contract.sender())).by(spend_amount);
+	  }
 
   	Contract.emitting();
 
   	// Add purchase signature and topics
   	Contract.log(
-  	  BUY(Contract.sender(), spend_amount), bytes32(tokens_purchased)
+  	  PURCHASE(Contract.execID(), current_rate), bytes32(tokens_purchased)
   	);
   }
 
-  function getCurrentRate(
-  	uint _start_time, 
-  	uint _start_rate, 
-  	uint _end_rate, 
-  	uint _duration) 
-  internal view returns (uint _current_rate) {
+  // Calculate current purchase rate
+  function getCurrentRate(uint _start_time,	uint _start_rate,	uint _end_rate,	uint _duration) internal view
+  returns (uint current_rate) {
   	// If the sale has not yet started, set current rate to 0
   	if (now < _start_time) {
-  	  _current_rate = 0;
+  	  current_rate = 0;
   	  return;
   	}
 
-  	uint elapsed = now - _start_time;
+  	uint elapsed = now.sub(_start_time);
   	// If the sale duration is up, set current rate to 0
   	if (elapsed >= _duration) {
-  	  _current_rate = 0;
+  	  current_rate = 0;
   	  return;
   	}
 
-  	// Add precision to the time elapsed - 
-  	require(elapsed * (10 ** 18) >= elapsed);
-  	elapsed *= 10 ** 18;
+  	// Add precision to the time elapsed -
+  	elapsed = elapsed.mul(10 ** 18);
 
-  	// Check that crowdsale had valid setup 
-  	uint temp_rate = 
-  	  ((_start_rate - _end_rate) * elapsed) / _duration;
+  	// Temporary variable
+  	uint temp_rate = _start_rate.sub(_end_rate).mul(elapsed).div(_duration);
 
-  	temp_rate /= (10 ** 18);
+    // Remove precision
+  	temp_rate = temp_rate.div(10 ** 18);
 
-  	// assert that we obtained a valid temp rate
-  	if (temp_rate <= _start_rate)
-  	  revert("miscalculation of current rate");
   	// Current rate is start rate minus temp rate
-  	_current_rate = _start_rate - temp_rate;
+  	current_rate = _start_rate.sub(temp_rate);
   }
 
-
+  // Calculates amount to spend, amount left able to be spent, and number of tokens purchased
   function getPurchaseInfo(
-  	uint token_decimals, 
-  	uint current_rate, 
-  	uint _wei_sent, 
-  	uint tokens_remaining, 
-  	bytes32 sale_is_whitelisted,
-  	uint spend_amount_remaining,
-  	uint minimum_contribution_amount) 
-  internal pure returns (
-  	uint spend_amount, 
-  	uint spend_amount_rem, 
-  	uint tokens_purchased) {
+  	uint _decimals, uint _current_rate, uint _tokens_remaining,
+  	bool _sale_whitelisted,	uint _wei_spend_remaining, uint _min_purchase_amount
+  ) internal view returns (uint spend_amount, uint tokens_purchased) {
   	// Get amount of wei able to be spent, given the number of tokens remaining -
-    if ((_wei_sent * (10 ** token_decimals) / current_rate) > tokens_remaining) {
-      // The amount that can be purchased is more than the number of tokens remaining:
-      spend_amount =
-        (current_rate * tokens_remaining) / (10 ** token_decimals);
-    } else {
-      // All of the wei sent can be used to purchase -
-      spend_amount = _wei_sent;
-    }
+    if (msg.value.mul(10 ** _decimals).div(_current_rate) > _tokens_remaining)
+      spend_amount = _current_rate.mul(_tokens_remaining).div(10 ** _decimals);
+    else
+      spend_amount = msg.value;
 
-    spend_amount_rem = 0;
     // If the sale is whitelisted, ensure the sender is not going over their spend cap -
-    if (sale_is_whitelisted == bytes32(1)) {
-      if (spend_amount > spend_amount_remaining)
-        spend_amount = spend_amount_remaining;
-
-      // Decrease sender's spend amount remaining
-      if (spend_amount_remaining < spend_amount)
-        revert("Invalid spend amount");
-      spend_amount_rem = spend_amount_remaining - spend_amount;
-    }
+    if (_sale_whitelisted && spend_amount > _wei_spend_remaining)
+      spend_amount = _wei_spend_remaining;
 
     // Ensure spend amount is valid -
-    if (spend_amount == 0 || spend_amount > _wei_sent)
+    if (spend_amount == 0 || spend_amount > msg.value)
       revert("Invalid spend amount");
 
     // Get number of tokens able to be purchased with the amount spent -
-    tokens_purchased =
-      (spend_amount * (10 ** token_decimals)) / current_rate;
+    tokens_purchased = spend_amount.mul(10 ** _decimals).div(_current_rate);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in the sale -
-    if (tokens_purchased > tokens_remaining || tokens_purchased == 0)
-      revert("Invalid purchase amount"); 
+    if (tokens_purchased > _tokens_remaining || tokens_purchased == 0)
+      revert("Invalid purchase amount");
 
     // Ensure the number of tokens purchased meets the sender's minimum contribution requirement
-    if (tokens_purchased < minimum_contribution_amount)
+    if (tokens_purchased < _min_purchase_amount)
       revert("Purchase is under minimum contribution amount");
-
   }
-
 }

@@ -1,154 +1,119 @@
 pragma solidity ^0.4.23;
 
 import "../Admin.sol";
-import "../../../lib/Contract.sol";
-import "../../token/Token.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library ConfigureSale {
 
   using Contract for *;
+  using SafeMath for uint;
 
-  // Function selectors
-  bytes4 internal constant INIT_CROWDSALE_TOK_SEL = bytes4(keccak256("initCrowdsaleToken(bytes32,bytes32,uint)")); 
-  bytes4 internal constant UPDATE_GLOBAL_MIN_CONTRIB_SEL = bytes4(keccak256("updateGlobalMinContribution(uint)")); 
-  bytes4 internal constant WHITELIST_MULTI_SEL = bytes4(keccak256("whitelistMulti(address[],uint[],uint[])")); 
-  bytes4 internal constant SET_CROWDSALE_START_DURATION_SEL= bytes4(keccak256("setCrowdsaleStartandDuration(uint,uint)")); 
+  // event CrowdsaleTokenInit(bytes32 indexed exec_id, bytes32 indexed name, bytes32 indexed symbol, uint decimals)
+  bytes32 private constant INIT_CROWDSALE_TOK_SIG = keccak256("CrowdsaleTokenInit(bytes32,bytes32,bytes32,uint256)");
 
-  // Event selectors
-  bytes32 internal constant INIT_CROWDSALE_TOK_SIG = keccak256("initCrowdsaleToken(bytes32,bytes32,uint)"); 
-  bytes32 internal constant UPDATE_GLOBAL_MIN_CONTRIB_SIG = keccak256("updateGlobalMinContribution(uint)"); 
-  bytes32 internal constant WHITELIST_MULTI_SIG = keccak256("whitelistMulti(address[],uint[],uint[])"); 
-  bytes32 internal constant SET_CROWDSALE_START_DURATION_SIG= keccak256("setCrowdsaleStartandDuration(uint,uint)"); 
-  
-  // Event emitter functions
-  function INIT_CROWDSALE_TOK(bytes32 exec_id, bytes32 _name, bytes32 _symbol) private pure
-  returns (bytes32[4]) {
-    return [INIT_CROWDSALE_TOK_SIG, exec_id, _name, _symbol];
-  }
+  // event GlobalMinUpdate(bytes32 indexed exec_id, uint current_token_purchase_min)
+  bytes32 private constant GLOBAL_MIN_UPDATE = keccak256("GlobalMinUpdate(bytes32,uint256)");
 
-  function UPDATE_GLOBAL_MIN_CONTRIB(bytes32 exec_id) private pure
-  returns (bytes32[2]) {
-    return [UPDATE_GLOBAL_MIN_CONTRIB_SIG, exec_id];
-  }
+  // event CrowdsaleTimeUpdated(bytes32 indexed exec_id)
+  bytes32 internal constant CROWDSALE_TIME_UPDATED = keccak256("CrowdsaleTimeUpdated(bytes32)");
 
-  function SET_CROWDSALE_START_DURATION(bytes32 exec_id, uint start_time) private pure
-  returns (bytes32[3]) {
-    return [SET_CROWDSALE_START_DURATION_SIG, exec_id, bytes32(start_time)];
-  }
+  function TOKEN_INIT(bytes32 _exec_id, bytes32 _name, bytes32 _symbol) private pure returns (bytes32[4] memory)
+    { return [INIT_CROWDSALE_TOK_SIG, _exec_id, _name, _symbol]; }
 
-  // Function that checks preconditions - TODO
-  function first() internal view {
-  	// Make sure the sender is the admin of the crowdsale
-  	if (Contract.sender() != address(Contract.read(Admin.admin())))
-  	  revert("Only admin can ConfigureSale");
+  function MIN_UPDATE(bytes32 _exec_id) private pure returns (bytes32[2] memory)
+    { return [GLOBAL_MIN_UPDATE, _exec_id]; }
 
-    // Check function selector for validity
-    if (
-      msg.sig != INIT_CROWDSALE_TOK_SEL &&
-      msg.sig != UPDATE_GLOBAL_MIN_CONTRIB_SEL &&
-      msg.sig != WHITELIST_MULTI_SEL &&
-      msg.sig != SET_CROWDSALE_START_DURATION_SEL
-    ) revert("Invalid function selector");
+  function TIME_UPDATE(bytes32 _exec_id) private pure returns (bytes32[2] memory)
+    { return [CROWDSALE_TIME_UPDATED, _exec_id]; }
 
-  }
-
-  // Checks for valid postconditions - None 
-  function last() internal pure { }
-
-
-  function initCrowdsaleToken(
-    bytes32 _name,
-    bytes32 _symbol,
-    uint _decimals
-  ) internal view {
-  	//Ensure that the crowdsale has not been initialized yet
-  	if (Contract.read(Admin.isInit()) == bytes32(1))
-  	  revert("Crowdsale is already initialized");
+  // Checks input and then creates storage buffer to configure sale token
+  function initCrowdsaleToken(bytes32 _name, bytes32 _symbol, uint _decimals) internal pure {
   	// Ensure valid input
-    if (
-      _name == 0
-      || _symbol == 0
-      || _decimals > 18
-    ) revert("Improper token initialization");
+    if (_name == 0 || _symbol == 0 || _decimals > 18)
+      revert("Improper token initialization");
 
-    // Begin storing values 
+    // Begin storing values
     Contract.storing();
-    // Store token _name
+    // Store token name, symbol, and decimals
     Contract.set(Admin.tokenName()).to(_name);
-    // Store token symbol 
     Contract.set(Admin.tokenSymbol()).to(_symbol);
-    // Store token _decimals
-    Contract.set(Admin.decimals()).to(_decimals);
+    Contract.set(Admin.tokenDecimals()).to(_decimals);
     // Finish storing and being logging events
     Contract.emitting();
-    // Log initCrowdsaleToken event 
+    // Log initCrowdsaleToken event
     Contract.log(
-      INIT_CROWDSALE_TOK(Contract.execID(), _name, _symbol), bytes32(_decimals)
+      TOKEN_INIT(Contract.execID(), _name, _symbol), bytes32(_decimals)
     );
   }
 
-  function updateGlobalMinContribution(uint new_min)
-  internal view {
-  	//Ensure that the crowdsale has not been initialized yet
-  	if (Contract.read(Admin.isInit()) == bytes32(1))
-  	  revert("Crowdsale is already initialized");
-  	//Ensure valid input
-  	if (new_min < 0) revert("Invalid minimum");
-
+  // Checks input and then creates storage buffer to update minimum
+  function updateGlobalMinContribution(uint _new_min) internal pure {
   	//Begin storing value
   	Contract.storing();
   	// Store new minimum
-  	Contract.set(Admin.minContribution()).to(new_min);
-  	// Finish storing begin logging event 
+  	Contract.set(Admin.globalMinPurchaseAmt()).to(_new_min);
+  	// Finish storing begin logging event
   	Contract.emitting();
-  	// Log updateGlobalMinContribution event 
+  	// Log updateGlobalMinContribution event
   	Contract.log(
-  	  UPDATE_GLOBAL_MIN_CONTRIB(Contract.execID()), bytes32(new_min)
+  	  MIN_UPDATE(Contract.execID()), bytes32(_new_min)
   	);
   }
 
+  // Checks input and creates storage buffer to update sale whitelist
   function whitelistMulti(
-    address[] memory to_update,
-    uint[] memory min_contributions,
-    uint[] memory max_spend_amt
-  ) internal pure {
+    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+  ) internal view {
     //Ensure valid input
     if (
-      to_update.length != min_contributions.length ||
-      to_update.length != max_spend_amt.length ||
-      to_update.length == 0
+      _to_whitelist.length != _min_token_purchase.length ||
+      _to_whitelist.length != _max_wei_spend.length ||
+      _to_whitelist.length == 0
     ) revert("Mismatched input lengths");
 
-    //Begin storing values
+    // Get whitelist length
+    uint sale_whitelist_len = uint(Contract.read(Admin.saleWhitelist()));
+
+    // Begin storing values
     Contract.storing();
     // For loop to update all inputted address in whitelist
-    for (uint i = 0; i < to_update.length; i++) {
+    for (uint i = 0; i < _to_whitelist.length; i++) {
       // Get storage location for address[i]
-      Contract.set(Admin.whitelistMinContrib(to_update[i])).to(min_contributions[i]);
-      Contract.set(Admin.whitelistSpendRemaining(to_update[i])).to(max_spend_amt[i]);
+      Contract.set(Admin.whitelistMinTok(_to_whitelist[i])).to(_min_token_purchase[i]);
+      Contract.set(Admin.whitelistMaxWei(_to_whitelist[i])).to(_max_wei_spend[i]);
+
+      // If the whitelist address does not currently exist in storage, push them to the
+      // sale's whitelist array
+      if (
+        Contract.read(Admin.whitelistMinTok(_to_whitelist[i])) == 0 &&
+        Contract.read(Admin.whitelistMaxWei(_to_whitelist[i])) == 0
+      ) {
+        Contract.set(
+          bytes32(32 + (32 * sale_whitelist_len) + uint(Admin.saleWhitelist()))
+        ).to(_to_whitelist[i]);
+        // Increment whitelist length
+        sale_whitelist_len++;
+      }
     }
+    // Store new whitelist length
+    Contract.set(Admin.saleWhitelist()).to(sale_whitelist_len);
   }
 
-  function setCrowdsaleStartandDuration(uint start_time, uint duration)
-  internal view {
-  	//Ensure that the crowdsale has not been initialized yet
-  	if (Contract.read(Admin.isInit()) == bytes32(1))
-  	  revert("Crowdsale is already initialized");
+  // Checks input and creates storage buffer to set crowdsale start time and duration
+  function setCrowdsaleStartandDuration(uint _start_time, uint _duration) internal view {
     //Ensure valid input
-    if (start_time <= now || duration == 0)
+    if (_start_time <= now || _duration == 0)
       revert("Invalid start time or duration");
-    //Begin storing values 
+
+    // Begin storing values
     Contract.storing();
     // Store new start_time
-    Contract.set(Admin.startTime()).to(start_time);
-    // Store new duration 
-    Contract.set(Admin.duration()).to(duration);
-    // Finish storing and begin logging event
-    Contract.emitting();
-    // Log setCrowdsaleStartandDuration event 
-    Contract.log(
-      SET_CROWDSALE_START_DURATION(Contract.execID(), start_time), bytes32(duration)
-    );
-  }
+    Contract.set(Admin.startTime()).to(_start_time);
+    // Store new duration
+    Contract.set(Admin.totalDuration()).to(_duration);
 
+    Contract.emitting();
+    // Log CrowdsaleTimeUpdated event
+    Contract.log(TIME_UPDATE(Contract.execID()), bytes32(0));
+  }
 }

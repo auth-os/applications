@@ -16,78 +16,6 @@ library MintedCappedIdx {
   function execPermissions(address _exec) internal pure returns (bytes32)
     { return keccak256(_exec, EXEC_PERMISSIONS); }
 
-  /*
-  Creates a crowdsale with initial conditions. The admin should now initialize the crowdsale's token, as well
-  as any additional tiers of the crowdsale that will exist, followed by finalizing the initialization of the crowdsale.
-  @param _team_wallet: The team funds wallet, where crowdsale purchases are forwarded
-  @param _start_time: The start time of the initial tier of the crowdsale
-  @param _initial_tier_name: The name of the initial tier of the crowdsale
-  @param _initial_tier_price: The price of each token purchased in wei, for the initial crowdsale tier
-  @param _initial_tier_duration: The duration of the initial tier of the crowdsale
-  @param _initial_tier_token_sell_cap: The maximum number of tokens that can be sold during the initial tier
-  @param _initial_tier_is_whitelisted: Whether the initial tier of the crowdsale requires an address be whitelisted for successful purchase
-  @param _initial_tier_duration_is_modifiable: Whether the initial tier of the crowdsale has a modifiable duration
-  @param _admin: A privileged address which is able to complete the crowdsale initialization process
-  @return bytes: A formatted bytes array that will be parsed by storage to emit events, forward payment, and store data
-  */
-  function init(
-    address _team_wallet,
-    uint _start_time,
-    bytes32 _initial_tier_name,
-    uint _initial_tier_price,
-    uint _initial_tier_duration,
-    uint _initial_tier_token_sell_cap,
-    bool _initial_tier_is_whitelisted,
-    bool _initial_tier_duration_is_modifiable,
-    address _admin
-  ) public view {
-    // Begin execution - we are initializing an instance of this application
-    Contract.initialize();
-
-    // Ensure valid input
-    if (
-      _team_wallet == 0
-      || _initial_tier_price == 0
-      || _start_time < now
-      || _start_time + _initial_tier_duration <= _start_time
-      || _initial_tier_token_sell_cap == 0
-      || _admin == address(0)
-    ) revert('improper initialization');
-
-    // Set up STORES action requests -
-    Contract.storing();
-    // Authorize sender as an executor for this instance -
-    Contract.set(execPermissions(msg.sender)).to(true);
-    // Store admin address, team wallet, initial tier duration, and sale start time
-    Contract.set(admin()).to(_admin);
-    Contract.set(wallet()).to(_team_wallet);
-    Contract.set(totalDuration()).to(_initial_tier_duration);
-    Contract.set(startTime()).to(_start_time);
-    // Store initial crowdsale tier list length and initial tier information
-    Contract.set(saleTierList()).to(uint(1));
-    // Tier name
-    Contract.set(tierName(uint(0))).to(_initial_tier_name);
-    // Tier token sell cap
-    Contract.set(tierCap(uint(0))).to(_initial_tier_token_sell_cap);
-    // Tier purchase price
-    Contract.set(tierPrice(uint(0))).to(_initial_tier_price);
-    // Tier active duration
-    Contract.set(tierDuration(uint(0))).to(_initial_tier_duration);
-    // Whether this tier's duration is modifiable prior to its start time
-    Contract.set(tierModifiable(uint(0))).to(_initial_tier_duration_is_modifiable);
-    // Whether this tier requires an address be whitelisted to complete token purchase
-    Contract.set(tierWhitelisted(uint(0))).to(_initial_tier_is_whitelisted);
-
-    // Store current crowdsale tier (offset by 1)
-    Contract.set(currentTier()).to(uint(1));
-    // Store current tier end time
-    Contract.set(currentEndsAt()).to(_initial_tier_duration.add(_start_time));
-    // Store current tier tokens remaining
-    Contract.set(currentTokensRemaining()).to(_initial_tier_token_sell_cap);
-
-    Contract.commit();
-  }
-
   /// SALE ///
 
   // Storage location of crowdsale admin address
@@ -256,32 +184,96 @@ library MintedCappedIdx {
     { return keccak256(_destination, "precision", reservedDestinations()); }
 
   /*
-  Returns the address of the admin of the crowdsale
-  @param _storage: The application's storage address
-  @param exec_id: The execution id to pull the admin address from
-  @return admin: The address of the admin of the crowdsale
-  */
-  function getAdmin(address _storage, bytes32 exec_id) external view returns (address _admin) {
-    GetterInterface target = GetterInterface(_storage);
+  Creates a crowdsale with initial conditions. The admin should now initialize the crowdsale's token, as well
+  as any additional tiers of the crowdsale that will exist, followed by finalizing the initialization of the crowdsale.
 
-    // Read from storage and get return value
-    _admin = address(target.read(exec_id, admin()));
+  @param _team_wallet: The team funds wallet, where crowdsale purchases are forwarded
+  @param _start_time: The start time of the initial tier of the crowdsale
+  @param _initial_tier_name: The name of the initial tier of the crowdsale
+  @param _initial_tier_price: The price of each token purchased in wei, for the initial crowdsale tier
+  @param _initial_tier_duration: The duration of the initial tier of the crowdsale
+  @param _initial_tier_token_sell_cap: The maximum number of tokens that can be sold during the initial tier
+  @param _initial_tier_is_whitelisted: Whether the initial tier of the crowdsale requires an address be whitelisted for successful purchase
+  @param _initial_tier_duration_is_modifiable: Whether the initial tier of the crowdsale has a modifiable duration
+  @param _admin: A privileged address which is able to complete the crowdsale initialization process
+  */
+  function init(
+    address _team_wallet,
+    uint _start_time,
+    bytes32 _initial_tier_name,
+    uint _initial_tier_price,
+    uint _initial_tier_duration,
+    uint _initial_tier_token_sell_cap,
+    bool _initial_tier_is_whitelisted,
+    bool _initial_tier_duration_is_modifiable,
+    address _admin
+  ) external view {
+    // Begin execution - we are initializing an instance of this application
+    Contract.initialize();
+
+    // Ensure valid input
+    if (
+      _team_wallet == 0
+      || _initial_tier_price == 0
+      || _start_time < now
+      || _start_time + _initial_tier_duration <= _start_time
+      || _initial_tier_token_sell_cap == 0
+      || _admin == address(0)
+    ) revert('improper initialization');
+
+    // Set up STORES action requests -
+    Contract.storing();
+    // Authorize sender as an executor for this instance -
+    Contract.set(execPermissions(msg.sender)).to(true);
+    // Store admin address, team wallet, initial tier duration, and sale start time
+    Contract.set(admin()).to(_admin);
+    Contract.set(wallet()).to(_team_wallet);
+    Contract.set(totalDuration()).to(_initial_tier_duration);
+    Contract.set(startTime()).to(_start_time);
+    // Store initial crowdsale tier list length and initial tier information
+    Contract.set(saleTierList()).to(uint(1));
+    // Tier name
+    Contract.set(tierName(uint(0))).to(_initial_tier_name);
+    // Tier token sell cap
+    Contract.set(tierCap(uint(0))).to(_initial_tier_token_sell_cap);
+    // Tier purchase price
+    Contract.set(tierPrice(uint(0))).to(_initial_tier_price);
+    // Tier active duration
+    Contract.set(tierDuration(uint(0))).to(_initial_tier_duration);
+    // Whether this tier's duration is modifiable prior to its start time
+    Contract.set(tierModifiable(uint(0))).to(_initial_tier_duration_is_modifiable);
+    // Whether this tier requires an address be whitelisted to complete token purchase
+    Contract.set(tierWhitelisted(uint(0))).to(_initial_tier_is_whitelisted);
+
+    // Store current crowdsale tier (offset by 1)
+    Contract.set(currentTier()).to(uint(1));
+    // Store current tier end time
+    Contract.set(currentEndsAt()).to(_initial_tier_duration.add(_start_time));
+    // Store current tier tokens remaining
+    Contract.set(currentTokensRemaining()).to(_initial_tier_token_sell_cap);
+
+    Contract.commit();
   }
 
   /// CROWDSALE GETTERS ///
 
+  // Returns the address of the admin of the crowdsale
+  function getAdmin(address _storage, bytes32 _exec_id) external view returns (address)
+    { return address(GetterInterface(_storage).read(_exec_id, admin())); }
+
   /*
-  Returns sale information on a crowdsale
+  Returns basic information on a sale
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @return wei_raised: The amount of wei raised in the crowdsale so far
   @return team_wallet: The address to which funds are forwarded during this crowdsale
   @return minimum_contribution: The minimum amount of tokens that must be purchased
   @return is_initialized: Whether or not the crowdsale has been completely initialized by the admin
   @return is_finalized: Whether or not the crowdsale has been completely finalized by the admin
   */
-  function getCrowdsaleInfo(address _storage, bytes32 exec_id) public view
-  returns (uint _wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized) {
+  function getCrowdsaleInfo(address _storage, bytes32 _exec_id) external view
+  returns (uint wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized) {
 
     GetterInterface target = GetterInterface(_storage);
 
@@ -293,10 +285,10 @@ library MintedCappedIdx {
     arr_indices[3] = isConfigured();
     arr_indices[4] = isFinished();
 
-    bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
+    bytes32[] memory read_values = target.readMulti(_exec_id, arr_indices);
 
     // Get returned data -
-    _wei_raised = uint(read_values[0]);
+    wei_raised = uint(read_values[0]);
     team_wallet = address(read_values[1]);
     minimum_contribution = uint(read_values[2]);
     is_initialized = (read_values[3] == 0 ? false : true);
@@ -305,12 +297,13 @@ library MintedCappedIdx {
 
   /*
   Returns true if all tiers have been completely sold out
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @return is_crowdsale_full: Whether or not the total number of tokens to sell in the crowdsale has been reached
   @return max_sellable: The total number of tokens that can be sold in the crowdsale
   */
-  function isCrowdsaleFull(address _storage, bytes32 exec_id) public view returns (bool is_crowdsale_full, uint max_sellable) {
+  function isCrowdsaleFull(address _storage, bytes32 _exec_id) external view returns (bool is_crowdsale_full, uint max_sellable) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory initial_arr = new bytes32[](2);
@@ -318,7 +311,7 @@ library MintedCappedIdx {
     initial_arr[0] = saleTierList();
     initial_arr[1] = tokensSold();
     // Read from storage
-    uint[] memory read_values = target.readMulti(exec_id, initial_arr).toUintArr();
+    uint[] memory read_values = target.readMulti(_exec_id, initial_arr).toUintArr();
 
     // Get number of tiers and tokens sold
     uint num_tiers = read_values[0];
@@ -330,7 +323,7 @@ library MintedCappedIdx {
       arr_indices[i] = tierCap(i);
 
     // Read from storage
-    read_values = target.readMulti(exec_id, arr_indices).toUintArr();
+    read_values = target.readMulti(_exec_id, arr_indices).toUintArr();
     // Ensure correct return length
     assert(read_values.length == num_tiers);
 
@@ -342,46 +335,36 @@ library MintedCappedIdx {
     is_crowdsale_full = (_tokens_sold >= max_sellable ? true : false);
   }
 
-  /*
-  Returns the number of unique contributors to a crowdsale
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return num_unique: The number of unique contributors in a crowdsale so far
-  */
-  function getCrowdsaleUniqueBuyers(address _storage, bytes32 exec_id) public view returns (uint num_unique) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage and return
-    num_unique = uint(target.read(exec_id, contributors()));
-  }
+  // Returns the number of unique contributors to a crowdsale
+  function getCrowdsaleUniqueBuyers(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, contributors())); }
 
   /*
   Returns the start and end time of the crowdsale
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @return start_time: The start time of the first tier of a crowdsale
   @return end_time: The time at which the crowdsale ends
   */
-  function getCrowdsaleStartAndEndTimes(address _storage, bytes32 exec_id) public view returns (uint _start_time, uint _end_time) {
-    GetterInterface target = GetterInterface(_storage);
-
+  function getCrowdsaleStartAndEndTimes(address _storage, bytes32 _exec_id) external view returns (uint start_time, uint end_time) {
     bytes32[] memory arr_indices = new bytes32[](2);
     arr_indices[0] = startTime();
     arr_indices[1] = totalDuration();
+
     // Read from storage
-    uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
-    // Ensure correct return length
-    assert(read_values.length == 2);
+    uint[] memory read_values = GetterInterface(_storage).readMulti(_exec_id, arr_indices).toUintArr();
 
     // Get return values
-    _start_time = read_values[0];
-    _end_time = _start_time + read_values[1];
+    start_time = read_values[0];
+    end_time = start_time + read_values[1];
   }
 
   /*
   Returns information on the current crowdsale tier
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @return tier_name: The name of the current tier
   @return tier_index: The current tier's index in the crowdsale_tiers() list
   @return tier_ends_at: The time at which purcahses for the current tier are forcibly locked
@@ -390,19 +373,19 @@ library MintedCappedIdx {
   @return duration_is_modifiable: Whether the crowdsale admin can update the duration of this tier before it starts
   @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
   */
-  function getCurrentTierInfo(address _storage, bytes32 exec_id) public view
+  function getCurrentTierInfo(address _storage, bytes32 _exec_id) external view
   returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, bool duration_is_modifiable, bool whitelist_enabled) {
-    GetterInterface target = GetterInterface(_storage);
 
-    bytes32[] memory initial_arr = new bytes32[](3);
+    bytes32[] memory initial_arr = new bytes32[](4);
     // Push current tier expiration time, current tier index, and current tier tokens remaining storage locations to calldata buffer
     initial_arr[0] = currentEndsAt();
     initial_arr[1] = currentTier();
     initial_arr[2] = currentTokensRemaining();
+    initial_arr[3] = saleTierList();
     // Read from storage and store return in buffer
-    uint[] memory read_values = target.readMulti(exec_id, initial_arr).toUintArr();
+    uint[] memory read_values = GetterInterface(_storage).readMulti(_exec_id, initial_arr).toUintArr();
     // Ensure correct return length
-    assert(read_values.length == 3);
+    assert(read_values.length == 4);
 
     // If the returned index was 0, current tier does not exist: return now
     if (read_values[1] == 0)
@@ -413,6 +396,17 @@ library MintedCappedIdx {
     // Indices are stored as 1 + (actual index), to avoid conflicts with a default 0 value
     tier_index = read_values[1] - 1;
     tier_tokens_remaining = read_values[2];
+    uint num_tiers = read_values[3];
+
+    // If it is beyond the tier's end time, loop through tiers until the current one is found
+    while (now >= tier_ends_at && ++tier_index < num_tiers) {
+      uint tier_duration = uint(GetterInterface(_storage).read(_exec_id, tierDuration(tier_index)));
+      tier_ends_at += tier_duration;
+    }
+
+    // If we have passed the last tier, return default values
+    if (tier_index >= num_tiers)
+      return (0, 0, 0, 0, 0, false, false);
 
     bytes32[] memory arr_indices = new bytes32[](4);
     arr_indices[0] = tierName(tier_index);
@@ -421,7 +415,7 @@ library MintedCappedIdx {
     arr_indices[3] = tierWhitelisted(tier_index);
 
     // Read from storage and get return values
-    read_values = target.readMulti(exec_id, arr_indices).toUintArr();
+    read_values = GetterInterface(_storage).readMulti(_exec_id, arr_indices).toUintArr();
 
     // Ensure correct return length
     assert(read_values.length == 4);
@@ -434,8 +428,9 @@ library MintedCappedIdx {
 
   /*
   Returns information on a given tier
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @param _index: The index of the tier in the crowdsale tier list. Input index should be like a normal array index (lowest index: 0)
   @return tier_name: The name of the returned tier
   @return tier_sell_cap: The amount of tokens designated to be sold during this tier
@@ -444,7 +439,7 @@ library MintedCappedIdx {
   @return duration_is_modifiable: Whether the crowdsale admin can change the duration of this tier prior to its start time
   @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
   */
-  function getCrowdsaleTier(address _storage, bytes32 exec_id, uint _index) public view
+  function getCrowdsaleTier(address _storage, bytes32 _exec_id, uint _index) external view
   returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_duration, bool duration_is_modifiable, bool whitelist_enabled) {
     GetterInterface target = GetterInterface(_storage);
 
@@ -457,7 +452,7 @@ library MintedCappedIdx {
     arr_indices[4] = tierModifiable(_index);
     arr_indices[5] = tierWhitelisted(_index);
     // Read from storage and store return in buffer
-    bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
+    bytes32[] memory read_values = target.readMulti(_exec_id, arr_indices);
     // Ensure correct return length
     assert(read_values.length == 6);
 
@@ -472,12 +467,13 @@ library MintedCappedIdx {
 
   /*
   Returns the maximum amount of wei to raise, as well as the total amount of tokens that can be sold
+
   @param _storage: The storage address of the crowdsale application
-  @param exec_id: The execution id of the application
+  @param _exec_id: The execution id of the application
   @return wei_raise_cap: The maximum amount of wei to raise
   @return total_sell_cap: The maximum amount of tokens to sell
   */
-  function getCrowdsaleMaxRaise(address _storage, bytes32 exec_id) public view returns (uint wei_raise_cap, uint total_sell_cap) {
+  function getCrowdsaleMaxRaise(address _storage, bytes32 _exec_id) external view returns (uint wei_raise_cap, uint total_sell_cap) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](3);
@@ -487,7 +483,7 @@ library MintedCappedIdx {
     arr_indices[2] = tokenName();
 
     // Read from storage
-    uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
+    uint[] memory read_values = target.readMulti(_exec_id, arr_indices).toUintArr();
     // Ensure correct return length
     assert(read_values.length == 3);
 
@@ -509,7 +505,7 @@ library MintedCappedIdx {
     }
 
     // Read from storage
-    read_values = target.readMulti(exec_id, last_arr).toUintArr();
+    read_values = target.readMulti(_exec_id, last_arr).toUintArr();
     // Ensure correct return length
     assert(read_values.length == 2 * num_tiers);
 
@@ -523,14 +519,15 @@ library MintedCappedIdx {
 
   /*
   Returns a list of the named tiers of the crowdsale
+
   @param _storage: The storage address of the crowdsale application
-  @param exec_id: The execution id of the application
+  @param _exec_id: The execution id of the application
   @return crowdsale_tiers: A list of each tier of the crowdsale
   */
-  function getCrowdsaleTierList(address _storage, bytes32 exec_id) public view returns (bytes32[] memory _crowdsale_tiers) {
+  function getCrowdsaleTierList(address _storage, bytes32 _exec_id) external view returns (bytes32[] memory crowdsale_tiers) {
     GetterInterface target = GetterInterface(_storage);
     // Read from storage and get list length
-    uint list_length = uint(target.read(exec_id, saleTierList()));
+    uint list_length = uint(target.read(_exec_id, saleTierList()));
 
     bytes32[] memory arr_indices = new bytes32[](list_length);
     // Loop over each tier name list location and add to buffer
@@ -538,20 +535,19 @@ library MintedCappedIdx {
       arr_indices[i] = tierName(i);
 
     // Read from storage and return
-    _crowdsale_tiers = target.readMulti(exec_id, arr_indices);
-    // Ensure correct return length
-    assert(_crowdsale_tiers.length == list_length);
+    crowdsale_tiers = target.readMulti(_exec_id, arr_indices);
   }
 
   /*
   Loops through all tiers and their durations, and returns the passed-in index's start and end dates
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @param _index: The index of the tier in the crowdsale tier list. Input index should be like a normal array index (lowest index: 0)
   @return tier_start: The time when the given tier starts
   @return tier_end: The time at which the given tier ends
   */
-  function getTierStartAndEndDates(address _storage, bytes32 exec_id, uint _index) public view returns (uint tier_start, uint tier_end) {
+  function getTierStartAndEndDates(address _storage, bytes32 _exec_id, uint _index) external view returns (uint tier_start, uint tier_end) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](3 + _index);
@@ -564,7 +560,7 @@ library MintedCappedIdx {
       arr_indices[2 + i] = tierDuration(i);
 
     // Read from storage and store return in buffer
-    uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
+    uint[] memory read_values = target.readMulti(_exec_id, arr_indices).toUintArr();
     // Ensure correct return length
     assert(read_values.length == 3 + _index);
 
@@ -581,31 +577,22 @@ library MintedCappedIdx {
     tier_end = tier_start + read_values[read_values.length - 1];
   }
 
-  /*
-  Returns the number of tokens sold so far this crowdsale
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return tokens_sold: The number of tokens sold this crowdsale so far
-  */
-  function getTokensSold(address _storage, bytes32 exec_id) public view
-  returns (uint _tokens_sold) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage and return
-    _tokens_sold = uint(target.read(exec_id, tokensSold()));
-  }
+  // Returns the number of tokens sold so far this crowdsale
+  function getTokensSold(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokensSold())); }
 
   /*
   Returns whitelist information for a given buyer
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @param _tier_index: The index of the tier about which the whitelist information will be pulled
   @param _buyer: The address of the user whose whitelist status will be returned
-  @return minimum_contribution: The minimum ammount of tokens the buyer must purchase during this tier
+  @return minimum_purchase_amt: The minimum ammount of tokens the buyer must purchase
   @return max_spend_remaining: The maximum amount of wei able to be spent by the buyer during this tier
   */
-  function getWhitelistStatus(address _storage, bytes32 exec_id, uint _tier_index, address _buyer) public view
-  returns (uint minimum_contribution, uint max_spend_remaining) {
+  function getWhitelistStatus(address _storage, bytes32 _exec_id, uint _tier_index, address _buyer) external view
+  returns (uint minimum_purchase_amt, uint max_spend_remaining) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](2);
@@ -615,27 +602,26 @@ library MintedCappedIdx {
     arr_indices[1] = whitelistMaxWei(_tier_index, _buyer);
 
     // Read from storage and return
-    uint[] memory read_values = target.readMulti(exec_id, arr_indices).toUintArr();
+    uint[] memory read_values = target.readMulti(_exec_id, arr_indices).toUintArr();
     // Ensure correct return length
     assert(read_values.length == 2);
 
-    minimum_contribution = read_values[0];
+    minimum_purchase_amt = read_values[0];
     max_spend_remaining = read_values[1];
   }
 
   /*
   Returns the list of whitelisted buyers for a given tier
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @param _tier_index: The index of the tier about which the whitelist information will be pulled
   @return num_whitelisted: The length of the tier's whitelist array
   @return whitelist: The tier's whitelisted addresses
   */
-  function getTierWhitelist(address _storage, bytes32 exec_id, uint _tier_index) public view returns (uint num_whitelisted, address[] memory whitelist) {
-    GetterInterface target = GetterInterface(_storage);
-
+  function getTierWhitelist(address _storage, bytes32 _exec_id, uint _tier_index) external view returns (uint num_whitelisted, address[] memory whitelist) {
     // Read from storage and get returned tier whitelist length
-    num_whitelisted = uint(target.read(exec_id, tierWhitelist(_tier_index)));
+    num_whitelisted = uint(GetterInterface(_storage).read(_exec_id, tierWhitelist(_tier_index)));
 
     // If there are no whitelisted addresses, return
     if (num_whitelisted == 0)
@@ -647,190 +633,110 @@ library MintedCappedIdx {
       arr_indices[i] = bytes32(32 + (32 * i) + uint(tierWhitelist(_tier_index)));
 
     // Read from storage and return
-    whitelist = target.readMulti(exec_id, arr_indices).toAddressArr();
-    // Ensure correct return length
-    assert(whitelist.length == num_whitelisted);
+    whitelist = GetterInterface(_storage).readMulti(_exec_id, arr_indices).toAddressArr();
   }
 
   /// TOKEN GETTERS ///
 
-  /*
-  Returns the balance of an address
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @param _owner: The address to look up the balance of
-  @return owner_balance: The token balance of the owner
-  */
-  function balanceOf(address _storage, bytes32 exec_id, address _owner) public view
-  returns (uint owner_balance) {
-    GetterInterface target = GetterInterface(_storage);
+  // Returns the token balance of an address
+  function balanceOf(address _storage, bytes32 _exec_id, address _owner) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, balances(_owner))); }
 
-    // Read from storage
-    owner_balance = uint(target.read(exec_id, balances(_owner)));
-  }
+  // Returns the amount of tokens a spender may spend on an owner's behalf
+  function allowance(address _storage, bytes32 _exec_id, address _owner, address _spender) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, allowed(_owner, _spender))); }
 
-  /*
-  Returns the amount of tokens a spender may spend on an owner's behalf
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @param _owner: The address allowing spends from a spender
-  @param _spender: The address allowed tokens by the owner
-  @return amt: The amount of tokens that can be transferred from the owner to a location of the spender's choosing
-  */
-  function allowance(address _storage, bytes32 exec_id, address _owner, address _spender) public view
-  returns (uint amt) {
-    GetterInterface target = GetterInterface(_storage);
+  // Returns the number of display decimals for a token
+  function decimals(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokenDecimals())); }
 
-    // Read from storage
-    amt = uint(target.read(exec_id, allowed(_owner, _spender)));
-  }
+  // Returns the total token supply
+  function totalSupply(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokenTotalSupply())); }
 
-  /*
-  Returns the number of display decimals for a token
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return token_decimals: The number of decimals associated with token balances
-  */
-  function decimals(address _storage, bytes32 exec_id) public view
-  returns (uint _token_decimals) {
-    GetterInterface target = GetterInterface(_storage);
+  // Returns the token's name
+  function name(address _storage, bytes32 _exec_id) external view returns (bytes32)
+    { return GetterInterface(_storage).read(_exec_id, tokenName()); }
 
-    // Read from storage
-    _token_decimals = uint(target.read(exec_id, tokenDecimals()));
-  }
-
-  /*
-  Returns the total token supply of a given token app instance
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return total_supply: The total token supply
-  */
-  function totalSupply(address _storage, bytes32 exec_id) public view
-  returns (uint _total_supply) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage
-    _total_supply = uint(target.read(exec_id, tokenTotalSupply()));
-  }
-
-  /*
-  Returns the name field of a given token app instance
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return token_name: The name of the token
-  */
-  function name(address _storage, bytes32 exec_id) public view returns (bytes32 _token_name) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage
-    _token_name = target.read(exec_id, tokenName());
-  }
-
-  /*
-  Returns the ticker symbol of a given token app instance
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
-  @return token_symbol: The token's ticker symbol
-  */
-  function symbol(address _storage, bytes32 exec_id) public view returns (bytes32 _token_symbol) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage
-    _token_symbol = target.read(exec_id, tokenSymbol());
-  }
+  // Returns token's symbol
+  function symbol(address _storage, bytes32 _exec_id) external view returns (bytes32)
+    { return GetterInterface(_storage).read(_exec_id, tokenSymbol()); }
 
   /*
   Returns general information on a token - name, symbol, decimals, and total supply
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under which storage for this instance is located
+  @param _exec_id: The application execution id under which storage for this instance is located
   @return token_name: The name of the token
   @return token_symbol: The token ticker symbol
   @return token_decimals: The display decimals for the token
   @return total_supply: The total supply of the token
   */
-  function getTokenInfo(address _storage, bytes32 exec_id) public view
-  returns (bytes32 _token_name, bytes32 _token_symbol, uint _token_decimals, uint _total_supply) {
-    GetterInterface target = GetterInterface(_storage);
+  function getTokenInfo(address _storage, bytes32 _exec_id) external view
+  returns (bytes32 token_name, bytes32 token_symbol, uint token_decimals, uint total_supply) {
+    //Set up bytes32 array to hold storage seeds
+    bytes32[] memory seed_arr = new bytes32[](4);
 
-    bytes32[] memory arr_indices = new bytes32[](4);
-    // Place token name, symbol, decimals, and total supply storage locations in buffer
-    arr_indices[0] = tokenName();
-    arr_indices[1] = tokenSymbol();
-    arr_indices[2] = tokenDecimals();
-    arr_indices[3] = tokenTotalSupply();
+    //Assign locations of array to respective seeds
+    seed_arr[0] = tokenName();
+    seed_arr[1] = tokenSymbol();
+    seed_arr[2] = tokenDecimals();
+    seed_arr[3] = tokenTotalSupply();
 
-    // Read from storage
-    bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
-    // Ensure correct return length
-    assert(read_values.length == 4);
+    //Read and return values from storage
+    bytes32[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr);
 
-    // Get return values -
-    _token_name = read_values[0];
-    _token_symbol = read_values[1];
-    _token_decimals = uint(read_values[2]);
-    _total_supply = uint(read_values[3]);
+    //Assign values to return params
+    token_name = values_arr[0];
+    token_symbol = values_arr[1];
+    token_decimals = uint(values_arr[2]);
+    total_supply = uint(values_arr[3]);
   }
 
-  /*
-  Returns whether or not an address is a transfer agent, meaning they can transfer tokens before the crowdsale is finalized
-  @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under storage for this app instance is located
-  @param _agent: The address about which to look up information
-  @return is_transfer_agent: Whether the passed-in address is a transfer agent
-  */
-  function getTransferAgentStatus(address _storage, bytes32 exec_id, address _agent) public view
-  returns (bool is_transfer_agent) {
-    GetterInterface target = GetterInterface(_storage);
-
-    // Read from storage
-    is_transfer_agent = (target.read(exec_id, transferAgents(_agent)) == 0 ? false : true);
-  }
+  // Returns whether or not an address is a transfer agent, meaning they can transfer tokens before the crowdsale is finished
+  function getTransferAgentStatus(address _storage, bytes32 _exec_id, address _agent) external view returns (bool)
+    { return GetterInterface(_storage).read(_exec_id, transferAgents(_agent)) != 0 ? true : false; }
 
   /*
   Returns information on a reserved token address (the crowdsale admin can set reserved tokens for addresses before initializing the crowdsale)
+
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under storage for this app instance is located
+  @param _exec_id: The application execution id under storage for this app instance is located
   @return num_destinations: The length of the crowdsale's reserved token destination array
   @return reserved_destinations: A list of the addresses which have reserved tokens or percents
   */
-  function getReservedTokenDestinationList(address _storage, bytes32 exec_id) public view
-  returns (uint num_destinations, address[] memory _reserved_destinations) {
-    GetterInterface target = GetterInterface(_storage);
-
+  function getReservedTokenDestinationList(address _storage, bytes32 _exec_id) external view
+  returns (uint num_destinations, address[] reserved_destinations) {
     // Read reserved destination list length from storage
-    num_destinations = uint(target.read(exec_id, reservedDestinations()));
+    num_destinations = uint(GetterInterface(_storage).read(_exec_id, reservedDestinations()));
 
     // If num_destinations is 0, return now
     if (num_destinations == 0)
-      return (0, _reserved_destinations);
+      return (num_destinations, reserved_destinations);
 
     /// Loop through each list in storage, and get each address -
 
     bytes32[] memory arr_indices = new bytes32[](num_destinations);
     // Add each destination index location to calldata
     for (uint i = 1; i <= num_destinations; i++)
-      arr_indices[i - 1] = (bytes32((32 * i) + uint(reservedDestinations())));
+      arr_indices[i - 1] = bytes32((32 * i) + uint(reservedDestinations()));
 
     // Read from storage, and return data to buffer
-    _reserved_destinations = target.readMulti(exec_id, arr_indices).toAddressArr();
-    // Ensure correct return length
-    assert(_reserved_destinations.length == num_destinations);
+    reserved_destinations = GetterInterface(_storage).readMulti(_exec_id, arr_indices).toAddressArr();
   }
 
   /*
   Returns information on a reserved token address (the crowdsale admin can set reserved tokens for addresses before initializing the crowdsale)
   @param _storage: The address where application storage is located
-  @param exec_id: The application execution id under storage for this app instance is located
+  @param _exec_id: The application execution id under storage for this app instance is located
   @param _destination: The address about which reserved token information will be pulled
   @return destination_list_index: The index in the reserved token destination list where this address is found, plus 1. If zero, destination has no reserved tokens
   @return num_tokens: The number of tokens reserved for this address
   @return num_percent: The percent of tokens sold during the crowdsale reserved for this address
   @return percent_decimals: The number of decimals in the above percent reserved - used to calculate with precision
   */
-  function getReservedDestinationInfo(address _storage, bytes32 exec_id, address _destination) public view
+  function getReservedDestinationInfo(address _storage, bytes32 _exec_id, address _destination) external view
   returns (uint destination_list_index, uint num_tokens, uint num_percent, uint percent_decimals) {
-    GetterInterface target = GetterInterface(_storage);
-
     bytes32[] memory arr_indices = new bytes32[](4);
     arr_indices[0] = destIndex(_destination);
     arr_indices[1] = destTokens(_destination);
@@ -838,9 +744,7 @@ library MintedCappedIdx {
     arr_indices[3] = destPrecision(_destination);
 
     // Read from storage, and return data to buffer
-    bytes32[] memory read_values = target.readMulti(exec_id, arr_indices);
-    // Ensure correct return length
-    assert(read_values.length == 4);
+    bytes32[] memory read_values = GetterInterface(_storage).readMulti(_exec_id, arr_indices);
 
     // Get returned values -
     destination_list_index = uint(read_values[0]);

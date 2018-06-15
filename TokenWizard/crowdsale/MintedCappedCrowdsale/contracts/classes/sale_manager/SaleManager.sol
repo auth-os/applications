@@ -30,10 +30,6 @@ library SaleManager {
   function totalDuration() internal pure returns (bytes32)
     { return keccak256("sale_total_duration"); }
 
-  // Storage location of the amount of tokens sold in the crowdsale so far. Does not include reserved tokens
-  function tokensSold() internal pure returns (bytes32)
-    { return keccak256("sale_tokens_sold"); }
-
   // Storage location of the minimum amount of tokens allowed to be purchased
   function globalMinPurchaseAmt() internal pure returns (bytes32)
     { return keccak256("sale_min_purchase_amt"); }
@@ -75,12 +71,6 @@ library SaleManager {
   // Storage location of the end time of the current tier. Purchase attempts beyond this time will update the current tier (if another is available)
   function currentEndsAt() internal pure returns (bytes32)
     { return keccak256("current_tier_ends_at"); }
-
-  /// FUNDS ///
-
-  // Storage location of amount of wei raised during the crowdsale, total
-  function totalWeiRaised() internal pure returns (bytes32)
-    { return keccak256("sale_tot_wei_raised"); }
 
   /// WHITELIST ///
 
@@ -203,7 +193,7 @@ library SaleManager {
     Contract.authorize(msg.sender);
     // Check that the sender is the admin and the sale is not initialized
     Contract.checks(onlyAdminAndNotInit);
-    // Execute approval function -
+    // Execute function -
     ConfigureSale.createCrowdsaleTiers(
       _tier_names, _tier_durations, _tier_prices,
       _tier_caps, _tier_modifiable, _tier_whitelisted
@@ -229,7 +219,7 @@ library SaleManager {
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin -
     Contract.checks(onlyAdmin);
-    // Execute approval function -
+    // Execute function -
     ConfigureSale.whitelistMultiForTier(
       _tier_index, _to_whitelist, _min_token_purchase, _max_wei_spend
     );
@@ -250,7 +240,7 @@ library SaleManager {
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin and that the sale is not finalized -
     Contract.checks(onlyAdminAndNotFinal);
-    // Execute approval function -
+    // Execute function -
     ConfigureSale.updateTierDuration(_tier_index, _new_duration);
     // Ensures state change will only affect storage -
     Contract.checks(onlyStores);
@@ -264,7 +254,7 @@ library SaleManager {
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin and the sale is not initialized -
     Contract.checks(onlyAdminAndNotInit);
-    // Execute approval function -
+    // Execute function -
     ManageSale.initializeCrowdsale();
     // Ensures state change will only affect storage and events -
     Contract.checks(emitAndStore);
@@ -278,7 +268,7 @@ library SaleManager {
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin and that the sale is not finalized -
     Contract.checks(onlyAdminAndNotFinal);
-    // Execute approval function -
+    // Execute function -
     ManageSale.finalizeCrowdsale();
     // Ensures state change will only affect storage and events -
     Contract.checks(emitAndStore);

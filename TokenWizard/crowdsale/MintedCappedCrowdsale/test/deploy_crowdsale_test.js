@@ -79,7 +79,7 @@ contract('MintedCappedCrowdsale', function (accounts) {
 
       token.address, token.address, token.address, token.address, token.address
     ]
-    saleAddrs.length.should.be.eq(19)
+    saleAddrs.length.should.be.eq(saleSelectors.length)
 
     let events = await storage.createRegistry(
       regIdx.address, regProvider.address, { from: exec }
@@ -92,7 +92,8 @@ contract('MintedCappedCrowdsale', function (accounts) {
     regExecID = events[0].args['execution_id']
     web3.toDecimal(regExecID).should.not.eq(0)
 
-    scriptExec = await ScriptExec.new(
+    scriptExec = await ScriptExec.new().should.be.fulfilled
+    await scriptExec.configure(
       execAdmin, storage.address, exec,
       { from: execAdmin }
     ).should.be.fulfilled

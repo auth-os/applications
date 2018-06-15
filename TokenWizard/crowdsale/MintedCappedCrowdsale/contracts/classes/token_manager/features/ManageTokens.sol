@@ -31,12 +31,9 @@ library ManageTokens {
 
   // Checks input and then creates storage buffer for token initialization
   function initCrowdsaleToken(bytes32 _name, bytes32 _symbol, uint _decimals) internal pure {
-   // Ensure valid input
-    if (
-      _name == 0
-      || _symbol == 0
-      || _decimals > 18
-    ) revert('improper token initialization');
+    // Ensure valid input
+    if (_name == 0 || _symbol == 0 || _decimals > 18)
+      revert("Improper token initialization");
 
     // Set up STORES action requests -
     Contract.storing();

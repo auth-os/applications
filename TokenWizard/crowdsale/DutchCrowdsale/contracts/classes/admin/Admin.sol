@@ -1,285 +1,242 @@
 pragma solidity ^0.4.23;
 
-import "../../DutchCrowdsale.sol";
-import "../../lib/Contract.sol";
 import "./features/ConfigureSale.sol";
 import "./features/ManageSale.sol";
-import "./features/ManageToken.sol";
+import "./features/ManageTokens.sol";
+import "authos-solidity/contracts/core/Contract.sol";
 
 library Admin {
 
   using Contract for *;
 
-  // Crowdsale fields - 
+  /// SALE ///
 
-  //Returns the storage location of the admin of the crowdsale
-  function admin() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_admin");
-  }
+  // Storage location of crowdsale admin address
+  function admin() internal pure returns (bytes32)
+    { return keccak256('sale_admin'); }
 
-  // Returns the storage location of the crowdsale_is_init variable
-  function isInit() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_init");
-  }
+  // Whether the crowdsale and token are configured, and the sale is ready to run
+  function isConfigured() internal pure returns (bytes32)
+    { return keccak256("sale_is_configured"); }
 
-  // Returns the storage location of crowdsale_is_finalized variable
-  function isFinalized() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_finalized");
-  }
+  // Whether or not the crowdsale is post-purchase
+  function isFinished() internal pure returns (bytes32)
+    { return keccak256("sale_is_completed"); }
 
-  // Returns the storage location of number of tokens remaining in crowdsale
-  function tokensRemaining() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_tokens_remaining");
-  }
+  // Storage location of the crowdsale's start time
+  function startTime() internal pure returns (bytes32)
+    { return keccak256("sale_start_time"); }
 
-  // Returns the storage location of crowdsale's minimum contribution
-  function minContribution() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_min_cap");
-  } 
+  // Storage location of the amount of time the crowdsale will take, accounting for all tiers
+  function totalDuration() internal pure returns (bytes32)
+    { return keccak256("sale_total_duration"); }
 
-  // Returns the storage location of crowdsale's max number of tokens to sell
-  function maxSellCap() internal pure returns (bytes32 location) {
-    location = keccak256("token_sell_cap");
-  } 
-  
-  // Storage seed for crowdsale's unique contributors
-  bytes32 internal constant CROWDSALE_UNIQUE_CONTRIBUTORS = keccak256("crowdsale_contributors");
+  // Storage location of the minimum amount of tokens allowed to be purchased
+  function globalMinPurchaseAmt() internal pure returns (bytes32)
+    { return keccak256("sale_min_purchase_amt"); }
 
-  //Returns the storage location of the number of unique contributors in the crowdsale
-  function uniqueContributors() internal pure returns (bytes32 location) {
-  	location = CROWDSALE_UNIQUE_CONTRIBUTORS;
-  }
-  // Returns the storage location of whether or not _sender is a unique contributor to this crowdsale
-  function hasContributed(address _sender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_sender), CROWDSALE_UNIQUE_CONTRIBUTORS);
-  }
+  /// WHITELIST ///
 
-  // Returns the storage location of crowdsale's starting time
-  function startTime() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_starts_at");
-  }
+  // Stores the sale's whitelist
+  function saleWhitelist() internal pure returns (bytes32)
+    { return keccak256("sale_whitelist"); }
 
-  // Returns the storage location of crowdsale's duration
-  function duration() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_duration");
-  }
+  // Stores a spender's maximum wei spend amount
+  function whitelistMaxWei(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_wei", saleWhitelist()); }
 
-  // Returns the storage location of crowdsale's starting sale rate
-  function startRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_start_rate");
-  }
+  // Stores a spender's minimum token purchase amount
+  function whitelistMinTok(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "min_tok", saleWhitelist()); }
 
-  // Returns the storage location of crowdsale's ending sale rate
-  function endRate() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_end_rate");
-  }
+  /// TOKEN ///
 
-  // Returns the storage location of the crowdsale's wallet
-  function wallet() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wallet");
-  }
+  // Storage location for token name
+  function tokenName() internal pure returns (bytes32)
+    { return keccak256("token_name"); }
 
-  // Returns the storage location of crowdsale's wei raised
-  function weiRaised() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_wei_raised");
-  }
+  // Storage location for token ticker symbol
+  function tokenSymbol() internal pure returns (bytes32)
+    { return keccak256("token_symbol"); }
 
-  // Returns the storage location of crowdsale's whitelist status
-  function isWhitelisted() internal pure returns (bytes32 location) {
-  	location = keccak256("crowdsale_is_whiteliste");
-  }
+  // Storage location for token decimals
+  function tokenDecimals() internal pure returns (bytes32)
+    { return keccak256("token_decimals"); }
 
-  // Storage seed for crowdsale's whitelist 
-  bytes32 internal constant SALE_WHITELIST = keccak256("crowdsale_purchase_whitelist");
-
-  // Returns the storage location of user's minimum contribution in whitelisted crowdsale
-  function whitelistMinContrib(address _spender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_spender), SALE_WHITELIST);
-  }
-
-  //Returns the storage location for the user's remaining spending amount in a whitelisted crowdsale
-  function whitelistSpendRemaining(address _spender) internal pure returns (bytes32 location) {
-  	location = bytes32(32 + uint(keccak256(keccak256(_spender), SALE_WHITELIST)));
-  }
-
-  // Returns storage location for crowdsale token's number of decimals
-  function decimals() internal pure returns (bytes32 location) {
-  	location = keccak256("token_decimals");
-  }
-
-  // Token fields - 
-
-  // Returns the storage location of the token's name
-  function tokenName() internal pure returns (bytes32 location) {
-    location = keccak256('token_name');
-  }
-
-  // Returns the storage location of the token's symbol
-  function tokenSymbol() internal pure returns (bytes32 location) {
-    location = keccak256('token_symbol');
-  }
-
-  // Returns the storage location of the token's totalSupply
-  function tokenTotalSupply() internal pure returns (bytes32 location) {
-    location = keccak256('token_supply');
-  }
-
-  bytes32 private constant BALANCE_SEED = keccak256('token_balances');
-
-  // Returns the storage location of an owner's token balance
-  function balances(address _owner) internal pure returns (bytes32 location) {
-    location = keccak256(_owner, BALANCE_SEED);
-  }
-
-  bytes32 private constant ALLOWANCE_SEED = keccak256('token_allowed');
-
-  // Returns the storage location of a spender's token allowance from the owner
-  function allowed(address _owner, address _spender) internal pure returns (bytes32 location) {
-    location = keccak256(_spender, keccak256(_owner, ALLOWANCE_SEED));
-  }
-
-  // Storage seed of token_transfer_agent status
+  // Storage seed for token 'transfer agent' status for any address
+  // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized
   bytes32 internal constant TOKEN_TRANSFER_AGENTS = keccak256("token_transfer_agents");
 
-  function transferAgentStatus(address _sender) internal pure returns (bytes32 location) {
-  	location = keccak256(keccak256(_sender), TOKEN_TRANSFER_AGENTS); 
+  function transferAgents(address _agent) internal pure returns (bytes32)
+    { return keccak256(_agent, TOKEN_TRANSFER_AGENTS); }
+
+  /// CHECKS ///
+
+  // Ensure that the sender is the sale admin
+  function onlyAdmin() internal view {
+    if (address(Contract.read(admin())) != Contract.sender())
+      revert('sender is not admin');
   }
 
-  /// Function selectors ///
-  //bytes4 internal constant INIT_SEL = bytes4(keccak256("init(address,uint,uint,uint,uint,uint,uint,bool,address,bytes)"));
-  bytes4 internal constant INIT_CROWDSALE_TOK_SEL = bytes4(keccak256("initCrowdsaleToken(bytes32,bytes32,uint)")); 
-  bytes4 internal constant UPDATE_GLOBAL_MIN_CONTRIB_SEL = bytes4(keccak256("updateGlobalMinContribution(uint)")); 
-  bytes4 internal constant WHITELIST_MULTI_SEL = bytes4(keccak256("whitelistMulti(address[],uint[],uint[])")); 
-  bytes4 internal constant SET_CROWDSALE_START_DURATION_SEL= bytes4(keccak256("setCrowdsaleStartandDuration(uint,uint)")); 
-  bytes4 internal constant INITIALIZE_CROWDSALE_SEL = bytes4(keccak256("initializeCrowdsale()")); 
-  bytes4 internal constant FINALIZE_CROWDSALE_SEL = bytes4(keccak256("finalizeCrowdsale()")); 
-  bytes4 internal constant SET_TRANSFER_AGENT_SEL = bytes4(keccak256("setTransferAgentStatus(address,bool)"));
+  // Ensures that the sender is the admin address, and the sale is not initialized
+  function onlyAdminAndNotInit() internal view {
+    if (address(Contract.read(admin())) != Contract.sender())
+      revert('sender is not admin');
 
-  //Before each ManageSale, ConfigureSale, or ManageTokens feature executes, check this conditions- 
-  function first() internal view {
-  	if(bytes32(Contract.sender()) != Contract.read(admin())) 
-  	  revert("Sender is not admin"); 
-
-  	if (
-  	  msg.sig == INIT_CROWDSALE_TOK_SEL ||
-  	  msg.sig == UPDATE_GLOBAL_MIN_CONTRIB_SEL ||
-  	  msg.sig == WHITELIST_MULTI_SEL ||
-  	  msg.sig == SET_CROWDSALE_START_DURATION_SEL
-  	) Contract.checks(ConfigureSale.first);
-  	else if (
-  	  msg.sig == INITIALIZE_CROWDSALE_SEL ||
-  	  msg.sig == FINALIZE_CROWDSALE_SEL
-  	) Contract.checks(ManageSale.first);
-  	else if (
-  	  msg.sig == SET_TRANSFER_AGENT_SEL
-  	) Contract.checks(ManageToken.first);
-  	else {
-  	  revert('invalid function selector');	
-  	} 
+    if (Contract.read(isConfigured()) != 0)
+      revert('sale has already been initialized');
   }
 
-  // After each ManageSale, ConfigureSale, or ManageToken Feature executes, ensure that the result will
-  // both emit an event and store values in storage -
-  function last() internal pure {
+  // Ensures that the sender is the admin address, and the sale is not finalized
+  function onlyAdminAndNotFinal() internal view {
+    if (address(Contract.read(admin())) != Contract.sender())
+      revert('sender is not admin');
+
+    if (Contract.read(isFinished()) != 0)
+      revert('sale has already been finalized');
+  }
+
+  // Ensures the pending state change will only store
+  function onlyStores() internal pure {
+    if (Contract.paid() != 0 || Contract.emitted() != 0)
+      revert('expected only storage');
+
+    if (Contract.stored() == 0)
+      revert('expected storage');
+  }
+
+  // Ensures both storage and events have been pushed to the buffer
+  function emitAndStore() internal pure {
     if (Contract.emitted() == 0 || Contract.stored() == 0)
       revert('invalid state change');
   }
 
-  //// CLASS - Admin: ////
+  /// FUNCTIONS ///
 
-  /// Feature - ConfigureSale: ///
-  function updateGlobalMinContribution(uint new_min_contribution)
-  external view {
+  /*
+  Allows the admin to update the global minimum number of tokens to purchase
+
+  @param _new_minimum: The new minimum number of tokens that must be purchased
+  */
+  function updateGlobalMinContribution(uint _new_minimum) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
-    ConfigureSale.updateGlobalMinContribution(new_min_contribution);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Check that the sender is the admin and the sale is not initialized
+    Contract.checks(onlyAdmin);
+    // Execute function -
+    ConfigureSale.updateGlobalMinContribution(_new_minimum);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
+
+  /*
+  Allows the admin to whitelist addresses for the sale
+
+  @param _to_whitelist: An array of addresses that will be whitelisted
+  @param _min_token_purchase: Each address' minimum purchase amount
+  @param _max_wei_spend: Each address' maximum wei spend amount
+  */
   function whitelistMulti(
-    address[] to_update, uint[] min_contribution, uint[] max_spend_amt
+    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
-    ConfigureSale.whitelistMulti(to_update, min_contribution, max_spend_amt);
-    // Check postconditions for execution -
-    Contract.checks(last);
-    // Commit state changes to storage -
-    Contract.commit();
-  }
-  function initCrowdsaleToken(bytes32 name, bytes32 symbol, uint decimals)
-  external view { 
-    // Begin execution - reads execution id and original sender address from storage
-    Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
-    ConfigureSale.initCrowdsaleToken(name, symbol, decimals);
-    // Check postconditions for execution -
-    Contract.checks(last);
-    // Commit state changes to storage -
-    Contract.commit();
-  }
-  function setCrowdsaleStartandDuration(uint start_time, uint duration)
-  external view { 
-    // Begin execution - reads execution id and original sender address from storage
-    Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
-    ConfigureSale.setCrowdsaleStartandDuration(start_time, duration);
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Check that the sender is the sale admin -
+    Contract.checks(onlyAdmin);
+    // Execute function -
+    ConfigureSale.whitelistMulti(_to_whitelist, _min_token_purchase, _max_wei_spend);
+    // Ensures state change will only affect storage -
+    Contract.checks(onlyStores);
     // Commit state changes to storage -
     Contract.commit();
   }
 
-  //Feature - ManageSale
+  /*
+  Initializes the token to be sold during the crowdsale -
+
+  @param _name: The name of the token to be sold
+  @param _symbol: The symbol of the token to be sold
+  @param _decimals: The number of decimals the token will have
+  */
+  function initCrowdsaleToken(bytes32 _name, bytes32 _symbol, uint _decimals) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check that the sender is the sale admin and the sale is not initialized -
+    Contract.checks(onlyAdminAndNotInit);
+    // Execute decreaseApproval function -
+    ConfigureSale.initCrowdsaleToken(_name, _symbol, _decimals);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  /*
+  Allows the sale admin to set the sale start time and duration (if it has not started yet)
+  The admin must not have finalized the configuration process (i.e. called initializeCrowdsale)
+
+  @param _start_time: The time at which the sale will start
+  @param _duration: The amount of time for which the sale will be active
+  */
+  function setCrowdsaleStartandDuration(uint _start_time, uint _duration) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check that the sender is the sale admin and the sale is not initialized -
+    Contract.checks(onlyAdminAndNotInit);
+    // Execute decreaseApproval function -
+    ConfigureSale.setCrowdsaleStartandDuration(_start_time, _duration);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  /*
+  Sets the status of an account as a transfer agent. Transfer agents are allowed to transfer tokens at any time
+
+  @param _agent: The address whose status will be updated
+  @param _is_agent: Whether or not the agent is a transfer agent
+  */
+  function setTransferAgentStatus(address _agent, bool _is_agent) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check that the sender is the sale admin -
+    Contract.checks(onlyAdmin);
+    // Execute decreaseApproval function -
+    ManageTokens.setTransferAgentStatus(_agent, _is_agent);
+    // Ensures state change will only affect storage and log events -
+    Contract.checks(emitAndStore);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  // Allows the admin to initialize a crowdsale, marking it configured
   function initializeCrowdsale() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
+    // Check that the sender is the sale admin and the sale is not initialized -
+    Contract.checks(onlyAdminAndNotInit);
+    // Execute function -
     ManageSale.initializeCrowdsale();
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }
+
+  // Allows the admin to finalize a crowdsale, marking it completed
   function finalizeCrowdsale() external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
+    // Check that the sender is the sale admin and that the sale is not finalized -
+    Contract.checks(onlyAdminAndNotFinal);
+    // Execute function -
     ManageSale.finalizeCrowdsale();
-    // Check postconditions for execution -
-    Contract.checks(last);
+    // Ensures state change will only affect storage and events -
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
-  } 
-
-  // Feature - ManageTokens: ///
-  function setTransferAgentStatus(address agent, bool is_agent) external view { 
-    // Begin execution - reads execution id and original sender address from storage
-    Contract.authorize(msg.sender);
-    // Check preconditions for execution -
-    Contract.checks(first);
-    // Execute decreaseApproval function -
-    ManageToken.setTransferAgentStatus(agent, is_agent);
-    // Check postconditions for execution -
-    Contract.checks(last);
-    // Commit state changes to storage -
-    Contract.commit();
-  }    
-	
+  }
 }

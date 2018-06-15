@@ -1,18 +1,17 @@
 // Abstract storage contract
 let AbstractStorage = artifacts.require('./AbstractStorage')
-// DutchCrowdsale
-let InitDutch = artifacts.require('./InitCrowdsale')
-let DutchBuy = artifacts.require('./CrowdsaleBuyTokens')
-let DutchCrowdsaleConsole = artifacts.require('./CrowdsaleConsole')
-let DutchTokenConsole = artifacts.require('./TokenConsole')
-let DutchTokenTransfer = artifacts.require('./TokenTransfer')
-let DutchTokenTransferFrom = artifacts.require('./TokenTransferFrom')
-let DutchTokenApprove = artifacts.require('./TokenApprove')
+// Registry
+let RegistryUtil = artifacts.require('./RegistryUtil')
+let RegistryIdx = artifacts.require('./RegistryIdx')
+let Provider = artifacts.require('./Provider')
+// DutchAuction
+let TokenMock = artifacts.require('./TokenMock')
+let Token = artifacts.require('./Token')
+let Sale = artifacts.require('./Sale')
+let Admin = artifacts.require('./Admin')
+let DutchSale = artifacts.require('./DutchCrowdsaleIdx')
 // Utils
-let TestUtils = artifacts.require('./TestUtils')
-let TokenUtils = artifacts.require('./TokenFunctionsUtil')
-// Mock
-let TokenFunctionsMock = artifacts.require('./TokenFunctionsMock')
+let DutchUtils = artifacts.require('./utils/DutchTokenMockUtils')
 
 function getTime() {
   let block = web3.eth.getBlock('latest')
@@ -30,26 +29,32 @@ function hexStrEquals(hex, expected) {
 contract('#LockableToken', function (accounts) {
 
   let storage
-  let testUtils
-  let tokenUtils
 
   let exec = accounts[0]
-  let updater = accounts[1]
-  let crowdsaleAdmin = accounts[2]
-  let teamWallet = accounts[3]
+  let crowdsaleAdmin = accounts[1]
+  let teamWallet = accounts[2]
 
-  let initCrowdsale
-  let crowdsaleBuy
-  let crowdsaleConsole
+  let regExecID
+  let regUtil
+  let regProvider
+  let regIdx
+
+  let saleUtils
+  let saleAddrs
+  let saleSelectors
+
+  let saleIdx
+  let token
   let tokenMock
-  let tokenTransfer
-  let tokenTransferFrom
-  let tokenApprove
+  let sale
+  let admin
 
   let executionID
-  let adminContext
-
   let initCalldata
+  let initEvent
+
+  let appName = 'DutchCrowdsale'
+
   let startTime
   let totalSupply = 100000
   let sellCap = 90000
@@ -75,48 +80,84 @@ contract('#LockableToken', function (accounts) {
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
-    testUtils = await TestUtils.new().should.be.fulfilled
-    tokenUtils = await TokenUtils.new().should.be.fulfilled
+    saleUtils = await DutchUtils.new().should.be.fulfilled
 
-    initCrowdsale = await InitDutch.new().should.be.fulfilled
-    crowdsaleBuy = await DutchBuy.new().should.be.fulfilled
-    crowdsaleConsole = await DutchCrowdsaleConsole.new().should.be.fulfilled
-    tokenMock = await TokenFunctionsMock.new().should.be.fulfilled
-    tokenTransfer = await DutchTokenTransfer.new().should.be.fulfilled
-    tokenTransferFrom = await DutchTokenTransferFrom.new().should.be.fulfilled
-    tokenApprove = await DutchTokenApprove.new().should.be.fulfilled
+    regUtil = await RegistryUtil.new().should.be.fulfilled
+    regProvider = await Provider.new().should.be.fulfilled
+    regIdx = await RegistryIdx.new().should.be.fulfilled
+
+    saleIdx = await DutchSale.new().should.be.fulfilled
+    token = await Token.new().should.be.fulfilled
+    tokenMock = await TokenMock.new().should.be.fulfilled
+    sale = await Sale.new().should.be.fulfilled
+    admin = await Admin.new().should.be.fulfilled
+
+    saleSelectors = await saleUtils.getSelectors.call().should.be.fulfilled
+    saleSelectors.length.should.be.eq(16)
+
+    saleAddrs = [
+      // admin
+      admin.address, admin.address, admin.address, admin.address,
+      admin.address, admin.address, admin.address,
+
+      // sale
+      sale.address,
+
+      // token
+      token.address, token.address, token.address, token.address, token.address,
+
+      // mock
+      tokenMock.address, tokenMock.address, tokenMock.address
+    ]
+    saleAddrs.length.should.be.eq(saleSelectors.length)
   })
 
   beforeEach(async () => {
     startTime = getTime() + 3600
 
-    initCalldata = await testUtils.init.call(
+    let events = await storage.createRegistry(
+      regIdx.address, regProvider.address, { from: exec }
+    ).should.be.fulfilled.then((tx) => {
+      return tx.logs
+    })
+    events.should.not.eq(null)
+    events.length.should.be.eq(1)
+    events[0].event.should.be.eq('ApplicationInitialized')
+    regExecID = events[0].args['execution_id']
+    web3.toDecimal(regExecID).should.not.eq(0)
+
+    let registerCalldata = await regUtil.registerApp.call(
+      appName, saleIdx.address, saleSelectors, saleAddrs
+    ).should.be.fulfilled
+    registerCalldata.should.not.eq('0x0')
+
+    events = await storage.exec(
+      exec, regExecID, registerCalldata,
+      { from: exec }
+    ).should.be.fulfilled.then((tx) => {
+      return tx.logs;
+    })
+    events.should.not.eq(null)
+    events.length.should.be.eq(1)
+    events[0].event.should.be.eq('ApplicationExecution')
+    events[0].args['script_target'].should.be.eq(regProvider.address)
+
+    initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrice, endPrice,
       duration, startTime, isWhitelisted, crowdsaleAdmin
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
-    let events = await storage.initAndFinalize(
-      updater, true, initCrowdsale.address, initCalldata, [
-        crowdsaleBuy.address, crowdsaleConsole.address, tokenMock.address,
-        tokenTransfer.address, tokenTransferFrom.address, tokenApprove.address
-      ],
+    events = await storage.createInstance(
+      exec, appName, exec, regExecID, initCalldata,
       { from: exec }
-    ).then((tx) => {
+    ).should.be.fulfilled.then((tx) => {
       return tx.logs
     })
     events.should.not.eq(null)
-    events.length.should.be.eq(2)
-
-    events[0].event.should.be.eq('ApplicationInitialized')
-    events[1].event.should.be.eq('ApplicationFinalization')
+    events.length.should.be.eq(1)
     executionID = events[0].args['execution_id']
     web3.toDecimal(executionID).should.not.eq(0)
-
-    adminContext = await testUtils.getContext.call(
-      executionID, crowdsaleAdmin, 0
-    ).should.be.fulfilled
-    adminContext.should.not.eq('0x')
   })
 
   describe('/TokenTransfer', async () => {
@@ -127,31 +168,24 @@ contract('#LockableToken', function (accounts) {
     let senderAccount = accounts[accounts.length - 1]
     let recipientAccount = accounts[accounts.length - 2]
 
-    let senderContext
-
     beforeEach(async () => {
-      senderContext = await testUtils.getContext.call(
-        executionID, senderAccount, 0
-      ).should.be.fulfilled
-      senderContext.should.not.eq('0x')
 
-      let setBalanceCalldata = await tokenUtils.setBalance.call(
+      let setBalanceCalldata = await saleUtils.setBalance.call(
         senderAccount, stdBalance
       ).should.be.fulfilled
       setBalanceCalldata.should.not.eq('0x')
 
       let events = await storage.exec(
-        tokenMock.address, executionID, setBalanceCalldata,
+        exec, executionID, setBalanceCalldata,
         { from: exec }
       ).then((tx) => {
         return tx.logs
       })
       events.should.not.eq(null)
       events.length.should.be.eq(1)
-
       events[0].event.should.be.eq('ApplicationExecution')
 
-      let balanceInfo = await initCrowdsale.balanceOf.call(
+      let balanceInfo = await saleIdx.balanceOf.call(
         storage.address, executionID, senderAccount
       ).should.be.fulfilled
       balanceInfo.toNumber().should.be.eq(stdBalance)
@@ -160,26 +194,20 @@ contract('#LockableToken', function (accounts) {
     context('when the token is locked', async () => {
 
       let unlockedSender = accounts[accounts.length - 3]
-      let unlockedContext
 
       beforeEach(async () => {
-        unlockedContext = await testUtils.getContext.call(
-          executionID, unlockedSender, 0
-        ).should.be.fulfilled
-        unlockedContext.should.not.eq('0x')
-
-        let unlockCalldata = await tokenUtils.setTransferAgentStatus.call(
+        let unlockCalldata = await saleUtils.setTransferAgent.call(
           unlockedSender, true
         ).should.be.fulfilled
         unlockCalldata.should.not.eq('0x')
 
-        let setBalanceCalldata = await tokenUtils.setBalance.call(
+        let setBalanceCalldata = await saleUtils.setBalance.call(
           unlockedSender, stdBalance
         ).should.be.fulfilled
         setBalanceCalldata.should.not.eq('0x')
 
         let events = await storage.exec(
-          tokenMock.address, executionID, unlockCalldata,
+          exec, executionID, unlockCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.logs
@@ -189,7 +217,7 @@ contract('#LockableToken', function (accounts) {
         events[0].event.should.be.eq('ApplicationExecution')
 
         events = await storage.exec(
-          tokenMock.address, executionID, setBalanceCalldata,
+          exec, executionID, setBalanceCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.logs
@@ -198,12 +226,12 @@ contract('#LockableToken', function (accounts) {
         events.length.should.be.eq(1)
         events[0].event.should.be.eq('ApplicationExecution')
 
-        let balanceInfo = await initCrowdsale.balanceOf.call(
+        let balanceInfo = await saleIdx.balanceOf.call(
           storage.address, executionID, unlockedSender
         ).should.be.fulfilled
         balanceInfo.toNumber().should.be.eq(stdBalance)
 
-        let transferAgentInfo = await initCrowdsale.getTransferAgentStatus.call(
+        let transferAgentInfo = await saleIdx.getTransferAgentStatus.call(
           storage.address, executionID, unlockedSender
         ).should.be.fulfilled
         transferAgentInfo.should.be.eq(true)
@@ -212,87 +240,19 @@ contract('#LockableToken', function (accounts) {
       context('and the sender is not a transfer agent', async () => {
 
         let invalidCalldata
-        let invalidEvent
-        let invalidReturn
 
         beforeEach(async () => {
-          invalidCalldata = await tokenUtils.transfer.call(
-            recipientAccount, stdBalance / 2, senderContext
+          invalidCalldata = await saleUtils.transfer.call(
+            recipientAccount, stdBalance / 2
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+        })
 
-          invalidReturn = await storage.exec.call(
-            tokenTransfer.address, executionID, invalidCalldata,
+        it('should throw', async () => {
+          await storage.exec(
+            senderAccount, executionID, invalidCalldata,
             { from: exec }
-          ).should.be.fulfilled
-
-          let events = await storage.exec(
-            tokenTransfer.address, executionID, invalidCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          invalidEvent = events[0]
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            invalidReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            invalidReturn[0].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            invalidReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            invalidReturn[2].toNumber().should.be.eq(0)
-          })
-        })
-
-        it('should emit an ApplicationException event', async () => {
-          invalidEvent.event.should.be.eq('ApplicationException')
-        })
-
-        describe('the ApplicationException event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = invalidEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = invalidEvent.args['application_address']
-            emittedAppAddr.should.be.eq(tokenTransfer.address)
-          })
-
-          it('should contain the error message \'TransfersLocked\'', async () => {
-            let emittedMessage = invalidEvent.args['message']
-            hexStrEquals(emittedMessage, 'TransfersLocked').should.be.eq(true)
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should maintain the sender\'s balance', async () => {
-            let senderInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, senderAccount
-            ).should.be.fulfilled
-            senderInfo.toNumber().should.be.eq(stdBalance)
-          })
-
-          it('should not have changed the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, recipientAccount
-            ).should.be.fulfilled
-            recipientInfo.toNumber().should.be.eq(0)
-          })
+          ).should.not.be.fulfilled
         })
       })
 
@@ -302,17 +262,26 @@ contract('#LockableToken', function (accounts) {
         let execReturn
 
         beforeEach(async () => {
-          transferCalldata = await tokenUtils.transfer.call(
-            recipientAccount, stdBalance / 2, unlockedContext
+          transferCalldata = await saleUtils.transfer.call(
+            recipientAccount, stdBalance / 2
           ).should.be.fulfilled
           transferCalldata.should.not.eq('0x')
 
+          let balanceInfo = await saleIdx.balanceOf.call(
+            storage.address, executionID, unlockedSender
+          ).should.be.fulfilled
+          balanceInfo.toNumber().should.be.eq(stdBalance)
+          let transferAgentInfo = await saleIdx.getTransferAgentStatus.call(
+            storage.address, executionID, unlockedSender
+          ).should.be.fulfilled
+          transferAgentInfo.should.be.eq(true)
+          let targetInfo = await storage.getTarget.call(executionID, '0xa9059cbb')
           execReturn = await storage.exec.call(
-            tokenTransfer.address, executionID, transferCalldata,
+            unlockedSender, executionID, transferCalldata,
             { from: exec }
           ).should.be.fulfilled
           execEvents = await storage.exec(
-            tokenTransfer.address, executionID, transferCalldata,
+            unlockedSender, executionID, transferCalldata,
             { from: exec }
           ).then((tx) => {
             return tx.receipt.logs
@@ -366,7 +335,7 @@ contract('#LockableToken', function (accounts) {
             it('should have the target app address and execution id as the other 2 topics', async () => {
               let emittedAddr = eventTopics[2]
               let emittedExecId = eventTopics[1]
-              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransfer.address))
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
               web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
             })
 
@@ -408,14 +377,14 @@ contract('#LockableToken', function (accounts) {
         describe('storage', async () => {
 
           it('should have changed the sender\'s balance', async () => {
-            let senderInfo = await initCrowdsale.balanceOf.call(
+            let senderInfo = await saleIdx.balanceOf.call(
               storage.address, executionID, unlockedSender
             ).should.be.fulfilled
             senderInfo.toNumber().should.be.eq(stdBalance / 2)
           })
 
           it('should have changed the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
+            let recipientInfo = await saleIdx.balanceOf.call(
               storage.address, executionID, recipientAccount
             ).should.be.fulfilled
             recipientInfo.toNumber().should.be.eq(stdBalance / 2)
@@ -427,11 +396,11 @@ contract('#LockableToken', function (accounts) {
     context('when the token is unlocked', async () => {
 
       beforeEach(async () => {
-        let unlockTokenCalldata = await tokenUtils.unlockToken.call().should.be.fulfilled
+        let unlockTokenCalldata = await saleUtils.unlockToken.call().should.be.fulfilled
         unlockTokenCalldata.should.not.eq('0x')
 
         let events = await storage.exec(
-          tokenMock.address, executionID, unlockTokenCalldata,
+          exec, executionID, unlockTokenCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.logs
@@ -444,89 +413,21 @@ contract('#LockableToken', function (accounts) {
       context('when the recipient address is invalid', async () => {
 
         let invalidCalldata
-        let invalidEvent
-        let invalidReturn
 
         let invalidRecipient = zeroAddress();
 
         beforeEach(async () => {
-          invalidCalldata = await tokenUtils.transfer.call(
-            invalidRecipient, stdBalance / 2, senderContext
+          invalidCalldata = await saleUtils.transfer.call(
+            invalidRecipient, stdBalance / 2
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+        })
 
-          invalidReturn = await storage.exec.call(
-            tokenTransfer.address, executionID, invalidCalldata,
+        it('should throw', async () => {
+          await storage.exec(
+            senderAccount, executionID, invalidCalldata,
             { from: exec }
-          ).should.be.fulfilled
-
-          let events = await storage.exec(
-            tokenTransfer.address, executionID, invalidCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          invalidEvent = events[0]
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            invalidReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            invalidReturn[0].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            invalidReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            invalidReturn[2].toNumber().should.be.eq(0)
-          })
-        })
-
-        it('should emit an ApplicationException event', async () => {
-          invalidEvent.event.should.be.eq('ApplicationException')
-        })
-
-        describe('the ApplicationException event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = invalidEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = invalidEvent.args['application_address']
-            emittedAppAddr.should.be.eq(tokenTransfer.address)
-          })
-
-          it('should contain the error message \'InvalidRecipient\'', async () => {
-            let emittedMessage = invalidEvent.args['message']
-            hexStrEquals(emittedMessage, 'InvalidRecipient').should.be.eq(true)
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should maintain the sender\'s balance', async () => {
-            let senderInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, senderAccount
-            ).should.be.fulfilled
-            senderInfo.toNumber().should.be.eq(stdBalance)
-          })
-
-          it('should not have changed the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, invalidRecipient
-            ).should.be.fulfilled
-            recipientInfo.toNumber().should.be.eq(0)
-          })
+          ).should.not.be.fulfilled
         })
       })
 
@@ -535,89 +436,21 @@ contract('#LockableToken', function (accounts) {
         context('when the sender has insufficient balance', async () => {
 
           let invalidCalldata
-          let invalidEvent
-          let invalidReturn
 
           let invalidSendAmt = stdBalance + 1
 
           beforeEach(async () => {
-            invalidCalldata = await tokenUtils.transfer.call(
-              recipientAccount, invalidSendAmt, senderContext
+            invalidCalldata = await saleUtils.transfer.call(
+              recipientAccount, invalidSendAmt
             ).should.be.fulfilled
             invalidCalldata.should.not.eq('0x')
+          })
 
-            invalidReturn = await storage.exec.call(
-              tokenTransfer.address, executionID, invalidCalldata,
+          it('should throw', async () => {
+            await storage.exec(
+              senderAccount, executionID, invalidCalldata,
               { from: exec }
-            ).should.be.fulfilled
-
-            let events = await storage.exec(
-              tokenTransfer.address, executionID, invalidCalldata,
-              { from: exec }
-            ).then((tx) => {
-              return tx.logs
-            })
-            events.should.not.eq(null)
-            events.length.should.be.eq(1)
-            invalidEvent = events[0]
-          })
-
-          describe('returned data', async () => {
-
-            it('should return a tuple with 3 fields', async () => {
-              invalidReturn.length.should.be.eq(3)
-            })
-
-            it('should return the correct number of events emitted', async () => {
-              invalidReturn[0].toNumber().should.be.eq(0)
-            })
-
-            it('should return the correct number of addresses paid', async () => {
-              invalidReturn[1].toNumber().should.be.eq(0)
-            })
-
-            it('should return the correct number of storage slots written to', async () => {
-              invalidReturn[2].toNumber().should.be.eq(0)
-            })
-          })
-
-          it('should emit an ApplicationException event', async () => {
-            invalidEvent.event.should.be.eq('ApplicationException')
-          })
-
-          describe('the ApplicationException event', async () => {
-
-            it('should match the used execution id', async () => {
-              let emittedExecID = invalidEvent.args['execution_id']
-              emittedExecID.should.be.eq(executionID)
-            })
-
-            it('should match the TokenTransfer address', async () => {
-              let emittedAppAddr = invalidEvent.args['application_address']
-              emittedAppAddr.should.be.eq(tokenTransfer.address)
-            })
-
-            it('should contain the error message \'DefaultException\'', async () => {
-              let emittedMessage = invalidEvent.args['message']
-              hexStrEquals(emittedMessage, 'DefaultException').should.be.eq(true)
-            })
-          })
-
-          describe('storage', async () => {
-
-            it('should maintain the sender\'s balance', async () => {
-              let senderInfo = await initCrowdsale.balanceOf.call(
-                storage.address, executionID, senderAccount
-              ).should.be.fulfilled
-              senderInfo.toNumber().should.be.eq(stdBalance)
-            })
-
-            it('should not have changed the recipient\'s balance', async () => {
-              let recipientInfo = await initCrowdsale.balanceOf.call(
-                storage.address, executionID, recipientAccount
-              ).should.be.fulfilled
-              recipientInfo.toNumber().should.be.eq(0)
-            })
+            ).should.not.be.fulfilled
           })
         })
 
@@ -627,18 +460,18 @@ contract('#LockableToken', function (accounts) {
           let execReturn
 
           beforeEach(async () => {
-            transferCalldata = await tokenUtils.transfer.call(
-              recipientAccount, stdBalance, senderContext
+            transferCalldata = await saleUtils.transfer.call(
+              recipientAccount, stdBalance
             ).should.be.fulfilled
             transferCalldata.should.not.eq('0x')
 
             execReturn = await storage.exec.call(
-              tokenTransfer.address, executionID, transferCalldata,
+              senderAccount, executionID, transferCalldata,
               { from: exec }
             ).should.be.fulfilled
 
             execEvents = await storage.exec(
-              tokenTransfer.address, executionID, transferCalldata,
+              senderAccount, executionID, transferCalldata,
               { from: exec }
             ).then((tx) => {
               return tx.receipt.logs
@@ -692,7 +525,7 @@ contract('#LockableToken', function (accounts) {
               it('should have the target app address and execution id as the other 2 topics', async () => {
                 let emittedAddr = eventTopics[2]
                 let emittedExecId = eventTopics[1]
-                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransfer.address))
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
                 web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
               })
 
@@ -734,14 +567,14 @@ contract('#LockableToken', function (accounts) {
           describe('storage', async () => {
 
             it('should have changed the sender\'s balance', async () => {
-              let senderInfo = await initCrowdsale.balanceOf.call(
+              let senderInfo = await saleIdx.balanceOf.call(
                 storage.address, executionID, senderAccount
               ).should.be.fulfilled
               senderInfo.toNumber().should.be.eq(0)
             })
 
             it('should have changed the recipient\'s balance', async () => {
-              let recipientInfo = await initCrowdsale.balanceOf.call(
+              let recipientInfo = await saleIdx.balanceOf.call(
                 storage.address, executionID, recipientAccount
               ).should.be.fulfilled
               recipientInfo.toNumber().should.be.eq(stdBalance)
@@ -760,16 +593,28 @@ contract('#LockableToken', function (accounts) {
     let ownerAccount = accounts[accounts.length - 1]
     let spenderAccount = accounts[accounts.length - 2]
 
-    let ownerContext
-
     let stdApproval = 1000
 
     beforeEach(async () => {
-
-      ownerContext = await testUtils.getContext.call(
-        executionID, ownerAccount, 0
+      let setBalanceCalldata = await saleUtils.setBalance.call(
+        spenderAccount, stdBalance
       ).should.be.fulfilled
-      ownerContext.should.not.eq('0x')
+      setBalanceCalldata.should.not.eq('0x')
+
+      let events = await storage.exec(
+        exec, executionID, setBalanceCalldata,
+        { from: exec }
+      ).then((tx) => {
+        return tx.logs
+      })
+      events.should.not.eq(null)
+      events.length.should.be.eq(1)
+      events[0].event.should.be.eq('ApplicationExecution')
+
+      let balanceInfo = await saleIdx.balanceOf.call(
+        storage.address, executionID, spenderAccount
+      ).should.be.fulfilled
+      balanceInfo.toNumber().should.be.eq(stdBalance)
     })
 
     describe('-approve', async () => {
@@ -778,18 +623,18 @@ contract('#LockableToken', function (accounts) {
       let execReturn
 
       beforeEach(async () => {
-        approveCalldata = await tokenUtils.approve.call(
-          spenderAccount, stdApproval, ownerContext
+        approveCalldata = await saleUtils.approve.call(
+          spenderAccount, stdApproval
         ).should.be.fulfilled
         approveCalldata.should.not.eq('0x')
 
         execReturn = await storage.exec.call(
-          tokenApprove.address, executionID, approveCalldata,
+          ownerAccount, executionID, approveCalldata,
           { from: exec }
         ).should.be.fulfilled
 
         execEvents = await storage.exec(
-          tokenApprove.address, executionID, approveCalldata,
+          ownerAccount, executionID, approveCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.receipt.logs
@@ -843,7 +688,7 @@ contract('#LockableToken', function (accounts) {
           it('should have the target app address and execution id as the other 2 topics', async () => {
             let emittedAddr = eventTopics[2]
             let emittedExecId = eventTopics[1]
-            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
             web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
           })
 
@@ -885,7 +730,7 @@ contract('#LockableToken', function (accounts) {
       describe('storage', async () => {
 
         it('should have changed the spender\'s allowance', async () => {
-          let spenderInfo = await initCrowdsale.allowance.call(
+          let spenderInfo = await saleIdx.allowance.call(
             storage.address, executionID, ownerAccount, spenderAccount
           ).should.be.fulfilled
           spenderInfo.toNumber().should.be.eq(stdApproval)
@@ -899,18 +744,18 @@ contract('#LockableToken', function (accounts) {
       let execReturn
 
       beforeEach(async () => {
-        approveCalldata = await tokenUtils.increaseApproval.call(
-          spenderAccount, stdApproval, ownerContext
+        approveCalldata = await saleUtils.increaseApproval.call(
+          spenderAccount, stdApproval
         ).should.be.fulfilled
         approveCalldata.should.not.eq('0x')
 
         execReturn = await storage.exec.call(
-          tokenApprove.address, executionID, approveCalldata,
+          ownerAccount, executionID, approveCalldata,
           { from: exec }
         ).should.be.fulfilled
 
         execEvents = await storage.exec(
-          tokenApprove.address, executionID, approveCalldata,
+          ownerAccount, executionID, approveCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.receipt.logs
@@ -964,7 +809,7 @@ contract('#LockableToken', function (accounts) {
           it('should have the target app address and execution id as the other 2 topics', async () => {
             let emittedAddr = eventTopics[2]
             let emittedExecId = eventTopics[1]
-            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+            web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
             web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
           })
 
@@ -1006,7 +851,7 @@ contract('#LockableToken', function (accounts) {
       describe('storage', async () => {
 
         it('should have changed the spender\'s allowance', async () => {
-          let spenderInfo = await initCrowdsale.allowance.call(
+          let spenderInfo = await saleIdx.allowance.call(
             storage.address, executionID, ownerAccount, spenderAccount
           ).should.be.fulfilled
           spenderInfo.toNumber().should.be.eq(stdApproval)
@@ -1017,13 +862,14 @@ contract('#LockableToken', function (accounts) {
     describe('-decreaseApproval', async () => {
 
       beforeEach(async () => {
-        let preApprovalCalldata = await tokenUtils.approve.call(
-          spenderAccount, stdApproval, ownerContext
+
+        let preApprovalCalldata = await saleUtils.approve.call(
+          spenderAccount, stdApproval
         ).should.be.fulfilled
         preApprovalCalldata.should.not.eq('0x')
 
         let events = await storage.exec(
-          tokenApprove.address, executionID, preApprovalCalldata,
+          ownerAccount, executionID, preApprovalCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.logs
@@ -1032,7 +878,7 @@ contract('#LockableToken', function (accounts) {
         events.length.should.be.eq(1)
         events[0].event.should.be.eq('ApplicationExecution')
 
-        let approvalInfo = await initCrowdsale.allowance.call(
+        let approvalInfo = await saleIdx.allowance.call(
           storage.address, executionID, ownerAccount, spenderAccount
         ).should.be.fulfilled
         approvalInfo.toNumber().should.be.eq(stdApproval)
@@ -1044,18 +890,19 @@ contract('#LockableToken', function (accounts) {
         let execReturn
 
         beforeEach(async () => {
-          approveCalldata = await tokenUtils.decreaseApproval.call(
-            spenderAccount, stdApproval + 1, ownerContext
+
+          approveCalldata = await saleUtils.decreaseApproval.call(
+            spenderAccount, stdApproval + 1
           ).should.be.fulfilled
           approveCalldata.should.not.eq('0x')
 
           execReturn = await storage.exec.call(
-            tokenApprove.address, executionID, approveCalldata,
+            ownerAccount, executionID, approveCalldata,
             { from: exec }
           ).should.be.fulfilled
 
           execEvents = await storage.exec(
-            tokenApprove.address, executionID, approveCalldata,
+            ownerAccount, executionID, approveCalldata,
             { from: exec }
           ).then((tx) => {
             return tx.receipt.logs
@@ -1109,7 +956,7 @@ contract('#LockableToken', function (accounts) {
             it('should have the target app address and execution id as the other 2 topics', async () => {
               let emittedAddr = eventTopics[2]
               let emittedExecId = eventTopics[1]
-              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
               web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
             })
 
@@ -1143,7 +990,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should contain the number of tokens approved as the data field', async () => {
-              web3.toDecimal(eventData).should.be.eq(0)
+              web3.toDecimal(eventData).should.be.eq(stdApproval + 1)
             })
           })
         })
@@ -1151,7 +998,7 @@ contract('#LockableToken', function (accounts) {
         describe('storage', async () => {
 
           it('should have changed the spender\'s allowance', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
+            let spenderInfo = await saleIdx.allowance.call(
               storage.address, executionID, ownerAccount, spenderAccount
             ).should.be.fulfilled
             spenderInfo.toNumber().should.be.eq(0)
@@ -1165,18 +1012,18 @@ contract('#LockableToken', function (accounts) {
         let execReturn
 
         beforeEach(async () => {
-          approveCalldata = await tokenUtils.decreaseApproval.call(
-            spenderAccount, stdApproval - 1, ownerContext
+          approveCalldata = await saleUtils.decreaseApproval.call(
+            spenderAccount, stdApproval - 1
           ).should.be.fulfilled
           approveCalldata.should.not.eq('0x')
 
           execReturn = await storage.exec.call(
-            tokenApprove.address, executionID, approveCalldata,
+            ownerAccount, executionID, approveCalldata,
             { from: exec }
           ).should.be.fulfilled
 
           execEvents = await storage.exec(
-            tokenApprove.address, executionID, approveCalldata,
+            ownerAccount, executionID, approveCalldata,
             { from: exec }
           ).then((tx) => {
             return tx.receipt.logs
@@ -1230,7 +1077,7 @@ contract('#LockableToken', function (accounts) {
             it('should have the target app address and execution id as the other 2 topics', async () => {
               let emittedAddr = eventTopics[2]
               let emittedExecId = eventTopics[1]
-              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenApprove.address))
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
               web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
             })
 
@@ -1264,7 +1111,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should contain the number of tokens approved as the data field', async () => {
-              web3.toDecimal(eventData).should.be.eq(1)
+              web3.toDecimal(eventData).should.be.eq(stdApproval - 1)
             })
           })
         })
@@ -1272,7 +1119,7 @@ contract('#LockableToken', function (accounts) {
         describe('storage', async () => {
 
           it('should have changed the spender\'s allowance', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
+            let spenderInfo = await saleIdx.allowance.call(
               storage.address, executionID, ownerAccount, spenderAccount
             ).should.be.fulfilled
             spenderInfo.toNumber().should.be.eq(1)
@@ -1291,32 +1138,20 @@ contract('#LockableToken', function (accounts) {
     let ownerAccount = accounts[accounts.length - 2]
     let recipientAccount = accounts[accounts.length - 3]
 
-    let spenderContext
-    let ownerContext
-
     beforeEach(async () => {
-      spenderContext = await testUtils.getContext.call(
-        executionID, spenderAccount, 0
-      ).should.be.fulfilled
-      spenderContext.should.not.eq('0x')
 
-      ownerContext = await testUtils.getContext.call(
-        executionID, ownerAccount, 0
-      ).should.be.fulfilled
-      ownerContext.should.not.eq('0x')
-
-      let setBalanceCalldata = await tokenUtils.setBalance.call(
+      let setBalanceCalldata = await saleUtils.setBalance.call(
         ownerAccount, stdBalance
       ).should.be.fulfilled
       setBalanceCalldata.should.not.eq('0x')
 
-      let setAllowanceCalldata = await tokenUtils.approve.call(
-        spenderAccount, stdBalance - 1, ownerContext
+      let setAllowanceCalldata = await saleUtils.approve.call(
+        spenderAccount, stdBalance - 1
       ).should.be.fulfilled
       setAllowanceCalldata.should.not.eq('0x')
 
       let events = await storage.exec(
-        tokenMock.address, executionID, setBalanceCalldata,
+        exec, executionID, setBalanceCalldata,
         { from: exec }
       ).then((tx) => {
         return tx.logs
@@ -1326,7 +1161,7 @@ contract('#LockableToken', function (accounts) {
       events[0].event.should.be.eq('ApplicationExecution')
 
       events = await storage.exec(
-        tokenApprove.address, executionID, setAllowanceCalldata,
+        ownerAccount, executionID, setAllowanceCalldata,
         { from: exec }
       ).then((tx) => {
         return tx.logs
@@ -1335,12 +1170,12 @@ contract('#LockableToken', function (accounts) {
       events.length.should.be.eq(1)
       events[0].event.should.be.eq('ApplicationExecution')
 
-      let balanceInfo = await initCrowdsale.balanceOf.call(
+      let balanceInfo = await saleIdx.balanceOf.call(
         storage.address, executionID, ownerAccount
       ).should.be.fulfilled
       balanceInfo.toNumber().should.be.eq(stdBalance)
 
-      let allowanceInfo = await initCrowdsale.allowance.call(
+      let allowanceInfo = await saleIdx.allowance.call(
         storage.address, executionID, ownerAccount, spenderAccount
       ).should.be.fulfilled
       allowanceInfo.toNumber().should.be.eq(stdBalance - 1)
@@ -1351,94 +1186,19 @@ contract('#LockableToken', function (accounts) {
       context('and the owner is not a transfer agent', async () => {
 
         let invalidCalldata
-        let invalidEvent
-        let invalidReturn
 
         beforeEach(async () => {
-          invalidCalldata = await tokenUtils.transferFrom.call(
-            ownerAccount, recipientAccount, 1, spenderContext
+          invalidCalldata = await saleUtils.transferFrom.call(
+            ownerAccount, recipientAccount, 1
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+        })
 
-          invalidReturn = await storage.exec.call(
-            tokenTransferFrom.address, executionID, invalidCalldata,
+        it('should throw', async () => {
+          await storage.exec(
+            spenderAccount, executionID, invalidCalldata,
             { from: exec }
-          ).should.be.fulfilled
-
-          let events = await storage.exec(
-            tokenTransferFrom.address, executionID, invalidCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          invalidEvent = events[0]
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            invalidReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            invalidReturn[0].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            invalidReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            invalidReturn[2].toNumber().should.be.eq(0)
-          })
-        })
-
-        it('should emit an ApplicationException event', async () => {
-          invalidEvent.event.should.be.eq('ApplicationException')
-        })
-
-        describe('the ApplicationException event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = invalidEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = invalidEvent.args['application_address']
-            emittedAppAddr.should.be.eq(tokenTransferFrom.address)
-          })
-
-          it('should contain the error message \'TransfersLocked\'', async () => {
-            let emittedMessage = invalidEvent.args['message']
-            hexStrEquals(emittedMessage, 'TransfersLocked').should.be.eq(true)
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should maintain the spender\'s allownace', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
-              storage.address, executionID, ownerAccount, spenderAccount
-            ).should.be.fulfilled
-            spenderInfo.toNumber().should.be.eq(stdBalance - 1)
-          })
-
-          it('should maintain the owner\'s balance', async () => {
-            let ownerInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, ownerAccount
-            ).should.be.fulfilled
-            ownerInfo.toNumber().should.be.eq(stdBalance)
-          })
-
-          it('should maintain the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, recipientAccount
-            ).should.be.fulfilled
-            recipientInfo.toNumber().should.be.eq(0)
-          })
+          ).should.not.be.fulfilled
         })
       })
 
@@ -1448,13 +1208,14 @@ contract('#LockableToken', function (accounts) {
         let execReturn
 
         beforeEach(async () => {
-          let setTransferAgentCalldata = await tokenUtils.setTransferAgentStatus.call(
+
+          let setTransferAgentCalldata = await saleUtils.setTransferAgent.call(
             ownerAccount, true
           ).should.be.fulfilled
           setTransferAgentCalldata.should.not.eq('0x')
 
           let events = await storage.exec(
-            tokenMock.address, executionID, setTransferAgentCalldata,
+            exec, executionID, setTransferAgentCalldata,
             { from: exec }
           ).then((tx) => {
             return tx.logs
@@ -1463,23 +1224,23 @@ contract('#LockableToken', function (accounts) {
           events.length.should.be.eq(1)
           events[0].event.should.be.eq('ApplicationExecution')
 
-          let transferAgentInfo = await initCrowdsale.getTransferAgentStatus.call(
+          let transferAgentInfo = await saleIdx.getTransferAgentStatus.call(
             storage.address, executionID, ownerAccount
           ).should.be.fulfilled
           transferAgentInfo.should.be.eq(true)
 
-          transferCalldata = await tokenUtils.transferFrom.call(
-            ownerAccount, recipientAccount, 1, spenderContext
+          transferCalldata = await saleUtils.transferFrom.call(
+            ownerAccount, recipientAccount, 1
           ).should.be.fulfilled
           transferCalldata.should.not.eq('0x')
 
           execReturn= await storage.exec.call(
-            tokenTransferFrom.address, executionID, transferCalldata,
+            spenderAccount, executionID, transferCalldata,
             { from: exec }
           ).should.be.fulfilled
 
           execEvents = await storage.exec(
-            tokenTransferFrom.address, executionID, transferCalldata,
+            spenderAccount, executionID, transferCalldata,
             { from: exec }
           ).then((tx) => {
             return tx.receipt.logs
@@ -1533,7 +1294,7 @@ contract('#LockableToken', function (accounts) {
             it('should have the target app address and execution id as the other 2 topics', async () => {
               let emittedAddr = eventTopics[2]
               let emittedExecId = eventTopics[1]
-              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransferFrom.address))
+              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
               web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
             })
 
@@ -1575,21 +1336,21 @@ contract('#LockableToken', function (accounts) {
         describe('storage', async () => {
 
           it('should have changed the spender\'s allownace', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
+            let spenderInfo = await saleIdx.allowance.call(
               storage.address, executionID, ownerAccount, spenderAccount
             ).should.be.fulfilled
             spenderInfo.toNumber().should.be.eq(stdBalance - 2)
           })
 
           it('should have changed the owner\'s balance', async () => {
-            let ownerInfo = await initCrowdsale.balanceOf.call(
+            let ownerInfo = await saleIdx.balanceOf.call(
               storage.address, executionID, ownerAccount
             ).should.be.fulfilled
             ownerInfo.toNumber().should.be.eq(stdBalance - 1)
           })
 
           it('should have changed the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
+            let recipientInfo = await saleIdx.balanceOf.call(
               storage.address, executionID, recipientAccount
             ).should.be.fulfilled
             recipientInfo.toNumber().should.be.eq(1)
@@ -1601,11 +1362,11 @@ contract('#LockableToken', function (accounts) {
     context('when the token is unlocked', async () => {
 
       beforeEach(async () => {
-        let unlockCalldata = await tokenUtils.unlockToken.call().should.be.fulfilled
+        let unlockCalldata = await saleUtils.unlockToken.call().should.be.fulfilled
         unlockCalldata.should.not.eq('0x')
 
         let events = await storage.exec(
-          tokenMock.address, executionID, unlockCalldata,
+          exec, executionID, unlockCalldata,
           { from: exec }
         ).then((tx) => {
           return tx.logs
@@ -1618,192 +1379,42 @@ contract('#LockableToken', function (accounts) {
       context('when the recipient address is invalid', async () => {
 
         let invalidCalldata
-        let invalidEvent
-        let invalidReturn
 
         let invalidAddress = zeroAddress()
 
         beforeEach(async () => {
-          invalidCalldata = await tokenUtils.transferFrom.call(
-            ownerAccount, invalidAddress, 1, spenderContext
+          invalidCalldata = await saleUtils.transferFrom.call(
+            ownerAccount, invalidAddress, 1
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+        })
 
-          invalidReturn = await storage.exec.call(
-            tokenTransferFrom.address, executionID, invalidCalldata,
+        it('should throw', async () => {
+          await storage.exec(
+            spenderAccount, executionID, invalidCalldata,
             { from: exec }
-          ).should.be.fulfilled
-
-          let events = await storage.exec(
-            tokenTransferFrom.address, executionID, invalidCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          invalidEvent = events[0]
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            invalidReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            invalidReturn[0].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            invalidReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            invalidReturn[2].toNumber().should.be.eq(0)
-          })
-        })
-
-        it('should emit an ApplicationException event', async () => {
-          invalidEvent.event.should.be.eq('ApplicationException')
-        })
-
-        describe('the ApplicationException event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = invalidEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = invalidEvent.args['application_address']
-            emittedAppAddr.should.be.eq(tokenTransferFrom.address)
-          })
-
-          it('should contain the error message \'InvalidSenderOrRecipient\'', async () => {
-            let emittedMessage = invalidEvent.args['message']
-            hexStrEquals(emittedMessage, 'InvalidSenderOrRecipient').should.be.eq(true)
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should maintain the spender\'s allownace', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
-              storage.address, executionID, ownerAccount, spenderAccount
-            ).should.be.fulfilled
-            spenderInfo.toNumber().should.be.eq(stdBalance - 1)
-          })
-
-          it('should maintain the owner\'s balance', async () => {
-            let ownerInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, ownerAccount
-            ).should.be.fulfilled
-            ownerInfo.toNumber().should.be.eq(stdBalance)
-          })
-
-          it('should maintain the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, invalidAddress
-            ).should.be.fulfilled
-            recipientInfo.toNumber().should.be.eq(0)
-          })
+          ).should.not.be.fulfilled
         })
       })
 
       context('when the owner address is invalid', async () => {
 
         let invalidCalldata
-        let invalidEvent
-        let invalidReturn
 
         let invalidAddress = zeroAddress()
 
         beforeEach(async () => {
-          invalidCalldata = await tokenUtils.transferFrom.call(
-            invalidAddress, recipientAccount, 1, spenderContext
+          invalidCalldata = await saleUtils.transferFrom.call(
+            invalidAddress, recipientAccount, 1
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
+        })
 
-          invalidReturn = await storage.exec.call(
-            tokenTransferFrom.address, executionID, invalidCalldata,
+        it('should throw', async () => {
+          await storage.exec(
+            spenderAccount, executionID, invalidCalldata,
             { from: exec }
-          ).should.be.fulfilled
-
-          let events = await storage.exec(
-            tokenTransferFrom.address, executionID, invalidCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          invalidEvent = events[0]
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            invalidReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            invalidReturn[0].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            invalidReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            invalidReturn[2].toNumber().should.be.eq(0)
-          })
-        })
-
-        it('should emit an ApplicationException event', async () => {
-          invalidEvent.event.should.be.eq('ApplicationException')
-        })
-
-        describe('the ApplicationException event', async () => {
-
-          it('should match the used execution id', async () => {
-            let emittedExecID = invalidEvent.args['execution_id']
-            emittedExecID.should.be.eq(executionID)
-          })
-
-          it('should match the TokenTransfer address', async () => {
-            let emittedAppAddr = invalidEvent.args['application_address']
-            emittedAppAddr.should.be.eq(tokenTransferFrom.address)
-          })
-
-          it('should contain the error message \'InvalidSenderOrRecipient\'', async () => {
-            let emittedMessage = invalidEvent.args['message']
-            hexStrEquals(emittedMessage, 'InvalidSenderOrRecipient').should.be.eq(true)
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should maintain the spender\'s allownace', async () => {
-            let spenderInfo = await initCrowdsale.allowance.call(
-              storage.address, executionID, ownerAccount, spenderAccount
-            ).should.be.fulfilled
-            spenderInfo.toNumber().should.be.eq(stdBalance - 1)
-          })
-
-          it('should maintain the owner\'s balance', async () => {
-            let ownerInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, invalidAddress
-            ).should.be.fulfilled
-            ownerInfo.toNumber().should.be.eq(0)
-          })
-
-          it('should maintain the recipient\'s balance', async () => {
-            let recipientInfo = await initCrowdsale.balanceOf.call(
-              storage.address, executionID, recipientAccount
-            ).should.be.fulfilled
-            recipientInfo.toNumber().should.be.eq(0)
-          })
+          ).should.not.be.fulfilled
         })
       })
 
@@ -1812,94 +1423,19 @@ contract('#LockableToken', function (accounts) {
         context('when the spender has insufficient allowance', async () => {
 
           let invalidCalldata
-          let invalidEvent
-          let invalidReturn
 
           beforeEach(async () => {
-            invalidCalldata = await tokenUtils.transferFrom.call(
-              ownerAccount, recipientAccount, stdBalance, spenderContext
+            invalidCalldata = await saleUtils.transferFrom.call(
+              ownerAccount, recipientAccount, stdBalance
             ).should.be.fulfilled
             invalidCalldata.should.not.eq('0x')
+          })
 
-            invalidReturn = await storage.exec.call(
-              tokenTransferFrom.address, executionID, invalidCalldata,
+          it('should throw', async () => {
+            await storage.exec(
+              spenderAccount, executionID, invalidCalldata,
               { from: exec }
-            ).should.be.fulfilled
-
-            let events = await storage.exec(
-              tokenTransferFrom.address, executionID, invalidCalldata,
-              { from: exec }
-            ).then((tx) => {
-              return tx.logs
-            })
-            events.should.not.eq(null)
-            events.length.should.be.eq(1)
-            invalidEvent = events[0]
-          })
-
-          describe('returned data', async () => {
-
-            it('should return a tuple with 3 fields', async () => {
-              invalidReturn.length.should.be.eq(3)
-            })
-
-            it('should return the correct number of events emitted', async () => {
-              invalidReturn[0].toNumber().should.be.eq(0)
-            })
-
-            it('should return the correct number of addresses paid', async () => {
-              invalidReturn[1].toNumber().should.be.eq(0)
-            })
-
-            it('should return the correct number of storage slots written to', async () => {
-              invalidReturn[2].toNumber().should.be.eq(0)
-            })
-          })
-
-          it('should emit an ApplicationException event', async () => {
-            invalidEvent.event.should.be.eq('ApplicationException')
-          })
-
-          describe('the ApplicationException event', async () => {
-
-            it('should match the used execution id', async () => {
-              let emittedExecID = invalidEvent.args['execution_id']
-              emittedExecID.should.be.eq(executionID)
-            })
-
-            it('should match the TokenTransfer address', async () => {
-              let emittedAppAddr = invalidEvent.args['application_address']
-              emittedAppAddr.should.be.eq(tokenTransferFrom.address)
-            })
-
-            it('should contain the error message \'DefaultException\'', async () => {
-              let emittedMessage = invalidEvent.args['message']
-              hexStrEquals(emittedMessage, 'DefaultException').should.be.eq(true)
-            })
-          })
-
-          describe('storage', async () => {
-
-            it('should maintain the spender\'s allownace', async () => {
-              let spenderInfo = await initCrowdsale.allowance.call(
-                storage.address, executionID, ownerAccount, spenderAccount
-              ).should.be.fulfilled
-              spenderInfo.toNumber().should.be.eq(stdBalance - 1)
-            })
-
-            it('should maintain the owner\'s balance', async () => {
-              let ownerInfo = await initCrowdsale.balanceOf.call(
-                storage.address, executionID, ownerAccount
-              ).should.be.fulfilled
-              ownerInfo.toNumber().should.be.eq(stdBalance)
-            })
-
-            it('should maintain the recipient\'s balance', async () => {
-              let recipientInfo = await initCrowdsale.balanceOf.call(
-                storage.address, executionID, recipientAccount
-              ).should.be.fulfilled
-              recipientInfo.toNumber().should.be.eq(0)
-            })
+            ).should.not.be.fulfilled
           })
         })
 
@@ -1908,22 +1444,20 @@ contract('#LockableToken', function (accounts) {
           context('but the owner has insufficient balance', async () => {
 
             let invalidCalldata
-            let invalidEvent
-            let invalidReturn
 
             beforeEach(async () => {
-              let preTransferCalldata = await tokenUtils.transfer.call(
-                spenderAccount, 2, ownerContext
+              let preTransferCalldata = await saleUtils.transfer.call(
+                spenderAccount, 2
               ).should.be.fulfilled
               preTransferCalldata.should.not.eq('0x')
 
-              invalidCalldata = await tokenUtils.transferFrom.call(
-                ownerAccount, recipientAccount, stdBalance, spenderContext
+              invalidCalldata = await saleUtils.transferFrom.call(
+                ownerAccount, recipientAccount, stdBalance - 1
               ).should.be.fulfilled
               invalidCalldata.should.not.eq('0x')
 
               let events = await storage.exec(
-                tokenTransfer.address, executionID, preTransferCalldata,
+                ownerAccount, executionID, preTransferCalldata,
                 { from: exec }
               ).then((tx) => {
                 return tx.logs
@@ -1931,86 +1465,13 @@ contract('#LockableToken', function (accounts) {
               events.should.not.eq(null)
               events.length.should.be.eq(1)
               events[0].event.should.be.eq('ApplicationExecution')
+            })
 
-              invalidReturn = await storage.exec.call(
-                tokenTransferFrom.address, executionID, invalidCalldata,
+            it('should throw', async () => {
+              await storage.exec(
+                spenderAccount, executionID, invalidCalldata,
                 { from: exec }
-              ).should.be.fulfilled
-
-              events = await storage.exec(
-                tokenTransferFrom.address, executionID, invalidCalldata,
-                { from: exec }
-              ).then((tx) => {
-                return tx.logs
-              })
-              events.should.not.eq(null)
-              events.length.should.be.eq(1)
-              invalidEvent = events[0]
-            })
-
-            describe('returned data', async () => {
-
-              it('should return a tuple with 3 fields', async () => {
-                invalidReturn.length.should.be.eq(3)
-              })
-
-              it('should return the correct number of events emitted', async () => {
-                invalidReturn[0].toNumber().should.be.eq(0)
-              })
-
-              it('should return the correct number of addresses paid', async () => {
-                invalidReturn[1].toNumber().should.be.eq(0)
-              })
-
-              it('should return the correct number of storage slots written to', async () => {
-                invalidReturn[2].toNumber().should.be.eq(0)
-              })
-            })
-
-            it('should emit an ApplicationException event', async () => {
-              invalidEvent.event.should.be.eq('ApplicationException')
-            })
-
-            describe('the ApplicationException event', async () => {
-
-              it('should match the used execution id', async () => {
-                let emittedExecID = invalidEvent.args['execution_id']
-                emittedExecID.should.be.eq(executionID)
-              })
-
-              it('should match the TokenTransfer address', async () => {
-                let emittedAppAddr = invalidEvent.args['application_address']
-                emittedAppAddr.should.be.eq(tokenTransferFrom.address)
-              })
-
-              it('should contain the error message \'DefaultException\'', async () => {
-                let emittedMessage = invalidEvent.args['message']
-                hexStrEquals(emittedMessage, 'DefaultException').should.be.eq(true)
-              })
-            })
-
-            describe('storage', async () => {
-
-              it('should maintain the spender\'s allownace', async () => {
-                let spenderInfo = await initCrowdsale.allowance.call(
-                  storage.address, executionID, ownerAccount, spenderAccount
-                ).should.be.fulfilled
-                spenderInfo.toNumber().should.be.eq(stdBalance - 1)
-              })
-
-              it('should maintain the owner\'s balance', async () => {
-                let ownerInfo = await initCrowdsale.balanceOf.call(
-                  storage.address, executionID, ownerAccount
-                ).should.be.fulfilled
-                ownerInfo.toNumber().should.be.eq(stdBalance - 2)
-              })
-
-              it('should maintain the recipient\'s balance', async () => {
-                let recipientInfo = await initCrowdsale.balanceOf.call(
-                  storage.address, executionID, recipientAccount
-                ).should.be.fulfilled
-                recipientInfo.toNumber().should.be.eq(0)
-              })
+              ).should.not.be.fulfilled
             })
           })
 
@@ -2021,18 +1482,18 @@ contract('#LockableToken', function (accounts) {
 
             beforeEach(async () => {
 
-              transferCalldata = await tokenUtils.transferFrom.call(
-                ownerAccount, recipientAccount, stdBalance - 1, spenderContext
+              transferCalldata = await saleUtils.transferFrom.call(
+                ownerAccount, recipientAccount, stdBalance - 1
               ).should.be.fulfilled
               transferCalldata.should.not.eq('0x')
 
               execReturn = await storage.exec.call(
-                tokenTransferFrom.address, executionID, transferCalldata,
+                spenderAccount, executionID, transferCalldata,
                 { from: exec }
               ).should.be.fulfilled
 
               execEvents = await storage.exec(
-                tokenTransferFrom.address, executionID, transferCalldata,
+                spenderAccount, executionID, transferCalldata,
                 { from: exec }
               ).then((tx) => {
                 return tx.receipt.logs
@@ -2086,7 +1547,7 @@ contract('#LockableToken', function (accounts) {
                 it('should have the target app address and execution id as the other 2 topics', async () => {
                   let emittedAddr = eventTopics[2]
                   let emittedExecId = eventTopics[1]
-                  web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(tokenTransferFrom.address))
+                  web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(token.address))
                   web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
                 })
 
@@ -2128,21 +1589,21 @@ contract('#LockableToken', function (accounts) {
             describe('storage', async () => {
 
               it('should have changed the spender\'s allownace', async () => {
-                let spenderInfo = await initCrowdsale.allowance.call(
+                let spenderInfo = await saleIdx.allowance.call(
                   storage.address, executionID, ownerAccount, spenderAccount
                 ).should.be.fulfilled
                 spenderInfo.toNumber().should.be.eq(0)
               })
 
               it('should have changed the owner\'s balance', async () => {
-                let ownerInfo = await initCrowdsale.balanceOf.call(
+                let ownerInfo = await saleIdx.balanceOf.call(
                   storage.address, executionID, ownerAccount
                 ).should.be.fulfilled
                 ownerInfo.toNumber().should.be.eq(1)
               })
 
               it('should have changed the recipient\'s balance', async () => {
-                let recipientInfo = await initCrowdsale.balanceOf.call(
+                let recipientInfo = await saleIdx.balanceOf.call(
                   storage.address, executionID, recipientAccount
                 ).should.be.fulfilled
                 recipientInfo.toNumber().should.be.eq(stdBalance - 1)

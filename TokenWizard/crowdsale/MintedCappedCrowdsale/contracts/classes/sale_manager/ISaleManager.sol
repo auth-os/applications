@@ -8,6 +8,7 @@ interface ISaleManager {
   function getCrowdsaleTier(uint) external view returns (bytes32, uint, uint, uint, bool, bool);
   function getCrowdsaleMaxRaise() external view returns (uint, uint);
   function getCrowdsaleTierList() external view returns (bytes32[]);
+  function getCrowdsaleUniqueBuyers() external view returns (uint);
   function getTierStartAndEndDates(uint) external view returns (uint, uint);
   function getTokensSold() external view returns (uint);
   function getWhitelistStatus(uint, address) external view returns (uint, uint);
@@ -21,6 +22,7 @@ interface SaleManagerIdx {
   function getCrowdsaleTier(address, bytes32, uint) external view returns (bytes32, uint, uint, uint, bool, bool);
   function getCrowdsaleMaxRaise(address, bytes32) external view returns (uint, uint);
   function getCrowdsaleTierList(address, bytes32) external view returns (bytes32[]);
+  function getCrowdsaleUniqueBuyers(address, bytes32) external view returns (uint);
   function getTierStartAndEndDates(address, bytes32, uint) external view returns (uint, uint);
   function getTokensSold(address, bytes32) external view returns (uint);
   function getWhitelistStatus(address, bytes32, uint, address) external view returns (uint, uint);
