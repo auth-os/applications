@@ -19,6 +19,15 @@ contract SaleProxy is ISale, Proxy {
 contract AdminProxy is IAdmin, SaleProxy {
 
   /*
+  Returns the admin address for the crowdsale
+
+  @return address: The admin of the crowdsale
+  */
+  function getAdmin() external view returns (address) {
+    return AdminIdx(app_index).getAdmin(app_storage, app_exec_id);
+  }
+
+  /*
   Returns information about the ongoing sale -
 
   @return uint: The total number of wei raised during the sale
@@ -63,6 +72,25 @@ contract AdminProxy is IAdmin, SaleProxy {
   */
   function getCrowdsaleStatus() external view returns (uint, uint, uint, uint, uint, uint) {
     return AdminIdx(app_index).getCrowdsaleStatus(app_storage, app_exec_id);
+  }
+
+  /*
+  Returns the number of tokens sold during the sale, so far
+
+  @return uint: The number of tokens sold during the sale up to this point
+  */
+  function getTokensSold() external view returns (uint) {
+    return AdminIdx(app_index).getTokensSold(app_storage, app_exec_id);
+  }
+
+  /*
+  Returns the whitelist set by the admin
+
+  @return uint: The length of the whitelist
+  @return address[]: The list of addresses in the whitelist
+  */
+  function getCrowdsaleWhitelist() external view returns (uint, address[]) {
+    return AdminIdx(app_index).getCrowdsaleWhitelist(app_storage, app_exec_id);
   }
 
   /*

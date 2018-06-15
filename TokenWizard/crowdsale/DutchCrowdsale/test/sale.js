@@ -671,7 +671,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             })
 
             it('should return the correct number of storage slots written to', async () => {
-              returnedData[2].toNumber().should.be.eq(7)
+              returnedData[2].toNumber().should.be.eq(8)
             })
           })
 
@@ -694,7 +694,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             })
 
             it('should return the correct number of storage slots written to', async () => {
-              returnedData[2].toNumber().should.be.eq(7)
+              returnedData[2].toNumber().should.be.eq(8)
             })
           })
         })
@@ -1063,7 +1063,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             })
 
             it('should return the correct number of storage slots written to', async () => {
-              newSpendReturn[2].toNumber().should.be.eq(5)
+              newSpendReturn[2].toNumber().should.be.eq(6)
             })
           })
 
@@ -1449,7 +1449,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
           })
 
           it('should return the correct number of storage slots written to', async () => {
-            nextPurchaseReturn[2].toNumber().should.be.eq(3)
+            nextPurchaseReturn[2].toNumber().should.be.eq(4)
           })
         })
 
@@ -1605,7 +1605,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
           })
 
           it('should return the correct number of storage slots written to', async () => {
-            initialPurchaseReturn[2].toNumber().should.be.eq(5)
+            initialPurchaseReturn[2].toNumber().should.be.eq(6)
           })
         })
 
@@ -1782,7 +1782,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
         })
 
         it('should return the correct number of storage slots written to', async () => {
-          purchaseReturn[2].toNumber().should.be.eq(5)
+          purchaseReturn[2].toNumber().should.be.eq(6)
         })
       })
 

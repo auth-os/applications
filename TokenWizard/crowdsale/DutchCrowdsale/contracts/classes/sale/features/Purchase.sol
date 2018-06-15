@@ -64,6 +64,9 @@ library Purchase {
   	// Update tokens remaining in sale -
   	Contract.decrease(Sale.tokensRemaining()).by(tokens_purchased);
 
+    // Update total tokens sold -
+    Contract.increase(Sale.tokensSold()).by(tokens_purchased);
+
   	// Update total wei raised -
   	Contract.increase(Sale.totalWeiRaised()).by(spend_amount);
 

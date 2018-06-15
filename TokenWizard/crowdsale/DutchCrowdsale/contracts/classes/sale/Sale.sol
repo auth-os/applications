@@ -37,6 +37,10 @@ library Sale {
   function endRate() internal pure returns (bytes32)
     { return keccak256("sale_end_rate"); }
 
+  // Storage location of the amount of tokens sold in the crowdsale so far
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
+
   // Storage location of the minimum amount of tokens allowed to be purchased
   function globalMinPurchaseAmt() internal pure returns (bytes32)
     { return keccak256("sale_min_purchase_amt"); }

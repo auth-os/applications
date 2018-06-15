@@ -64,6 +64,9 @@ library PurchaseMock {
   	// Update tokens remaining in sale -
   	Contract.decrease(SaleMock.tokensRemaining()).by(tokens_purchased);
 
+    // Update total tokens sold -
+    Contract.increase(SaleMock.tokensSold()).by(tokens_purchased);
+
   	// Update total wei raised -
   	Contract.increase(SaleMock.totalWeiRaised()).by(spend_amount);
 
@@ -182,6 +185,10 @@ library SaleMock {
   // Returns the storage location of crowdsale's ending sale rate
   function endRate() internal pure returns (bytes32)
     { return keccak256("sale_end_rate"); }
+
+  // Storage location of the amount of tokens sold in the crowdsale so far
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
 
   // Storage location of the minimum amount of tokens allowed to be purchased
   function globalMinPurchaseAmt() internal pure returns (bytes32)

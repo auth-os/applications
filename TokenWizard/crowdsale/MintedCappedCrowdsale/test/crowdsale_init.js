@@ -74,28 +74,21 @@ contract('#MintedCappedInit', function (accounts) {
   let finalSaleHash = web3.sha3('CrowdsaleFinalized(bytes32)')
 
   before(async () => {
-    console.log(1)
     storage = await AbstractStorage.new().should.be.fulfilled
-    console.log(2)
+
     regUtil = await RegistryUtil.new().should.be.fulfilled
     regProvider = await Provider.new().should.be.fulfilled
     regIdx = await RegistryIdx.new().should.be.fulfilled
-    console.log(3)
+
     saleIdx = await MintedCapped.new().should.be.fulfilled
-    console.log(31)
     token = await Token.new().should.be.fulfilled
-    console.log(32)
     sale = await Sale.new().should.be.fulfilled
-    console.log(33)
     tokenManager = await TokenManager.new().should.be.fulfilled
-    console.log(34)
     saleManager = await SaleManager.new().should.be.fulfilled
-    console.log(4)
+
     saleUtils = await MintedCappedUtils.new().should.be.fulfilled
-    console.log(5)
     saleSelectors = await saleUtils.getSelectors.call().should.be.fulfilled
     saleSelectors.length.should.be.eq(19)
-    console.log(6)
     saleAddrs = [
       saleManager.address, saleManager.address, saleManager.address,
       saleManager.address, saleManager.address, saleManager.address,

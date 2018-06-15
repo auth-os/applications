@@ -19,6 +19,15 @@ contract SaleProxy is ISale, Proxy {
 contract SaleManagerProxy is ISaleManager, SaleProxy {
 
   /*
+  Returns the admin address for the crowdsale
+
+  @return address: The admin of the crowdsale
+  */
+  function getAdmin() external view returns (address) {
+    return SaleManagerIdx(app_index).getAdmin(app_storage, app_exec_id);
+  }
+
+  /*
   Returns information about the ongoing sale -
 
   @return uint: The total number of wei raised during the sale
@@ -82,6 +91,17 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   }
 
   /*
+  Returns the whitelist associated with the given tier
+
+  @param _tier_idx: The index of the tier about which information will be returned
+  @return uint: The length of the whitelist
+  @return address[]: The list of addresses whitelisted
+  */
+  function getTierWhitelist(uint _tier_idx) external view returns (uint, address[]) {
+    return SaleManagerIdx(app_index).getTierWhitelist(app_storage, app_exec_id, _tier_idx);
+  }
+
+  /*
   Returns the maximum amount of wei that can be raised, as well as the total number of tokens that can be sold
 
   @return uint: The maximum amount of wei that can be raised
@@ -142,7 +162,33 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   }
 }
 
-contract TokenProxy is IToken, SaleManagerProxy {
+contract TokenManagerProxy is ITokenManager, SaleManagerProxy {
+
+  /*
+  Returns the list of addresses for which tokens have been reserved
+
+  @return uint: The length of the list
+  @return address[]: The list of destinations
+  */
+  function getReservedTokenDestinationList() external view returns (uint, address[]) {
+    return TokenManagerIdx(app_index).getReservedTokenDestinationList(app_storage, app_exec_id);
+  }
+
+  /*
+  Returns information about a reserved token destination
+
+  @param _destination: The address whose reservation information will be queried
+  @return uint: The index of the address in the reservation list
+  @return uint: The number of tokens that will be minted for the destination when the sale is completed
+  @return uint: The percent of tokens sold that will be minted for the destination when the sale is completed
+  @return uint: The number of decimals in the above percent figure
+  */
+  function getReservedDestinationInfo(address _destination) external view returns (uint, uint, uint, uint) {
+    return TokenManagerIdx(app_index).getReservedDestinationInfo(app_storage, app_exec_id, _destination);
+  }
+}
+
+contract TokenProxy is IToken, TokenManagerProxy {
 
   using StringUtils for bytes32;
 

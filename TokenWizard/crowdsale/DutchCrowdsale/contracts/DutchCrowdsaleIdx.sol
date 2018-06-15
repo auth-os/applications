@@ -54,6 +54,10 @@ library DutchCrowdsaleIdx {
   function endRate() internal pure returns (bytes32)
     { return keccak256("sale_end_rate"); }
 
+  // Storage location of the amount of tokens sold in the crowdsale so far
+  function tokensSold() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_sold"); }
+
   // Storage location of the minimum amount of tokens allowed to be purchased
   function globalMinPurchaseAmt() internal pure returns (bytes32)
     { return keccak256("sale_min_purchase_amt"); }
@@ -165,7 +169,7 @@ library DutchCrowdsaleIdx {
 
     // Begin execution - we are initializing an instance of this application
     Contract.initialize();
-    
+
     // Set up STORES action requests -
     Contract.storing();
     // Authorize sender as an executor for this instance -
@@ -344,6 +348,10 @@ library DutchCrowdsaleIdx {
     current_rate /= (10 ** 18); // Remove additional precision decimals
     current_rate = _start_rate - current_rate;
   }
+
+  // Returns the total number of tokens sold during the sale so far
+  function getTokensSold(address _storage, bytes32 _exec_id) external view returns (uint)
+    { return uint(GetterInterface(_storage).read(_exec_id, tokensSold())); }
 
   /*
   Returns whitelist information for a given buyer
