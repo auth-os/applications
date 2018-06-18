@@ -8,34 +8,17 @@ library ConfigureSale {
   using Contract for *;
   using SafeMath for uint;
 
-  // event GlobalMinUpdate(bytes32 indexed exec_id, uint current_token_purchase_min)
-  bytes32 private constant GLOBAL_MIN_UPDATE = keccak256("GlobalMinUpdate(bytes32,uint256)");
+  // event TierMinUpdate(bytes32 indexed exec_id, uint indexed tier_index, uint current_token_purchase_min)
+  bytes32 private constant TIER_MIN_UPDATE = keccak256("TierMinUpdate(bytes32,uint256,uint256)");
 
   // event CrowdsaleTiersAdded(bytes32 indexed exec_id, uint current_tier_list_len)
   bytes32 private constant CROWDSALE_TIERS_ADDED = keccak256("CrowdsaleTiersAdded(bytes32,uint256)");
 
-  function MIN_UPDATE(bytes32 _exec_id) private pure returns (bytes32[2] memory)
-    { return [GLOBAL_MIN_UPDATE, _exec_id]; }
+  function MIN_UPDATE(bytes32 _exec_id, uint _idx) private pure returns (bytes32[3] memory)
+    { return [TIER_MIN_UPDATE, _exec_id, bytes32(_idx)]; }
 
   function ADD_TIERS(bytes32 _exec_id) private pure returns (bytes32[2] memory)
     { return [CROWDSALE_TIERS_ADDED, _exec_id]; }
-
-  // Checks input and then creates storage buffer to update minimum
-  function updateGlobalMinContribution(uint _new_minimum) internal pure {
-    // Set up STORES action requests -
-    Contract.storing();
-
-    // Store new crowdsale minimum token purchase amount
-    Contract.set(SaleManager.globalMinPurchaseAmt()).to(_new_minimum);
-
-    // Set up EMITS action requests -
-    Contract.emitting();
-
-    // Add GLOBAL_MIN_UPDATE signature and topics
-    Contract.log(
-      MIN_UPDATE(Contract.execID()), bytes32(_new_minimum)
-    );
-  }
 
   // Checks input and then creates storage buffer to create sale tiers
   function createCrowdsaleTiers(
@@ -217,5 +200,63 @@ library ConfigureSale {
 
     // Update total crowdsale duration
     Contract.set(SaleManager.totalDuration()).to(total_duration);
+  }
+
+  // Checks input and then creates storage buffer to update a tier's minimum cap
+  function updateTierMinimum(uint _tier_index, uint _new_minimum) internal view {
+    // Get current tier -
+    uint current_tier = uint(Contract.read(SaleManager.currentTier()));
+    // Get the time at which the current tier will end -
+    uint cur_ends_at = uint(Contract.read(SaleManager.currentEndsAt()));
+    // Get sale start time -
+    uint starts_at = uint(Contract.read(SaleManager.startTime()));
+
+    // Normalize returned current tier index
+    current_tier = current_tier.sub(1);
+
+    // Ensure passed-in index is within range -
+    if (uint(Contract.read(SaleManager.saleTierList())) <= _tier_index)
+      revert('tier does not exist');
+    // Ensure tier was marked as modifiable -
+    if (Contract.read(SaleManager.tierModifiable(_tier_index)) == 0)
+      revert('tier mincap not modifiable');
+    // Ensure current tier to update has not already passed -
+    if (current_tier > _tier_index)
+      revert('tier has already completed');
+    if (_tier_index == 0 && now >= starts_at)
+      revert('cannot modify initial tier once sale has started');
+    if (_tier_index <= current_tier)
+      revert('cannot update tier');
+
+    // If the tier to update is not tier 0, loop over tiers and ensure tier has not started -
+    if (_tier_index != 0 && _tier_index <= current_tier) {
+      // If the end time has passed, and we are trying to update the next tier, the tier
+      // is already in progress and cannot be updated
+      if (_tier_index - current_tier == 1 && now >= cur_ends_at)
+        revert("cannot modify tier after it has begun");
+
+      // Loop over tiers in storage and increment end time -
+      for (uint i = current_tier; i < _tier_index; i++)
+        cur_ends_at = cur_ends_at.add(uint(Contract.read(SaleManager.tierDuration(i))));
+
+      if (cur_ends_at >= now)
+        revert("cannot modify current tier");
+    } else {
+      // Not a valid state to update - throw
+      revert('cannot update tier');
+    }
+
+    Contract.storing();
+
+    // Update tier minimum cap
+    Contract.set(SaleManager.tierMin(_tier_index)).to(_new_minimum);
+
+    // Set up EMITS action requests -
+    Contract.emitting();
+
+    // Add GLOBAL_MIN_UPDATE signature and topics
+    Contract.log(
+      MIN_UPDATE(Contract.execID(), _tier_index), bytes32(_new_minimum)
+    );
   }
 }

@@ -195,7 +195,7 @@ contract('#MintedCappedInit', function (accounts) {
 
       beforeEach(async () => {
         crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
-        crowdsaleInfo.length.should.be.eq(5)
+        crowdsaleInfo.length.should.be.eq(4)
       })
 
       it('should not have any wei raised', async () => {
@@ -206,13 +206,9 @@ contract('#MintedCappedInit', function (accounts) {
         crowdsaleInfo[1].should.be.eq(teamWallet)
       })
 
-      it('should not have a minimum contribution', async () => {
-        crowdsaleInfo[2].toNumber().should.be.eq(0)
-      })
-
       it('should not be initialized or finalized', async () => {
+        crowdsaleInfo[2].should.be.eq(false)
         crowdsaleInfo[3].should.be.eq(false)
-        crowdsaleInfo[4].should.be.eq(false)
       })
     })
 
@@ -271,7 +267,7 @@ contract('#MintedCappedInit', function (accounts) {
 
       beforeEach(async () => {
         curTierInfo = await saleIdx.getCurrentTierInfo.call(storage.address, executionID).should.be.fulfilled
-        curTierInfo.length.should.be.eq(7)
+        curTierInfo.length.should.be.eq(8)
       })
 
       it('should set the current tier name to the initial tier', async () => {
@@ -298,9 +294,13 @@ contract('#MintedCappedInit', function (accounts) {
         )
       })
 
+      it('should not have a tier minimum', async () => {
+        curTierInfo[5].toNumber().should.be.eq(0)
+      })
+
       it('should be modifiable and whitelist-enabled', async () => {
-        curTierInfo[5].should.be.eq(true)
         curTierInfo[6].should.be.eq(true)
+        curTierInfo[7].should.be.eq(true)
       })
     })
 
@@ -312,7 +312,7 @@ contract('#MintedCappedInit', function (accounts) {
         crowdsaleTier = await saleIdx.getCrowdsaleTier.call(
           storage.address, executionID, 0
         ).should.be.fulfilled
-        crowdsaleTier.length.should.be.eq(6)
+        crowdsaleTier.length.should.be.eq(7)
       })
 
       it('should set the current tier name to the initial tier', async () => {
@@ -331,13 +331,17 @@ contract('#MintedCappedInit', function (accounts) {
         )
       })
 
+      it('should not have a tier minimum', async () => {
+        crowdsaleTier[3].toNumber().should.be.eq(0)
+      })
+
       it('should match the duration that was passed in', async () => {
-        crowdsaleTier[3].toNumber().should.be.eq(initialTierDuration)
+        crowdsaleTier[4].toNumber().should.be.eq(initialTierDuration)
       })
 
       it('should be modifiable and whitelist-enabled', async () => {
-        crowdsaleTier[4].should.be.eq(true)
         crowdsaleTier[5].should.be.eq(true)
+        crowdsaleTier[6].should.be.eq(true)
       })
     })
 

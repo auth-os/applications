@@ -7,7 +7,7 @@ contract MintedCappedTokenMockUtils {
 
     selectors[0] = this.initializeCrowdsale.selector;
     selectors[1] = this.finalizeCrowdsale.selector;
-    selectors[2] = this.updateGlobalMinContribution.selector;
+    selectors[2] = this.updateTierMinimum.selector;
     selectors[3] = this.createCrowdsaleTiers.selector;
     selectors[4] = this.whitelistMultiForTier.selector;
     selectors[5] = this.updateTierDuration.selector;
@@ -43,7 +43,7 @@ contract MintedCappedTokenMockUtils {
   // SaleManager
   function initializeCrowdsale() public pure returns (bytes) { return msg.data; }
   function finalizeCrowdsale() public pure returns (bytes) { return msg.data; }
-  function updateGlobalMinContribution(uint) public pure returns (bytes) { return msg.data; }
+  function updateTierMinimum(uint, uint) public pure returns (bytes) { return msg.data; }
   function createCrowdsaleTiers(bytes32[], uint[], uint[], uint[], bool[], bool[])
       public pure returns (bytes) { return msg.data; }
   function whitelistMultiForTier(uint, address[], uint[], uint[])

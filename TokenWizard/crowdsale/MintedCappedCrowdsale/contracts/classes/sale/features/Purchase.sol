@@ -63,7 +63,7 @@ library Purchase {
     } else {
       // If the tier is not whitelisted, and the sender has contributed, get spend and purchase
       // amounts with '0' set as maximum spend and '0' as minimum purchase size
-      if (Contract.read(Sale.hasContributed(Contract.sender())) == bytes32(1)) {
+      if (Contract.read(Sale.hasContributed(Contract.sender())) != 0) {
         (amount_spent, amount_purchased) = getPurchaseInfo(
           uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
@@ -78,7 +78,7 @@ library Purchase {
           purchase_price,
           tokens_remaining,
           0,
-          uint(Contract.read(Sale.globalMinPurchaseAmt())),
+          uint(Contract.read(Sale.tierMin(current_tier))),
           tier_is_whitelisted
         );
       }

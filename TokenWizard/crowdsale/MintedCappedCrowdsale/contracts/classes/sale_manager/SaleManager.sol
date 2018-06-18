@@ -30,10 +30,6 @@ library SaleManager {
   function totalDuration() internal pure returns (bytes32)
     { return keccak256("sale_total_duration"); }
 
-  // Storage location of the minimum amount of tokens allowed to be purchased
-  function globalMinPurchaseAmt() internal pure returns (bytes32)
-    { return keccak256("sale_min_purchase_amt"); }
-
   /// TIERS ///
 
   // Stores the number of tiers in the sale
@@ -51,6 +47,10 @@ library SaleManager {
   // Stores the price of a token (1 * 10^decimals units), in wei
   function tierPrice(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "price", saleTierList()); }
+
+  // Stores the minimum number of tokens a user must purchase for a given tier
+  function tierMin(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "minimum", saleTierList()); }
 
   // Stores the duration of a tier
   function tierDuration(uint _idx) internal pure returns (bytes32)
@@ -158,24 +158,6 @@ library SaleManager {
   /// FUNCTIONS ///
 
   /*
-  Allows the admin to update the global minimum number of tokens to purchase
-
-  @param _new_minimum: The new minimum number of tokens that must be purchased
-  */
-  function updateGlobalMinContribution(uint _new_minimum) external view {
-    // Begin execution - reads execution id and original sender address from storage
-    Contract.authorize(msg.sender);
-    // Check that the sender is the admin and the sale is not initialized
-    Contract.checks(onlyAdmin);
-    // Execute function -
-    ConfigureSale.updateGlobalMinContribution(_new_minimum);
-    // Ensures state change will only affect storage and events -
-    Contract.checks(emitAndStore);
-    // Commit state changes to storage -
-    Contract.commit();
-  }
-
-  /*
   Allows the admin to add additional crowdsale tiers before the start of the sale
 
   @param _tier_names: The name of each tier to add
@@ -242,6 +224,25 @@ library SaleManager {
     Contract.checks(onlyAdminAndNotFinal);
     // Execute function -
     ConfigureSale.updateTierDuration(_tier_index, _new_duration);
+    // Ensures state change will only affect storage -
+    Contract.checks(onlyStores);
+    // Commit state changes to storage -
+    Contract.commit();
+  }
+
+  /*
+  Allows the admin to update a tier's minimum purchase amount (if it was marked modifiable)
+
+  @param _tier_index: The index of the tier whose minimum will be updated
+  @param _new_minimum: The minimum amount of tokens
+  */
+  function updateTierMinimum(uint _tier_index, uint _new_minimum) external view {
+    // Begin execution - reads execution id and original sender address from storage
+    Contract.authorize(msg.sender);
+    // Check that the sender is the sale admin and that the sale is not finalized -
+    Contract.checks(onlyAdminAndNotFinal);
+    // Execute function -
+    ConfigureSale.updateTierMinimum(_tier_index, _new_minimum);
     // Ensures state change will only affect storage -
     Contract.checks(onlyStores);
     // Commit state changes to storage -

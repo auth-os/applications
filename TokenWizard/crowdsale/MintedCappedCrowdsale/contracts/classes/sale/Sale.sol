@@ -25,10 +25,6 @@ library Sale {
   function tokensSold() internal pure returns (bytes32)
     { return keccak256("sale_tokens_sold"); }
 
-  // Storage location of the minimum amount of tokens allowed to be purchased
-  function globalMinPurchaseAmt() internal pure returns (bytes32)
-    { return keccak256("sale_min_purchase_amt"); }
-
   // Stores the amount of unique contributors so far in this crowdsale
   function contributors() internal pure returns (bytes32)
     { return keccak256("sale_contributors"); }
@@ -50,6 +46,10 @@ library Sale {
   // Stores the price of a token (1 * 10^decimals units), in wei
   function tierPrice(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "price", saleTierList()); }
+
+  // Stores the minimum number of tokens a user must purchase for a given tier
+  function tierMin(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "minimum", saleTierList()); }
 
   // Stores the duration of a tier
   function tierDuration(uint _idx) internal pure returns (bytes32)

@@ -32,11 +32,10 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
 
   @return uint: The total number of wei raised during the sale
   @return address: The team funds wallet
-  @return uint: The minimum number of tokens a purchaser must buy
   @return bool: Whether the sale is finished configuring
   @return bool: Whether the sale has completed
   */
-  function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool) {
+  function getCrowdsaleInfo() external view returns (uint, address, bool, bool) {
     return SaleManagerIdx(app_index).getCrowdsaleInfo(app_storage, app_exec_id);
   }
 
@@ -68,10 +67,11 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   @return uint: The time at which the tier will end
   @return uint: The number of tokens remaining for sale during this tier
   @return uint: The price of 1 token (10^decimals units) in wei
+  @return uint: The minimum amount of tokens that must be purchased during this tier
   @return bool: Whether the tier's duration can be modified by the sale admin, prior to it beginning
   @return bool: Whether the tier is whitelisted
   */
-  function getCurrentTierInfo() external view returns (bytes32, uint, uint, uint, uint, bool, bool) {
+  function getCurrentTierInfo() external view returns (bytes32, uint, uint, uint, uint, uint, bool, bool) {
     return SaleManagerIdx(app_index).getCurrentTierInfo(app_storage, app_exec_id);
   }
 
@@ -83,10 +83,11 @@ contract SaleManagerProxy is ISaleManager, SaleProxy {
   @return uint: The number of tokens available for sale during this tier, in total
   @return uint: The price of 1 token (10^decimals units) in wei
   @return uint: The duration the tier lasts
+  @return uint: The minimum amount of tokens that must be purchased during this tier
   @return bool: Whether the tier's duration can be modified by the sale admin, prior to it beginning
   @return bool: Whether the tier is whitelisted
   */
-  function getCrowdsaleTier(uint _idx) external view returns (bytes32, uint, uint, uint, bool, bool) {
+  function getCrowdsaleTier(uint _idx) external view returns (bytes32, uint, uint, uint, uint, bool, bool) {
     return SaleManagerIdx(app_index).getCrowdsaleTier(app_storage, app_exec_id, _idx);
   }
 

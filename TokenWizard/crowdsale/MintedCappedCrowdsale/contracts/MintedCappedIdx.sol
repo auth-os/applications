@@ -42,10 +42,6 @@ library MintedCappedIdx {
   function tokensSold() internal pure returns (bytes32)
     { return keccak256("sale_tokens_sold"); }
 
-  // Storage location of the minimum amount of tokens allowed to be purchased
-  function globalMinPurchaseAmt() internal pure returns (bytes32)
-    { return keccak256("sale_min_purchase_amt"); }
-
   // Stores the amount of unique contributors so far in this crowdsale
   function contributors() internal pure returns (bytes32)
     { return keccak256("sale_contributors"); }
@@ -71,6 +67,10 @@ library MintedCappedIdx {
   // Stores the price of a token (1 * 10^decimals units), in wei
   function tierPrice(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "price", saleTierList()); }
+
+  // Stores the minimum number of tokens a user must purchase for a given tier
+  function tierMin(uint _idx) internal pure returns (bytes32)
+    { return keccak256(_idx, "minimum", saleTierList()); }
 
   // Stores the duration of a tier
   function tierDuration(uint _idx) internal pure returns (bytes32)
@@ -268,31 +268,28 @@ library MintedCappedIdx {
   @param _exec_id: The application execution id under which storage for this instance is located
   @return wei_raised: The amount of wei raised in the crowdsale so far
   @return team_wallet: The address to which funds are forwarded during this crowdsale
-  @return minimum_contribution: The minimum amount of tokens that must be purchased
   @return is_initialized: Whether or not the crowdsale has been completely initialized by the admin
   @return is_finalized: Whether or not the crowdsale has been completely finalized by the admin
   */
   function getCrowdsaleInfo(address _storage, bytes32 _exec_id) external view
-  returns (uint wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized) {
+  returns (uint wei_raised, address team_wallet, bool is_initialized, bool is_finalized) {
 
     GetterInterface target = GetterInterface(_storage);
 
-    bytes32[] memory arr_indices = new bytes32[](5);
+    bytes32[] memory arr_indices = new bytes32[](4);
 
     arr_indices[0] = totalWeiRaised();
     arr_indices[1] = wallet();
-    arr_indices[2] = globalMinPurchaseAmt();
-    arr_indices[3] = isConfigured();
-    arr_indices[4] = isFinished();
+    arr_indices[2] = isConfigured();
+    arr_indices[3] = isFinished();
 
     bytes32[] memory read_values = target.readMulti(_exec_id, arr_indices);
 
     // Get returned data -
     wei_raised = uint(read_values[0]);
     team_wallet = address(read_values[1]);
-    minimum_contribution = uint(read_values[2]);
-    is_initialized = (read_values[3] == 0 ? false : true);
-    is_finalized = (read_values[4] == 0 ? false : true);
+    is_initialized = (read_values[2] == 0 ? false : true);
+    is_finalized = (read_values[3] == 0 ? false : true);
   }
 
   /*
@@ -370,11 +367,12 @@ library MintedCappedIdx {
   @return tier_ends_at: The time at which purcahses for the current tier are forcibly locked
   @return tier_tokens_remaining: The amount of tokens remaining to be purchased in the current tier
   @return tier_price: The price of each token purchased this tier, in wei
+  @return tier_min: The minimum amount of tokens that much be purchased by an investor this tier
   @return duration_is_modifiable: Whether the crowdsale admin can update the duration of this tier before it starts
   @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
   */
   function getCurrentTierInfo(address _storage, bytes32 _exec_id) external view
-  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, bool duration_is_modifiable, bool whitelist_enabled) {
+  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, uint tier_min, bool duration_is_modifiable, bool whitelist_enabled) {
 
     bytes32[] memory initial_arr = new bytes32[](4);
     // Push current tier expiration time, current tier index, and current tier tokens remaining storage locations to calldata buffer
@@ -406,24 +404,26 @@ library MintedCappedIdx {
 
     // If we have passed the last tier, return default values
     if (tier_index >= num_tiers)
-      return (0, 0, 0, 0, 0, false, false);
+      return (0, 0, 0, 0, 0, 0, false, false);
 
-    bytes32[] memory arr_indices = new bytes32[](4);
-    arr_indices[0] = tierName(tier_index);
-    arr_indices[1] = tierPrice(tier_index);
-    arr_indices[2] = tierModifiable(tier_index);
-    arr_indices[3] = tierWhitelisted(tier_index);
+    initial_arr = new bytes32[](5);
+    initial_arr[0] = tierName(tier_index);
+    initial_arr[1] = tierPrice(tier_index);
+    initial_arr[2] = tierModifiable(tier_index);
+    initial_arr[3] = tierWhitelisted(tier_index);
+    initial_arr[4] = tierMin(tier_index);
 
     // Read from storage and get return values
-    read_values = GetterInterface(_storage).readMulti(_exec_id, arr_indices).toUintArr();
+    read_values = GetterInterface(_storage).readMulti(_exec_id, initial_arr).toUintArr();
 
     // Ensure correct return length
-    assert(read_values.length == 4);
+    assert(read_values.length == 5);
 
     tier_name = bytes32(read_values[0]);
     tier_price = read_values[1];
     duration_is_modifiable = (read_values[2] == 0 ? false : true);
     whitelist_enabled = (read_values[3] == 0 ? false : true);
+    tier_min = read_values[4];
   }
 
   /*
@@ -435,15 +435,16 @@ library MintedCappedIdx {
   @return tier_name: The name of the returned tier
   @return tier_sell_cap: The amount of tokens designated to be sold during this tier
   @return tier_price: The price of each token in wei for this tier
+  @return tier_min: The minimum amount of tokens that much be purchased by an investor this tier
   @return tier_duration: The duration of the given tier
   @return duration_is_modifiable: Whether the crowdsale admin can change the duration of this tier prior to its start time
   @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
   */
   function getCrowdsaleTier(address _storage, bytes32 _exec_id, uint _index) external view
-  returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_duration, bool duration_is_modifiable, bool whitelist_enabled) {
+  returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_min, uint tier_duration, bool duration_is_modifiable, bool whitelist_enabled) {
     GetterInterface target = GetterInterface(_storage);
 
-    bytes32[] memory arr_indices = new bytes32[](6);
+    bytes32[] memory arr_indices = new bytes32[](7);
     // Push tier name, sell cap, duration, and modifiable status storage locations to buffer
     arr_indices[0] = tierName(_index);
     arr_indices[1] = tierCap(_index);
@@ -451,10 +452,11 @@ library MintedCappedIdx {
     arr_indices[3] = tierDuration(_index);
     arr_indices[4] = tierModifiable(_index);
     arr_indices[5] = tierWhitelisted(_index);
+    arr_indices[6] = tierMin(_index);
     // Read from storage and store return in buffer
     bytes32[] memory read_values = target.readMulti(_exec_id, arr_indices);
     // Ensure correct return length
-    assert(read_values.length == 6);
+    assert(read_values.length == 7);
 
     // Get returned values -
     tier_name = read_values[0];
@@ -463,6 +465,7 @@ library MintedCappedIdx {
     tier_duration = uint(read_values[3]);
     duration_is_modifiable = (read_values[4] == 0 ? false : true);
     whitelist_enabled = (read_values[5] == 0 ? false : true);
+    tier_min = uint(read_values[6]);
   }
 
   /*
