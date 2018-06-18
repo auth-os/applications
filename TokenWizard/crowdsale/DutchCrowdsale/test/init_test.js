@@ -258,7 +258,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
 
       beforeEach(async () => {
         crowdsaleStatusInfo = await saleIdx.getCrowdsaleStatus.call(storage.address, executionID).should.be.fulfilled
-        crowdsaleStatusInfo.length.should.be.eq(6)
+        crowdsaleStatusInfo.length.should.be.eq(7)
       })
 
       it('should store the correct start price', async () => {
@@ -284,6 +284,10 @@ contract('#DutchCrowdsaleInit', function (accounts) {
 
       it('should have all sellable tokens remaining', async () => {
         crowdsaleStatusInfo[5].toNumber().should.be.eq(sellCap)
+      })
+
+      it('should not be whitelisted', async () => {
+        crowdsaleStatusInfo[6].should.be.eq(true)
       })
     })
 

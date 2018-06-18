@@ -69,8 +69,9 @@ contract AdminProxy is IAdmin, SaleProxy {
   @return uint: The total duration of the sale
   @return uint: The amount of time remaining in the sale (factors in time till sale starts)
   @return uint: The amount of tokens still available to be sold
+  @return bool: Whether the sale is whitelisted or not
   */
-  function getCrowdsaleStatus() external view returns (uint, uint, uint, uint, uint, uint) {
+  function getCrowdsaleStatus() external view returns (uint, uint, uint, uint, uint, uint, bool) {
     return AdminIdx(app_index).getCrowdsaleStatus(app_storage, app_exec_id);
   }
 

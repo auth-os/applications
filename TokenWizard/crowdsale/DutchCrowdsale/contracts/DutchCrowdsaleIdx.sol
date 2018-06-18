@@ -292,11 +292,12 @@ library DutchCrowdsaleIdx {
   @return sale_duration: The total duration of the sale
   @return time_remaining: The amount of time remaining in the sale (factors in time till sale starts)
   @return tokens_remaining: The amount of tokens still available to be sold
+  @return is_whitelisted: Whether the sale is whitelist-enabled
   */
   function getCrowdsaleStatus(address _storage, bytes32 _exec_id) external view
-  returns (uint start_rate, uint end_rate, uint current_rate, uint sale_duration, uint time_remaining, uint tokens_remaining) {
+  returns (uint start_rate, uint end_rate, uint current_rate, uint sale_duration, uint time_remaining, uint tokens_remaining, bool is_whitelisted) {
     //Set up bytes32 array to storage seeds
-    bytes32[] memory seed_arr = new bytes32[](5);
+    bytes32[] memory seed_arr = new bytes32[](6);
 
     //Assign seeds to locations of array
     seed_arr[0] = startRate();
@@ -304,6 +305,7 @@ library DutchCrowdsaleIdx {
     seed_arr[2] = startTime();
     seed_arr[3] = totalDuration();
     seed_arr[4] = tokensRemaining();
+    seed_arr[5] = isWhitelisted();
 
     //Read and return values
     uint[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
@@ -314,6 +316,7 @@ library DutchCrowdsaleIdx {
     uint start_time = values_arr[2];
     sale_duration = values_arr[3];
     tokens_remaining = values_arr[4];
+    is_whitelisted = values_arr[5] == 0 ? false : true;
 
     (current_rate, time_remaining) =
       getRateAndTimeRemaining(start_time, sale_duration, start_rate, end_rate);
