@@ -164,11 +164,12 @@ library SaleManager {
   @param _tier_durations: The duration of each tier to add
   @param _tier_prices: The set purchase price for each tier
   @param _tier_caps: The maximum tokens to sell in each tier
+  @param _tier_minimums: The minimum number of tokens that must be purchased by a user
   @param _tier_modifiable: Whether each tier's duration is modifiable or not
   @param _tier_whitelisted: Whether each tier incorporates a whitelist
   */
   function createCrowdsaleTiers(
-    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps,
+    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps, uint[] _tier_minimums,
     bool[] _tier_modifiable, bool[] _tier_whitelisted
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
@@ -178,7 +179,7 @@ library SaleManager {
     // Execute function -
     ConfigureSale.createCrowdsaleTiers(
       _tier_names, _tier_durations, _tier_prices,
-      _tier_caps, _tier_modifiable, _tier_whitelisted
+      _tier_caps, _tier_minimums, _tier_modifiable, _tier_whitelisted
     );
     // Ensures state change will only affect storage and events -
     Contract.checks(emitAndStore);

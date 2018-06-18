@@ -44,7 +44,7 @@ contract MintedCappedTokenMockUtils {
   function initializeCrowdsale() public pure returns (bytes) { return msg.data; }
   function finalizeCrowdsale() public pure returns (bytes) { return msg.data; }
   function updateTierMinimum(uint, uint) public pure returns (bytes) { return msg.data; }
-  function createCrowdsaleTiers(bytes32[], uint[], uint[], uint[], bool[], bool[])
+  function createCrowdsaleTiers(bytes32[], uint[], uint[], uint[], uint[], bool[], bool[])
       public pure returns (bytes) { return msg.data; }
   function whitelistMultiForTier(uint, address[], uint[], uint[])
       public pure returns (bytes) { return msg.data; }
@@ -71,7 +71,7 @@ contract MintedCappedTokenMockUtils {
   function decreaseApproval(address, uint) public pure returns (bytes) { return msg.data; }
 
   function init(
-    address, uint, bytes32, uint, uint, uint, bool, bool, address
+    address, uint, bytes32, uint, uint, uint, uint, bool, bool, address
   ) public pure returns (bytes memory) {
     return msg.data;
   }

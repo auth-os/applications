@@ -61,6 +61,7 @@ contract('#MintableToken', function (accounts) {
   let initialTierPrice = web3.toWei('0.001', 'ether') // 1e15 wei per 1e18 tokens
   let initialTierDuration = 3600 // 1 hour
   let initialTierTokenSellCap = web3.toWei('1000', 'ether') // 1000 (e18) tokens for sale
+  let initialTierMin = 1000
   let initialTierIsWhitelisted = true
   let initialTierDurIsModifiable = true
 
@@ -145,7 +146,7 @@ contract('#MintableToken', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, startTime, initialTierName, initialTierPrice,
-      initialTierDuration, initialTierTokenSellCap, initialTierIsWhitelisted,
+      initialTierDuration, initialTierTokenSellCap, initialTierMin, initialTierIsWhitelisted,
       initialTierDurIsModifiable, crowdsaleAdmin
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')

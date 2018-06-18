@@ -60,6 +60,7 @@ contract('#MintedCappedInit', function (accounts) {
   let initialTierPrice = web3.toWei('0.001', 'ether') // 1e15 wei per 1e18 tokens
   let initialTierDuration = 3600 // 1 hour
   let initialTierTokenSellCap = web3.toWei('1000', 'ether') // 1000 (e18) tokens for sale
+  let initialTierMin = 1000
   let initialTierIsWhitelisted = true
   let initialTierDurIsModifiable = true
 
@@ -141,7 +142,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get valid init calldata
       initCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
-        initialTierPrice, initialTierDuration, initialTierTokenSellCap,
+        initialTierPrice, initialTierDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       initCalldata.should.not.be.eq('0x')
@@ -294,8 +295,8 @@ contract('#MintedCappedInit', function (accounts) {
         )
       })
 
-      it('should not have a tier minimum', async () => {
-        curTierInfo[5].toNumber().should.be.eq(0)
+      it('should have the correct tier minimum', async () => {
+        curTierInfo[5].toNumber().should.be.eq(initialTierMin)
       })
 
       it('should be modifiable and whitelist-enabled', async () => {
@@ -331,8 +332,8 @@ contract('#MintedCappedInit', function (accounts) {
         )
       })
 
-      it('should not have a tier minimum', async () => {
-        crowdsaleTier[3].toNumber().should.be.eq(0)
+      it('should have the correct tier minimum', async () => {
+        crowdsaleTier[3].toNumber().should.be.eq(initialTierMin)
       })
 
       it('should match the duration that was passed in', async () => {
@@ -482,7 +483,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         invalidWallet, startTime, initialTierName,
-        initialTierPrice, initialTierDuration, initialTierTokenSellCap,
+        initialTierPrice, initialTierDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
@@ -506,7 +507,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, invalidStartTime, initialTierName,
-        initialTierPrice, initialTierDuration, initialTierTokenSellCap,
+        initialTierPrice, initialTierDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
@@ -531,7 +532,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
-        invalidTierPrice, initialTierDuration, initialTierTokenSellCap,
+        invalidTierPrice, initialTierDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
@@ -556,7 +557,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
-        initialTierPrice, invalidDuration, initialTierTokenSellCap,
+        initialTierPrice, invalidDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
@@ -581,7 +582,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
-        initialTierPrice, initialTierDuration, invalidSellCap,
+        initialTierPrice, initialTierDuration, invalidSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, crowdsaleAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
@@ -606,7 +607,7 @@ contract('#MintedCappedInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, startTime, initialTierName,
-        initialTierPrice, initialTierDuration, initialTierTokenSellCap,
+        initialTierPrice, initialTierDuration, initialTierTokenSellCap, initialTierMin,
         initialTierIsWhitelisted, initialTierDurIsModifiable, invalidAdmin
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')

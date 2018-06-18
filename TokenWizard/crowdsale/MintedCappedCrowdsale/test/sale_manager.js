@@ -60,6 +60,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
   let initialTierPrice = web3.toWei('0.001', 'ether') // 1e15 wei per 1e18 tokens
   let initialTierDuration = 3600 // 1 hour
   let initialTierTokenSellCap = web3.toWei('1000', 'ether') // 1000 (e18) tokens for sale
+  let initialTierMin = 1000
   let initialTierIsWhitelisted = true
   let initialTierDurIsModifiable = true
 
@@ -144,7 +145,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, startTime, initialTierName, initialTierPrice,
-      initialTierDuration, initialTierTokenSellCap, initialTierIsWhitelisted,
+      initialTierDuration, initialTierTokenSellCap, initialTierMin, initialTierIsWhitelisted,
       initialTierDurIsModifiable, crowdsaleAdmin
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
@@ -475,6 +476,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
       web3.toWei('10', 'ether'),
       web3.toWei('20', 'ether')
     ]
+    let tierMins = [100, 200]
     let tierAllModifiable = [true, true]
     let tierMixedModifiable = [false, true]
     let multiTierWhitelistStat = [true, false]
@@ -486,7 +488,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
       initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
 
       let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-        tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+        tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierAllModifiable,
         multiTierWhitelistStat
       ).should.be.fulfilled
       createTiersCalldata.should.not.eq('0x')
@@ -542,7 +544,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
         web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
         web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
-        curTierInfo[5].toNumber().should.be.eq(0)
+        curTierInfo[5].toNumber().should.be.eq(initialTierMin)
         curTierInfo[6].should.be.eq(true)
         curTierInfo[7].should.be.eq(true)
       })
@@ -677,7 +679,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
               let noModInitCalldata = await saleUtils.init.call(
                 teamWallet, noModStartTime, initialTierName, initialTierPrice,
-                initialTierDuration, initialTierTokenSellCap, initialTierIsWhitelisted,
+                initialTierDuration, initialTierTokenSellCap, initialTierMin, initialTierIsWhitelisted,
                 initTierDurMod, crowdsaleAdmin
               ).should.be.fulfilled
               noModInitCalldata.should.not.eq('0x')
@@ -697,7 +699,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
               // Create tiers for the initialized crowdsale
               let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-                tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+                tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierAllModifiable,
                 multiTierWhitelistStat
               ).should.be.fulfilled
               createTiersCalldata.should.not.eq('0x')
@@ -1055,6 +1057,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
     let singleTierDuration = [3600]
     let singleTierPrice = [web3.toWei('0.001', 'ether')]
     let singleTierCap = [web3.toWei('100', 'ether')]
+    let singleTierMin = [1000]
     let singleTierModStatus = [true]
     let singleTierWhitelistStat = [true]
 
@@ -1070,6 +1073,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
       web3.toWei('20', 'ether'),
       web3.toWei('30', 'ether')
     ]
+    let multiTierMins = [1000, 2000, 3000]
     let multiTierModStatus = [false, false, true]
     let multiTierWhitelistStat = [true, true, false]
 
@@ -1084,7 +1088,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, multiTierDurations, invalidTierPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
         })
@@ -1104,7 +1108,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             invalidNames, multiTierDurations, multiTierPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
         })
@@ -1128,7 +1132,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, multiTierDurations, multiTierPrices,
-            invalidTierCaps, multiTierModStatus, multiTierWhitelistStat
+            invalidTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
         })
@@ -1148,7 +1152,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, invalidDurations, multiTierPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
         })
@@ -1172,7 +1176,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, multiTierDurations, invalidPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
         })
@@ -1203,7 +1207,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
           invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, multiTierDurations, multiTierPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           invalidCalldata.should.not.eq('0x')
 
@@ -1245,7 +1249,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
             beforeEach(async () => {
               updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
                 singleTierNames, singleTierDuration, singleTierPrice,
-                singleTierCap, singleTierModStatus, singleTierWhitelistStat
+                singleTierCap, singleTierMin, singleTierModStatus, singleTierWhitelistStat
               ).should.be.fulfilled
               updateTierCalldata.should.not.eq('0x')
 
@@ -1277,7 +1281,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
               })
 
               it('should return the correct number of storage slots written to', async () => {
-                updateTierReturn[2].toNumber().should.be.eq(8)
+                updateTierReturn[2].toNumber().should.be.eq(9)
               })
             })
 
@@ -1372,7 +1376,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
                 web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
                 web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
-                curTierInfo[5].toNumber().should.be.eq(0)
+                curTierInfo[5].toNumber().should.be.eq(initialTierMin)
                 curTierInfo[6].should.be.eq(initialTierDurIsModifiable)
                 curTierInfo[7].should.be.eq(initialTierIsWhitelisted)
               })
@@ -1386,7 +1390,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 hexStrEquals(tierOneInfo[0], singleTierNames[0]).should.be.eq(true)
                 web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(singleTierCap[0])
                 web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(singleTierPrice[0])
-                tierOneInfo[3].toNumber().should.be.eq(0)
+                tierOneInfo[3].toNumber().should.be.eq(singleTierMin[0])
                 tierOneInfo[4].toNumber().should.be.eq(singleTierDuration[0])
                 tierOneInfo[5].should.be.eq(singleTierModStatus[0])
                 tierOneInfo[6].should.be.eq(singleTierWhitelistStat[0])
@@ -1408,7 +1412,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
             beforeEach(async () => {
               updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
                 multiTierNames, multiTierDurations, multiTierPrices,
-                multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+                multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
               ).should.be.fulfilled
               updateTierCalldata.should.not.eq('0x')
 
@@ -1440,7 +1444,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
               })
 
               it('should return the correct number of storage slots written to', async () => {
-                updateTierReturn[2].toNumber().should.be.eq(20)
+                updateTierReturn[2].toNumber().should.be.eq(23)
               })
             })
 
@@ -1536,7 +1540,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
                 web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
                 web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
-                curTierInfo[5].toNumber().should.be.eq(0)
+                curTierInfo[5].toNumber().should.be.eq(initialTierMin)
                 curTierInfo[6].should.be.eq(initialTierDurIsModifiable)
                 curTierInfo[7].should.be.eq(initialTierIsWhitelisted)
               })
@@ -1552,7 +1556,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierOneInfo[0], multiTierNames[0]).should.be.eq(true)
                   web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[0])
                   web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[0])
-                  tierOneInfo[3].toNumber().should.be.eq(0)
+                  tierOneInfo[3].toNumber().should.be.eq(multiTierMins[0])
                   tierOneInfo[4].toNumber().should.be.eq(multiTierDurations[0])
                   tierOneInfo[5].should.be.eq(multiTierModStatus[0])
                   tierOneInfo[6].should.be.eq(multiTierWhitelistStat[0])
@@ -1585,7 +1589,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierTwoInfo[0], multiTierNames[1]).should.be.eq(true)
                   web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[1])
                   web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[1])
-                  tierTwoInfo[3].toNumber().should.be.eq(0)
+                  tierTwoInfo[3].toNumber().should.be.eq(multiTierMins[1])
                   tierTwoInfo[4].toNumber().should.be.eq(multiTierDurations[1])
                   tierTwoInfo[5].should.be.eq(multiTierModStatus[1])
                   tierTwoInfo[6].should.be.eq(multiTierWhitelistStat[1])
@@ -1621,7 +1625,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierThreeInfo[0], multiTierNames[2]).should.be.eq(true)
                   web3.fromWei(tierThreeInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[2])
                   web3.fromWei(tierThreeInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[2])
-                  tierThreeInfo[3].toNumber().should.be.eq(0)
+                  tierThreeInfo[3].toNumber().should.be.eq(multiTierMins[2])
                   tierThreeInfo[4].toNumber().should.be.eq(multiTierDurations[2])
                   tierThreeInfo[5].should.be.eq(multiTierModStatus[2])
                   tierThreeInfo[6].should.be.eq(multiTierWhitelistStat[2])
@@ -1667,7 +1671,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
             beforeEach(async () => {
               updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
                 multiTierNames, multiTierDurations, multiTierPrices,
-                multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+                multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
               ).should.be.fulfilled
               updateTierCalldata.should.not.eq('0x')
 
@@ -1685,7 +1689,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
               updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
                 singleTierNames, singleTierDuration, singleTierPrice,
-                singleTierCap, singleTierModStatus, singleTierWhitelistStat
+                singleTierCap, singleTierMin, singleTierModStatus, singleTierWhitelistStat
               ).should.be.fulfilled
               updateTierCalldata.should.not.eq('0x')
 
@@ -1719,7 +1723,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 })
 
                 it('should return the correct number of storage slots written to', async () => {
-                  updateTierReturn[2].toNumber().should.be.eq(20)
+                  updateTierReturn[2].toNumber().should.be.eq(23)
                 })
               })
 
@@ -1738,7 +1742,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 })
 
                 it('should return the correct number of storage slots written to', async () => {
-                  secondTierUpdateReturn[2].toNumber().should.be.eq(8)
+                  secondTierUpdateReturn[2].toNumber().should.be.eq(9)
                 })
               })
             })
@@ -1904,7 +1908,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
                 web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
                 web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
-                curTierInfo[5].toNumber().should.be.eq(0)
+                curTierInfo[5].toNumber().should.be.eq(initialTierMin)
                 curTierInfo[6].should.be.eq(initialTierDurIsModifiable)
                 curTierInfo[7].should.be.eq(initialTierIsWhitelisted)
               })
@@ -1920,7 +1924,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierOneInfo[0], multiTierNames[0]).should.be.eq(true)
                   web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[0])
                   web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[0])
-                  tierOneInfo[3].toNumber().should.be.eq(0)
+                  tierOneInfo[3].toNumber().should.be.eq(multiTierMins[0])
                   tierOneInfo[4].toNumber().should.be.eq(multiTierDurations[0])
                   tierOneInfo[5].should.be.eq(multiTierModStatus[0])
                   tierOneInfo[6].should.be.eq(multiTierWhitelistStat[0])
@@ -1953,7 +1957,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierTwoInfo[0], multiTierNames[1]).should.be.eq(true)
                   web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[1])
                   web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[1])
-                  tierTwoInfo[3].toNumber().should.be.eq(0)
+                  tierTwoInfo[3].toNumber().should.be.eq(multiTierMins[1])
                   tierTwoInfo[4].toNumber().should.be.eq(multiTierDurations[1])
                   tierTwoInfo[5].should.be.eq(multiTierModStatus[1])
                   tierTwoInfo[6].should.be.eq(multiTierWhitelistStat[1])
@@ -1989,7 +1993,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierThreeInfo[0], multiTierNames[2]).should.be.eq(true)
                   web3.fromWei(tierThreeInfo[1].toNumber(), 'wei').should.be.eq(multiTierCaps[2])
                   web3.fromWei(tierThreeInfo[2].toNumber(), 'wei').should.be.eq(multiTierPrices[2])
-                  tierThreeInfo[3].toNumber().should.be.eq(0)
+                  tierThreeInfo[3].toNumber().should.be.eq(multiTierMins[2])
                   tierThreeInfo[4].toNumber().should.be.eq(multiTierDurations[2])
                   tierThreeInfo[5].should.be.eq(multiTierModStatus[2])
                   tierThreeInfo[6].should.be.eq(multiTierWhitelistStat[2])
@@ -2026,7 +2030,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierFourInfo[0], singleTierNames[0]).should.be.eq(true)
                   web3.fromWei(tierFourInfo[1].toNumber(), 'wei').should.be.eq(singleTierCap[0])
                   web3.fromWei(tierFourInfo[2].toNumber(), 'wei').should.be.eq(singleTierPrice[0])
-                  tierFourInfo[3].toNumber().should.be.eq(0)
+                  tierFourInfo[3].toNumber().should.be.eq(singleTierMin[0])
                   tierFourInfo[4].toNumber().should.be.eq(singleTierDuration[0])
                   tierFourInfo[5].should.be.eq(singleTierModStatus[0])
                   tierFourInfo[6].should.be.eq(singleTierWhitelistStat[0])
@@ -2073,7 +2077,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
           beforeEach(async () => {
             invalidCalldata = await saleUtils.createCrowdsaleTiers.call(
               multiTierNames, multiTierDurations, multiTierPrices,
-              multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+              multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
             ).should.be.fulfilled
             invalidCalldata.should.not.eq('0x')
           })
@@ -2095,7 +2099,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
             singleTierNames, singleTierDuration, singleTierPrice,
-            singleTierCap, singleTierModStatus, singleTierWhitelistStat
+            singleTierCap, singleTierMin, singleTierModStatus, singleTierWhitelistStat
           ).should.be.fulfilled
           updateTierCalldata.should.not.eq('0x')
 
@@ -2195,7 +2199,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         beforeEach(async () => {
           updateTierCalldata = await saleUtils.createCrowdsaleTiers.call(
             multiTierNames, multiTierDurations, multiTierPrices,
-            multiTierCaps, multiTierModStatus, multiTierWhitelistStat
+            multiTierCaps, multiTierMins, multiTierModStatus, multiTierWhitelistStat
           ).should.be.fulfilled
           updateTierCalldata.should.not.eq('0x')
 
@@ -2328,6 +2332,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
       web3.toWei('10', 'ether'),
       web3.toWei('20', 'ether')
     ]
+    let tierMins = [100, 200]
     let tierAllModifiable = [true, true]
     let tierMixedModifiable = [false, true]
     let multiTierWhitelistStat = [true, false]
@@ -2347,7 +2352,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
 
         let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-          tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+          tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierAllModifiable,
           multiTierWhitelistStat
         ).should.be.fulfilled
         createTiersCalldata.should.not.eq('0x')
@@ -2420,7 +2425,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
 
         let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-          tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+          tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierAllModifiable,
           multiTierWhitelistStat
         ).should.be.fulfilled
         createTiersCalldata.should.not.eq('0x')
@@ -2476,7 +2481,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
           curTierInfo[2].toNumber().should.be.eq(startTime + initialTierDuration)
           web3.fromWei(curTierInfo[3].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
           web3.fromWei(curTierInfo[4].toNumber(), 'wei').should.be.eq(initialTierPrice)
-          curTierInfo[5].toNumber().should.be.eq(0)
+          curTierInfo[5].toNumber().should.be.eq(initialTierMin)
           curTierInfo[6].should.be.eq(true)
           curTierInfo[7].should.be.eq(true)
         })
@@ -2562,7 +2567,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
               let noModInitCalldata = await saleUtils.init.call(
                 teamWallet, noModStartTime, initialTierName, initialTierPrice,
-                initialTierDuration, initialTierTokenSellCap, initialTierIsWhitelisted,
+                initialTierDuration, initialTierTokenSellCap, initialTierMin, initialTierIsWhitelisted,
                 initTierDurMod, crowdsaleAdmin
               ).should.be.fulfilled
               noModInitCalldata.should.not.eq('0x')
@@ -2582,7 +2587,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
 
               // Create tiers for the initialized crowdsale
               let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-                tierNames, tierDurations, tierPrices, tierCaps, tierAllModifiable,
+                tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierAllModifiable,
                 multiTierWhitelistStat
               ).should.be.fulfilled
               createTiersCalldata.should.not.eq('0x')
@@ -2708,7 +2713,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 hexStrEquals(tierZeroInfo[0], initialTierName).should.be.eq(true)
                 web3.fromWei(tierZeroInfo[1].toNumber(), 'wei').should.be.eq(initialTierTokenSellCap)
                 web3.fromWei(tierZeroInfo[2].toNumber(), 'wei').should.be.eq(initialTierPrice)
-                tierZeroInfo[3].toNumber().should.be.eq(0)
+                tierZeroInfo[3].toNumber().should.be.eq(initialTierMin)
                 tierZeroInfo[4].toNumber().should.be.eq(newDuration)
                 tierZeroInfo[5].should.be.eq(initialTierDurIsModifiable)
                 tierZeroInfo[6].should.be.eq(initialTierIsWhitelisted)
@@ -2749,7 +2754,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierOneInfo[0], tierNames[0]).should.be.eq(true)
                   web3.fromWei(tierOneInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[0])
                   web3.fromWei(tierOneInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[0])
-                  tierOneInfo[3].toNumber().should.be.eq(0)
+                  tierOneInfo[3].toNumber().should.be.eq(tierMins[0])
                   tierOneInfo[4].toNumber().should.be.eq(tierDurations[0])
                   tierOneInfo[5].should.be.eq(tierAllModifiable[0])
                   tierOneInfo[6].should.be.eq(multiTierWhitelistStat[0])
@@ -2781,7 +2786,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
                   web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
                   web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
-                  tierTwoInfo[3].toNumber().should.be.eq(0)
+                  tierTwoInfo[3].toNumber().should.be.eq(tierMins[1])
                   tierTwoInfo[4].toNumber().should.be.eq(tierDurations[1])
                   tierTwoInfo[5].should.be.eq(tierAllModifiable[1])
                   tierTwoInfo[6].should.be.eq(multiTierWhitelistStat[1])
@@ -2828,7 +2833,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
 
         let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-          tierNames, tierDurations, tierPrices, tierCaps, tierMixedModifiable,
+          tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierMixedModifiable,
           multiTierWhitelistStat
         ).should.be.fulfilled
         createTiersCalldata.should.not.eq('0x')
@@ -2930,7 +2935,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
         initialEndTime = startTime + initialTierDuration + tierDurations[0] + tierDurations[1]
 
         let createTiersCalldata = await saleUtils.createCrowdsaleTiers.call(
-          tierNames, tierDurations, tierPrices, tierCaps, tierMixedModifiable,
+          tierNames, tierDurations, tierPrices, tierCaps, tierMins, tierMixedModifiable,
           multiTierWhitelistStat
         ).should.be.fulfilled
         createTiersCalldata.should.not.eq('0x')
@@ -3056,7 +3061,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
             hexStrEquals(tierTwoInfo[0], tierNames[1]).should.be.eq(true)
             web3.fromWei(tierTwoInfo[1].toNumber(), 'wei').should.be.eq(tierCaps[1])
             web3.fromWei(tierTwoInfo[2].toNumber(), 'wei').should.be.eq(tierPrices[1])
-            tierTwoInfo[3].toNumber().should.be.eq(0)
+            tierTwoInfo[3].toNumber().should.be.eq(tierMins[1])
             tierTwoInfo[4].toNumber().should.be.eq(newDuration)
             tierTwoInfo[5].should.be.eq(tierMixedModifiable[1])
             tierTwoInfo[6].should.be.eq(multiTierWhitelistStat[1])

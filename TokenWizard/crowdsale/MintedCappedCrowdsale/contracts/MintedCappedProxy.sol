@@ -266,7 +266,7 @@ contract MintedCappedProxy is IMintedCapped, TokenProxy {
     Proxy(_storage, _registry_exec_id, _provider, _app_name) { }
 
   // Constructor - creates a new instance of the application in storage, and sets this proxy's exec id
-  function init(address, uint, bytes32, uint, uint, uint, bool, bool, address) public {
+  function init(address, uint, bytes32, uint, uint, uint, uint, bool, bool, address) public {
     require(msg.sender == proxy_admin && app_exec_id == 0 && app_name != 0);
     (app_exec_id, app_version) = app_storage.createInstance(
       msg.sender, app_name, provider, registry_exec_id, msg.data

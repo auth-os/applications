@@ -193,6 +193,7 @@ library MintedCappedIdx {
   @param _initial_tier_price: The price of each token purchased in wei, for the initial crowdsale tier
   @param _initial_tier_duration: The duration of the initial tier of the crowdsale
   @param _initial_tier_token_sell_cap: The maximum number of tokens that can be sold during the initial tier
+  @param _initial_tier_min_purchase: The minimum number of tokens that must be purchased by a user in the initial tier
   @param _initial_tier_is_whitelisted: Whether the initial tier of the crowdsale requires an address be whitelisted for successful purchase
   @param _initial_tier_duration_is_modifiable: Whether the initial tier of the crowdsale has a modifiable duration
   @param _admin: A privileged address which is able to complete the crowdsale initialization process
@@ -204,6 +205,7 @@ library MintedCappedIdx {
     uint _initial_tier_price,
     uint _initial_tier_duration,
     uint _initial_tier_token_sell_cap,
+    uint _initial_tier_min_purchase,
     bool _initial_tier_is_whitelisted,
     bool _initial_tier_duration_is_modifiable,
     address _admin
@@ -240,6 +242,8 @@ library MintedCappedIdx {
     Contract.set(tierPrice(uint(0))).to(_initial_tier_price);
     // Tier active duration
     Contract.set(tierDuration(uint(0))).to(_initial_tier_duration);
+    // Tier minimum purchase size
+    Contract.set(tierMin(uint(0))).to(_initial_tier_min_purchase);
     // Whether this tier's duration is modifiable prior to its start time
     Contract.set(tierModifiable(uint(0))).to(_initial_tier_duration_is_modifiable);
     // Whether this tier requires an address be whitelisted to complete token purchase

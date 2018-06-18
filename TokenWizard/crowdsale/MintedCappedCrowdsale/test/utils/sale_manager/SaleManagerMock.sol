@@ -22,7 +22,7 @@ library ConfigureSaleMock {
 
   // Checks input and then creates storage buffer to create sale tiers
   function createCrowdsaleTiers(
-    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps,
+    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps, uint[] _tier_minimums,
     bool[] _tier_modifiable, bool[] _tier_whitelisted
   ) internal view {
     // Ensure valid input
@@ -32,6 +32,7 @@ library ConfigureSaleMock {
       || _tier_names.length != _tier_caps.length
       || _tier_names.length != _tier_modifiable.length
       || _tier_names.length != _tier_whitelisted.length
+      || _tier_names.length != _tier_minimums.length
       || _tier_names.length == 0
     ) revert("array length mismatch");
 
@@ -63,6 +64,8 @@ library ConfigureSaleMock {
       Contract.set(SaleManagerMock.tierPrice(num_tiers + i)).to(_tier_prices[i]);
       // Tier duration
       Contract.set(SaleManagerMock.tierDuration(num_tiers + i)).to(_tier_durations[i]);
+      // Tier minimum purchase size
+      Contract.set(SaleManagerMock.tierMin(num_tiers + i)).to(_tier_minimums[i]);
       // Tier duration modifiability status
       Contract.set(SaleManagerMock.tierModifiable(num_tiers + i)).to(_tier_modifiable[i]);
       // Whether tier is whitelisted
@@ -479,11 +482,12 @@ library SaleManagerMock {
   @param _tier_durations: The duration of each tier to add
   @param _tier_prices: The set purchase price for each tier
   @param _tier_caps: The maximum tokens to sell in each tier
+  @param _tier_minimums: The minimum number of tokens that must be purchased by a user
   @param _tier_modifiable: Whether each tier's duration is modifiable or not
   @param _tier_whitelisted: Whether each tier incorporates a whitelist
   */
   function createCrowdsaleTiers(
-    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps,
+    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps, uint[] _tier_minimums,
     bool[] _tier_modifiable, bool[] _tier_whitelisted
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
@@ -493,7 +497,7 @@ library SaleManagerMock {
     // Execute function -
     ConfigureSaleMock.createCrowdsaleTiers(
       _tier_names, _tier_durations, _tier_prices,
-      _tier_caps, _tier_modifiable, _tier_whitelisted
+      _tier_caps, _tier_minimums, _tier_modifiable, _tier_whitelisted
     );
     // Ensures state change will only affect storage and events -
     Contract.checks(emitAndStore);

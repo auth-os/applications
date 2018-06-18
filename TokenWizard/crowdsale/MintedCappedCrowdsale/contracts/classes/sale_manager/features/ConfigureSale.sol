@@ -22,7 +22,7 @@ library ConfigureSale {
 
   // Checks input and then creates storage buffer to create sale tiers
   function createCrowdsaleTiers(
-    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps,
+    bytes32[] _tier_names, uint[] _tier_durations, uint[] _tier_prices, uint[] _tier_caps, uint[] _tier_minimums,
     bool[] _tier_modifiable, bool[] _tier_whitelisted
   ) internal view {
     // Ensure valid input
@@ -63,6 +63,8 @@ library ConfigureSale {
       Contract.set(SaleManager.tierPrice(num_tiers + i)).to(_tier_prices[i]);
       // Tier duration
       Contract.set(SaleManager.tierDuration(num_tiers + i)).to(_tier_durations[i]);
+      // Tier minimum purchase size
+      Contract.set(SaleManager.tierMin(num_tiers + i)).to(_tier_minimums[i]);
       // Tier duration modifiability status
       Contract.set(SaleManager.tierModifiable(num_tiers + i)).to(_tier_modifiable[i]);
       // Whether tier is whitelisted

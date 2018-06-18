@@ -184,6 +184,7 @@ contract('MintedCappedCrowdsale', function (accounts) {
       let initialPrice = web3.toWei('0.001', 'ether')
       let initialDuration = 3600
       let initialSellCap = web3.toWei('1000', 'ether')
+      let initialTierMin = 1000
       let isWhitelisted = true
       let isDurationModifiable = true
       let admin = execAdmin
@@ -193,7 +194,7 @@ contract('MintedCappedCrowdsale', function (accounts) {
 
         initCrowdsaleCalldata = await saleUtils.init.call(
           teamWallet, startTime, initialTierName, initialPrice,
-          initialDuration, initialSellCap, isWhitelisted, isDurationModifiable,
+          initialDuration, initialSellCap, initialTierMin, isWhitelisted, isDurationModifiable,
           admin
         ).should.be.fulfilled
         initCrowdsaleCalldata.should.not.eq('0x')
