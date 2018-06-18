@@ -52,7 +52,6 @@ contract('#MintableToken', function (accounts) {
   let saleSelectors
 
   let executionID
-  let adminContext
 
   let appName = 'MintedCappedCrowdsale'
 

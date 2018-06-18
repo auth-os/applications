@@ -244,7 +244,7 @@ library SaleManager {
     // Execute function -
     ConfigureSale.updateTierMinimum(_tier_index, _new_minimum);
     // Ensures state change will only affect storage -
-    Contract.checks(onlyStores);
+    Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
   }

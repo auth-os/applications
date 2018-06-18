@@ -69,7 +69,7 @@ library ConfigureSale {
       Contract.set(SaleManager.tierWhitelisted(num_tiers + i)).to(_tier_whitelisted[i]);
     }
     // Store new total crowdsale duration
-    Contract.increase(SaleManager.totalDuration()).by(durations_sum);
+    Contract.set(SaleManager.totalDuration()).to(durations_sum);
 
     // Set up EMITS action requests -
     Contract.emitting();
@@ -179,10 +179,10 @@ library ConfigureSale {
         revert("cannot modify tier after it has begun");
 
       // Loop over tiers in storage and increment end time -
-      for (uint i = current_tier; i < _tier_index; i++)
+      for (uint i = current_tier + 1; i < _tier_index; i++)
         cur_ends_at = cur_ends_at.add(uint(Contract.read(SaleManager.tierDuration(i))));
 
-      if (cur_ends_at >= now)
+      if (cur_ends_at < now)
         revert("cannot modify current tier");
     } else {
       // Not a valid state to update - throw
@@ -223,23 +223,21 @@ library ConfigureSale {
     // Ensure current tier to update has not already passed -
     if (current_tier > _tier_index)
       revert('tier has already completed');
-    if (_tier_index == 0 && now >= starts_at)
-      revert('cannot modify initial tier once sale has started');
-    if (_tier_index <= current_tier)
-      revert('cannot update tier');
 
-    // If the tier to update is not tier 0, loop over tiers and ensure tier has not started -
-    if (_tier_index != 0 && _tier_index <= current_tier) {
+    if (_tier_index == 0) {
+      if (now >= starts_at)
+        revert('cannot modify initial tier once sale has started');
+    } else if (_tier_index != 0 && _tier_index > current_tier) {
       // If the end time has passed, and we are trying to update the next tier, the tier
       // is already in progress and cannot be updated
       if (_tier_index - current_tier == 1 && now >= cur_ends_at)
         revert("cannot modify tier after it has begun");
 
       // Loop over tiers in storage and increment end time -
-      for (uint i = current_tier; i < _tier_index; i++)
+      for (uint i = current_tier + 1; i < _tier_index; i++)
         cur_ends_at = cur_ends_at.add(uint(Contract.read(SaleManager.tierDuration(i))));
 
-      if (cur_ends_at >= now)
+      if (cur_ends_at < now)
         revert("cannot modify current tier");
     } else {
       // Not a valid state to update - throw
