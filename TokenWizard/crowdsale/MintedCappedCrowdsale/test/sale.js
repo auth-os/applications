@@ -30,7 +30,7 @@
 //   return web3.toAscii(hex).substring(0, expected.length) == expected;
 // }
 //
-// contract('#MintedCappedBuyTokens', function (accounts) {
+// contract('#MintedCappedSale', function (accounts) {
 //
 //   let storage
 //   let testUtils

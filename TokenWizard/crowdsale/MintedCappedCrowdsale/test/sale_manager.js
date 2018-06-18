@@ -26,7 +26,7 @@ function hexStrEquals(hex, expected) {
   return web3.toAscii(hex).substring(0, expected.length) == expected;
 }
 
-contract('#MintedCappedCrowdsaleConsole', function (accounts) {
+contract('#MintedCappedSaleManager', function (accounts) {
 
   let storage
 

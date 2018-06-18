@@ -25,6 +25,10 @@ library TokenMock {
   function tokensSold() internal pure returns (bytes32)
     { return keccak256("sale_tokens_sold"); }
 
+  // Storage location for token totalSupply
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
+
   // Returns the storage location for the unlock status of the token
   function tokensUnlocked() internal pure returns (bytes32)
     { return keccak256('sale_tokens_unlocked'); }
@@ -55,6 +59,7 @@ library TokenMock {
     Contract.authorize(msg.sender);
     Contract.storing();
     Contract.set(tokensSold()).to(_sold);
+    Contract.set(tokenTotalSupply()).to(_sold);
     Contract.commit();
   }
 }
