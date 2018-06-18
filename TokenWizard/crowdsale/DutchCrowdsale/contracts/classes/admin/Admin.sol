@@ -41,9 +41,9 @@ library Admin {
   function saleWhitelist() internal pure returns (bytes32)
     { return keccak256("sale_whitelist"); }
 
-  // Stores a spender's maximum wei spend amount
-  function whitelistMaxWei(address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", saleWhitelist()); }
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", saleWhitelist()); }
 
   // Stores a spender's minimum token purchase amount
   function whitelistMinTok(address _spender) internal pure returns (bytes32)

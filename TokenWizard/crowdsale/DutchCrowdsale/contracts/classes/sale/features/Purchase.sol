@@ -44,7 +44,7 @@ library Purchase {
   	  current_rate,
   	  uint(Contract.read(Sale.tokensRemaining())),
   	  sale_is_whitelisted,
-  	  uint(Contract.read(Sale.whitelistMaxWei(Contract.sender()))),
+  	  uint(Contract.read(Sale.whitelistMaxTok(Contract.sender()))),
   	  min_contribution
   	);
     // Sanity checks -
@@ -80,7 +80,7 @@ library Purchase {
     // If the sale is whitelisted, update the spender's whitelist information -
 	  if (sale_is_whitelisted) {
 	    Contract.set(Sale.whitelistMinTok(Contract.sender())).to(uint(0));
-      Contract.decrease(Sale.whitelistMaxWei(Contract.sender())).by(spend_amount);
+      Contract.decrease(Sale.whitelistMaxTok(Contract.sender())).by(tokens_purchased);
 	  }
 
   	Contract.emitting();
@@ -123,7 +123,7 @@ library Purchase {
   // Calculates amount to spend, amount left able to be spent, and number of tokens purchased
   function getPurchaseInfo(
   	uint _decimals, uint _current_rate, uint _tokens_remaining,
-  	bool _sale_whitelisted,	uint _wei_spend_remaining, uint _min_purchase_amount
+  	bool _sale_whitelisted,	uint _token_spend_remaining, uint _min_purchase_amount
   ) internal view returns (uint spend_amount, uint tokens_purchased) {
   	// Get amount of wei able to be spent, given the number of tokens remaining -
     if (msg.value.mul(10 ** _decimals).div(_current_rate) > _tokens_remaining)
@@ -131,16 +131,18 @@ library Purchase {
     else
       spend_amount = msg.value;
 
-    // If the sale is whitelisted, ensure the sender is not going over their spend cap -
-    if (_sale_whitelisted && spend_amount > _wei_spend_remaining)
-      spend_amount = _wei_spend_remaining;
+    // Get number of tokens able to be purchased with the amount spent -
+    tokens_purchased = spend_amount.mul(10 ** _decimals).div(_current_rate);
+
+    // If the sale is whitelisted, adjust purchase size so that it does not go over the user's max cap -
+    if (_sale_whitelisted && tokens_purchased > _token_spend_remaining) {
+      tokens_purchased = _token_spend_remaining;
+      spend_amount = tokens_purchased.mul(_current_rate).div(10 ** _decimals);
+    }
 
     // Ensure spend amount is valid -
     if (spend_amount == 0 || spend_amount > msg.value)
       revert("Invalid spend amount");
-
-    // Get number of tokens able to be purchased with the amount spent -
-    tokens_purchased = spend_amount.mul(10 ** _decimals).div(_current_rate);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in the sale -
     if (tokens_purchased > _tokens_remaining || tokens_purchased == 0)

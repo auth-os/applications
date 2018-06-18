@@ -99,7 +99,7 @@ contract AdminProxy is IAdmin, SaleProxy {
 
   @param _buyer: The address about which the whitelist information will be retrieved
   @return uint: The minimum number of tokens the buyer must make during the sale
-  @return uint: The maximum amount of wei allowed to be spent by the buyer
+  @return uint: The maximum amount of tokens allowed to be purchased by the buyer
   */
   function getWhitelistStatus(address _buyer) external view returns (uint, uint) {
     return AdminIdx(app_index).getWhitelistStatus(app_storage, app_exec_id, _buyer);

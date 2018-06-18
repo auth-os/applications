@@ -147,6 +147,38 @@ contract StorageMock {
       address(msg.sender).transfer(address(this).balance);
   }
 
+  // MOCK FUNCTION
+  function execMock(address _sender, bytes32 _exec_id, bytes _calldata) external payable returns (bytes memory) {
+    // Ensure valid input and input size - minimum 4 bytes
+    require(_calldata.length >= 4 && _sender != address(0) && _exec_id != bytes32(0));
+
+    // Get the target address associated with the given exec id
+    address target = getTarget(_exec_id, getSelector(_calldata));
+    require(target != address(0), 'Uninitialized application');
+
+    // Set the exec id and sender addresses for the target application -
+    setContext(_exec_id, _sender);
+
+    // Execute application and commit returned data to storage -
+    require(address(target).delegatecall(_calldata) == false, 'Unsafe execution');
+    bytes memory ret;
+    assembly {
+      ret := mload(0x40)
+      returndatacopy(add(0x20, ret), 0, returndatasize)
+      mstore(ret, returndatasize)
+      mstore(0x40, add(add(0x20, ret), returndatasize))
+    }
+
+    // Emit event -
+    emit ApplicationExecution(_exec_id, target);
+
+    // Ensure that any additional balance is transferred back to the sender -
+    if (address(this).balance > 0)
+      address(msg.sender).transfer(address(this).balance);
+
+    return ret;
+  }
+
   /// APPLICATION RETURNDATA HANDLING ///
 
   /*

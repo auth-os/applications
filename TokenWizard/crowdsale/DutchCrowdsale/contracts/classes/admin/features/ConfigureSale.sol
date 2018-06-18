@@ -62,12 +62,12 @@ library ConfigureSale {
 
   // Checks input and creates storage buffer to update sale whitelist
   function whitelistMulti(
-    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_token_purchase
   ) internal view {
     //Ensure valid input
     if (
       _to_whitelist.length != _min_token_purchase.length ||
-      _to_whitelist.length != _max_wei_spend.length ||
+      _to_whitelist.length != _max_token_purchase.length ||
       _to_whitelist.length == 0
     ) revert("Mismatched input lengths");
 
@@ -80,13 +80,13 @@ library ConfigureSale {
     for (uint i = 0; i < _to_whitelist.length; i++) {
       // Get storage location for address[i]
       Contract.set(Admin.whitelistMinTok(_to_whitelist[i])).to(_min_token_purchase[i]);
-      Contract.set(Admin.whitelistMaxWei(_to_whitelist[i])).to(_max_wei_spend[i]);
+      Contract.set(Admin.whitelistMaxTok(_to_whitelist[i])).to(_max_token_purchase[i]);
 
       // If the whitelist address does not currently exist in storage, push them to the
       // sale's whitelist array
       if (
         Contract.read(Admin.whitelistMinTok(_to_whitelist[i])) == 0 &&
-        Contract.read(Admin.whitelistMaxWei(_to_whitelist[i])) == 0
+        Contract.read(Admin.whitelistMaxTok(_to_whitelist[i])) == 0
       ) {
         Contract.set(
           bytes32(32 + (32 * sale_whitelist_len) + uint(Admin.saleWhitelist()))

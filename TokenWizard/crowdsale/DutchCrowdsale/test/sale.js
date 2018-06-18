@@ -492,11 +492,8 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
 
       // Each whitelisted address must purchase minimum 10 tokens initially
       let purchaserMinimums = [10, 10, 10]
-      // Maximum amounts each address may spend (wei) over the course of the sale:
-      // The first address may purchase 100 tokens immediately
-      // The second address may only purchase 1 token (if they buy immediately)
-      // The third address must wait until the endPrice of 100 is reached (10 * 100 is their maximum of 1000)
-      let purchaserMaximums = [100000, 10000, 1000]
+      // Maximum amounts each address may purchase (tokens) over the course of the sale:
+      let purchaserMaximums = [1000, 100, 9]
 
       beforeEach(async () => {
         let whitelistCalldata = await saleUtils.whitelistMulti.call(
@@ -961,7 +958,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               ).should.be.fulfilled
               whitelistInfo.length.should.be.eq(2)
               whitelistInfo[0].toNumber().should.be.eq(0)
-              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[0] - initialSpends[0])
+              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[0] - (initialSpends[0] / startPrice))
             })
 
             it('should correctly update the second purchaser\'s whitelist information', async () => {
@@ -970,7 +967,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               ).should.be.fulfilled
               whitelistInfo.length.should.be.eq(2)
               whitelistInfo[0].toNumber().should.be.eq(0)
-              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - initialSpends[1])
+              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - (initialSpends[1] / startPrice))
             })
 
             it('should not update the third purchaser\'s whitelist information', async () => {
@@ -988,16 +985,6 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               storage.address, executionID
             ).should.be.fulfilled
             supplyInfo.toNumber().should.be.eq(totalSupply)
-          })
-        })
-
-        context('sender spent exactly their maximum spend amount', async () => {
-
-          it('should disallow further purchases from the same sender', async () => {
-            await storage.exec(
-              purchaserList[1], executionID, purchaseCalldata,
-              { from: exec, value: startPrice }
-            ).should.not.be.fulfilled
           })
         })
 
@@ -1032,8 +1019,8 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
 
           beforeEach(async () => {
 
-            newSpendAmount = startPrice + (purchaserMaximums[0] - initialSpends[0])
-            maxSpendAmount = (purchaserMaximums[0] - initialSpends[0])
+            newSpendAmount = startPrice + (startPrice * (purchaserMaximums[0] - (initialSpends[0] / startPrice)))
+            maxSpendAmount = startPrice * (purchaserMaximums[0] - (initialSpends[0] / startPrice))
 
             newSpendReturn = await storage.exec.call(
               purchaserList[0], executionID, purchaseCalldata,
@@ -1228,7 +1215,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
                 ).should.be.fulfilled
                 whitelistInfo.length.should.be.eq(2)
                 whitelistInfo[0].toNumber().should.be.eq(0)
-                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - initialSpends[1])
+                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - (initialSpends[1] / startPrice))
               })
 
               it('should not have updated the third purchaser\'s whitelist information', async () => {
@@ -1255,78 +1242,6 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               { from: exec, value: startPrice }
             ).should.not.be.fulfilled
           })
-        })
-      })
-
-      describe('sender cannot buy immediately', async () => {
-
-        let newMinimum = 5
-
-        let invalidPurchaseAmount
-        let invalidPurchaseTime
-        let invalidCalldata
-        let invalidEvent
-
-        let validPurchaseAmount
-        let validPurchaseTime
-        let purchaseCalldata
-        let purchaseEvent
-
-        beforeEach(async () => {
-          purchaseCalldata = await saleUtils.buy.call().should.be.fulfilled
-          purchaseCalldata.should.not.eq('0x0')
-
-          let whitelistCalldata = await saleUtils.whitelistMulti.call(
-            [purchaserList[2]], [newMinimum], [purchaserMaximums[2]]
-          ).should.be.fulfilled
-          whitelistCalldata.should.not.eq('0x')
-
-          let events = await storage.exec(
-            crowdsaleAdmin, executionID, whitelistCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(1)
-          events[0].event.should.be.eq('ApplicationExecution')
-
-          invalidPurchaseAmount = purchaserMaximums[2]
-          invalidPurchaseTime = startTime
-
-          validPurchaseAmount = purchaserMaximums[2]
-          validPurchaseTime = startTime + (0.9 * duration)
-
-          // Fast-forward to valid purchase time
-          await storage.setTime(validPurchaseTime).should.be.fulfilled
-          storedTime = await storage.set_time.call().should.be.fulfilled
-          storedTime.toNumber().should.be.eq(validPurchaseTime)
-
-          events = await storage.exec(
-            purchaserList[2], executionID, purchaseCalldata,
-            { from: exec, value: validPurchaseAmount }
-          ).then((tx) => {
-            return tx.logs
-          })
-          events.should.not.eq(null)
-          events.length.should.be.eq(2)
-          events[1].event.should.be.eq('ApplicationExecution')
-          purchaseEvent = events[0]
-        })
-
-        it('should disallow the first purchase', async () => {
-          await storage.setTime(invalidPurchaseTime).should.be.fulfilled
-          let storedTime = await storage.set_time.call().should.be.fulfilled
-          storedTime.toNumber().should.be.eq(invalidPurchaseTime)
-
-          await storage.exec(
-            purchaserList[2], executionID, purchaseCalldata,
-            { from: exec, value: invalidPurchaseAmount }
-          ).should.not.be.fulfilled
-        })
-
-        it('should allow the second purchase', async () => {
-          purchaseEvent.event.should.be.eq('DeliveredPayment')
         })
       })
     })
