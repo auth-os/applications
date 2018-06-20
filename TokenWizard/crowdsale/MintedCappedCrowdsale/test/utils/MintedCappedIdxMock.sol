@@ -126,9 +126,9 @@ contract MintedCappedIdxMock {
   function tierWhitelist(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "tier_whitelists"); }
 
-  // Stores a spender's maximum wei spend amount for a given whitelisted tier
-  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", tierWhitelist(_idx)); }
 
   // Stores a spender's minimum token purchase amount for a given whitelisted tier
   function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)
@@ -620,7 +620,7 @@ contract MintedCappedIdxMock {
     // Push whitelist minimum contribution location to buffer
     arr_indices[0] = whitelistMinTok(_tier_index, _buyer);
     // Push whitlist maximum spend amount remaining location to buffer
-    arr_indices[1] = whitelistMaxWei(_tier_index, _buyer);
+    arr_indices[1] = whitelistMaxTok(_tier_index, _buyer);
 
     // Read from storage and return
     uint[] memory read_values = target.readMulti(_exec_id, arr_indices).toUintArr();

@@ -45,7 +45,7 @@ library Purchase {
           uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
-          uint(Contract.read(Sale.whitelistMaxWei(current_tier, Contract.sender()))),
+          uint(Contract.read(Sale.whitelistMaxTok(current_tier, Contract.sender()))),
           0,
           tier_is_whitelisted
         );
@@ -54,7 +54,7 @@ library Purchase {
           uint(Contract.read(Sale.tokenDecimals())),
           purchase_price,
           tokens_remaining,
-          uint(Contract.read(Sale.whitelistMaxWei(current_tier, Contract.sender()))),
+          uint(Contract.read(Sale.whitelistMaxTok(current_tier, Contract.sender()))),
           uint(Contract.read(Sale.whitelistMinTok(current_tier, Contract.sender()))),
           tier_is_whitelisted
         );
@@ -122,8 +122,8 @@ library Purchase {
       ).to(uint(0));
       // Decrease maximum spend amount remaining by amount spent
       Contract.decrease(
-        Sale.whitelistMaxWei(current_tier, Contract.sender())
-      ).by(amount_spent);
+        Sale.whitelistMaxTok(current_tier, Contract.sender())
+      ).by(amount_purchased);
     }
 
     // If the 'current tier' needs to be updated, set storage 'current tier' information -
@@ -235,32 +235,28 @@ library Purchase {
     uint _token_decimals,
     uint _purchase_price,
     uint _tokens_remaining,
-    uint _maximum_spend_amount,
+    uint _max_purchase_amount,
     uint _minimum_purchase_amount,
     bool _tier_is_whitelisted
   ) private view returns (uint amount_spent, uint amount_purchased) {
     // Get amount of wei able to be spent, given the number of tokens remaining -
-    if (msg.value.mul(10 ** _token_decimals).div(_purchase_price) >= _tokens_remaining) {
-      // wei sent is able to purchase more tokens than are remaining in this tier -
-      amount_spent =
-        _purchase_price.mul(_tokens_remaining).div(10 ** _token_decimals);
-    } else {
-      // All of the wei sent can be used to purchase tokens
+    if (msg.value.mul(10 ** _token_decimals).div(_purchase_price) > _tokens_remaining)
+      amount_spent = _purchase_price.mul(_tokens_remaining).div(10 ** _token_decimals);
+    else
       amount_spent = msg.value;
-    }
 
-    // If the current tier is whitelisted, the sender has a maximum wei contribution cap.
-    // If amount spent exceeds this cap, adjust amount spent -
-    if (_tier_is_whitelisted && amount_spent > _maximum_spend_amount)
-      amount_spent = _maximum_spend_amount;
+    // Get number of tokens able to be purchased with the amount spent -
+    amount_purchased = amount_spent.mul(10 ** _token_decimals).div(_purchase_price);
+
+    // If the current tier is whitelisted -
+    if (_tier_is_whitelisted && amount_purchased > _max_purchase_amount) {
+      amount_purchased = _max_purchase_amount;
+      amount_spent = amount_purchased.mul(_purchase_price).div(10 ** _token_decimals);
+    }
 
     // Ensure spend amount is valid -
     if (amount_spent == 0 || amount_spent > msg.value)
       revert('invalid spend amount');
-
-    // Get number of tokens able to be purchased with the amount spent -
-    amount_purchased =
-      amount_spent.mul(10 ** _token_decimals).div(_purchase_price);
 
     // Ensure amount of tokens to purchase is not greater than the amount of tokens remaining in this tier -
     if (amount_purchased > _tokens_remaining || amount_purchased == 0)

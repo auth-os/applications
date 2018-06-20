@@ -84,12 +84,12 @@ library ConfigureSale {
 
   // Checks input and then creates storage buffer to whitelist addresses
   function whitelistMultiForTier(
-    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_purchase_amt
   ) internal view {
     // Ensure valid input
     if (
       _to_whitelist.length != _min_token_purchase.length
-      || _to_whitelist.length != _max_wei_spend.length
+      || _to_whitelist.length != _max_purchase_amt.length
       || _to_whitelist.length == 0
     ) revert("mismatched input lengths");
 
@@ -105,16 +105,16 @@ library ConfigureSale {
       Contract.set(
         SaleManager.whitelistMinTok(_tier_index, _to_whitelist[i])
       ).to(_min_token_purchase[i]);
-      // Store user maximum wei spend amount
+      // Store user maximum token purchase amount
       Contract.set(
-        SaleManager.whitelistMaxWei(_tier_index, _to_whitelist[i])
-      ).to(_max_wei_spend[i]);
+        SaleManager.whitelistMaxTok(_tier_index, _to_whitelist[i])
+      ).to(_max_purchase_amt[i]);
 
       // If the user does not currently have whitelist information in storage,
       // push them to the sale's whitelist array
       if (
         Contract.read(SaleManager.whitelistMinTok(_tier_index, _to_whitelist[i])) == 0 &&
-        Contract.read(SaleManager.whitelistMaxWei(_tier_index, _to_whitelist[i])) == 0
+        Contract.read(SaleManager.whitelistMaxTok(_tier_index, _to_whitelist[i])) == 0
       ) {
         Contract.set(
           bytes32(32 + (32 * tier_whitelist_length) + uint(SaleManager.tierWhitelist(_tier_index)))

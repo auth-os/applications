@@ -112,13 +112,13 @@ library MintedCappedIdx {
   function tierWhitelist(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "tier_whitelists"); }
 
-  // Stores a spender's maximum wei spend amount for a given whitelisted tier
-  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
-
   // Stores a spender's minimum token purchase amount for a given whitelisted tier
   function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)
     { return keccak256(_spender, "min_tok", tierWhitelist(_idx)); }
+
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", tierWhitelist(_idx)); }
 
   /// TOKEN ///
 
@@ -596,17 +596,17 @@ library MintedCappedIdx {
   @param _tier_index: The index of the tier about which the whitelist information will be pulled
   @param _buyer: The address of the user whose whitelist status will be returned
   @return minimum_purchase_amt: The minimum ammount of tokens the buyer must purchase
-  @return max_spend_remaining: The maximum amount of wei able to be spent by the buyer during this tier
+  @return max_purchase_remaining: The maximum amount of tokens able to be purchased by the user in this tier
   */
   function getWhitelistStatus(address _storage, bytes32 _exec_id, uint _tier_index, address _buyer) external view
-  returns (uint minimum_purchase_amt, uint max_spend_remaining) {
+  returns (uint minimum_purchase_amt, uint max_purchase_remaining) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](2);
     // Push whitelist minimum contribution location to buffer
     arr_indices[0] = whitelistMinTok(_tier_index, _buyer);
     // Push whitlist maximum spend amount remaining location to buffer
-    arr_indices[1] = whitelistMaxWei(_tier_index, _buyer);
+    arr_indices[1] = whitelistMaxTok(_tier_index, _buyer);
 
     // Read from storage and return
     uint[] memory read_values = target.readMulti(_exec_id, arr_indices).toUintArr();
@@ -614,7 +614,7 @@ library MintedCappedIdx {
     assert(read_values.length == 2);
 
     minimum_purchase_amt = read_values[0];
-    max_spend_remaining = read_values[1];
+    max_purchase_remaining = read_values[1];
   }
 
   /*

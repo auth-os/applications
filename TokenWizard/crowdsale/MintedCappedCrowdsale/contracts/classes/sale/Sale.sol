@@ -87,9 +87,9 @@ library Sale {
   function tierWhitelist(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "tier_whitelists"); }
 
-  // Stores a spender's maximum wei spend amount for a given whitelisted tier
-  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", tierWhitelist(_idx)); }
 
   // Stores a spender's minimum token purchase amount for a given whitelisted tier
   function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)

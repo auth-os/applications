@@ -85,12 +85,12 @@ library ConfigureSaleMock {
 
   // Checks input and then creates storage buffer to whitelist addresses
   function whitelistMultiForTier(
-    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_purchase_amt
   ) internal view {
     // Ensure valid input
     if (
       _to_whitelist.length != _min_token_purchase.length
-      || _to_whitelist.length != _max_wei_spend.length
+      || _to_whitelist.length != _max_purchase_amt.length
       || _to_whitelist.length == 0
     ) revert("mismatched input lengths");
 
@@ -106,16 +106,16 @@ library ConfigureSaleMock {
       Contract.set(
         SaleManagerMock.whitelistMinTok(_tier_index, _to_whitelist[i])
       ).to(_min_token_purchase[i]);
-      // Store user maximum wei spend amount
+      // Store user maximum token purchase amount
       Contract.set(
-        SaleManagerMock.whitelistMaxWei(_tier_index, _to_whitelist[i])
-      ).to(_max_wei_spend[i]);
+        SaleManagerMock.whitelistMaxTok(_tier_index, _to_whitelist[i])
+      ).to(_max_purchase_amt[i]);
 
       // If the user does not currently have whitelist information in storage,
       // push them to the sale's whitelist array
       if (
         Contract.read(SaleManagerMock.whitelistMinTok(_tier_index, _to_whitelist[i])) == 0 &&
-        Contract.read(SaleManagerMock.whitelistMaxWei(_tier_index, _to_whitelist[i])) == 0
+        Contract.read(SaleManagerMock.whitelistMaxTok(_tier_index, _to_whitelist[i])) == 0
       ) {
         Contract.set(
           bytes32(32 + (32 * tier_whitelist_length) + uint(SaleManagerMock.tierWhitelist(_tier_index)))
@@ -396,9 +396,9 @@ library SaleManagerMock {
   function tierWhitelist(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "tier_whitelists"); }
 
-  // Stores a spender's maximum wei spend amount for a given whitelisted tier
-  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", tierWhitelist(_idx)); }
 
   // Stores a spender's minimum token purchase amount for a given whitelisted tier
   function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)
@@ -511,10 +511,10 @@ library SaleManagerMock {
   @param _tier_index: The index of the tier for which the whitelist will be updated
   @param _to_whitelist: An array of addresses that will be whitelisted
   @param _min_token_purchase: Each address' minimum purchase amount
-  @param _max_wei_spend: Each address' maximum wei spend amount
+  @param _max_purchase_amt: Each address' maximum purchase amount
   */
   function whitelistMultiForTier(
-    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_purchase_amt
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
@@ -522,7 +522,7 @@ library SaleManagerMock {
     Contract.checks(onlyAdmin);
     // Execute function -
     ConfigureSaleMock.whitelistMultiForTier(
-      _tier_index, _to_whitelist, _min_token_purchase, _max_wei_spend
+      _tier_index, _to_whitelist, _min_token_purchase, _max_purchase_amt
     );
     // Ensures state change will only affect storage -
     Contract.checks(onlyStores);

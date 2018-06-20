@@ -78,9 +78,9 @@ library SaleManager {
   function tierWhitelist(uint _idx) internal pure returns (bytes32)
     { return keccak256(_idx, "tier_whitelists"); }
 
-  // Stores a spender's maximum wei spend amount for a given whitelisted tier
-  function whitelistMaxWei(uint _idx, address _spender) internal pure returns (bytes32)
-    { return keccak256(_spender, "max_wei", tierWhitelist(_idx)); }
+  // Stores a spender's maximum number of tokens allowed to be purchased
+  function whitelistMaxTok(uint _idx, address _spender) internal pure returns (bytes32)
+    { return keccak256(_spender, "max_tok", tierWhitelist(_idx)); }
 
   // Stores a spender's minimum token purchase amount for a given whitelisted tier
   function whitelistMinTok(uint _idx, address _spender) internal pure returns (bytes32)
@@ -193,10 +193,10 @@ library SaleManager {
   @param _tier_index: The index of the tier for which the whitelist will be updated
   @param _to_whitelist: An array of addresses that will be whitelisted
   @param _min_token_purchase: Each address' minimum purchase amount
-  @param _max_wei_spend: Each address' maximum wei spend amount
+  @param _max_purchase_amt: Each address' maximum purchase amount
   */
   function whitelistMultiForTier(
-    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    uint _tier_index, address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_purchase_amt
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
@@ -204,7 +204,7 @@ library SaleManager {
     Contract.checks(onlyAdmin);
     // Execute function -
     ConfigureSale.whitelistMultiForTier(
-      _tier_index, _to_whitelist, _min_token_purchase, _max_wei_spend
+      _tier_index, _to_whitelist, _min_token_purchase, _max_purchase_amt
     );
     // Ensures state change will only affect storage -
     Contract.checks(onlyStores);
