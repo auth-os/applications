@@ -373,10 +373,10 @@ library MintedCappedIdx {
   @return tier_price: The price of each token purchased this tier, in wei
   @return tier_min: The minimum amount of tokens that much be purchased by an investor this tier
   @return duration_is_modifiable: Whether the crowdsale admin can update the duration of this tier before it starts
-  @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
+  @return is_whitelisted: Whether an address must be whitelisted to participate in this tier
   */
   function getCurrentTierInfo(address _storage, bytes32 _exec_id) external view
-  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, uint tier_min, bool duration_is_modifiable, bool whitelist_enabled) {
+  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, uint tier_min, bool duration_is_modifiable, bool is_whitelisted) {
 
     bytes32[] memory initial_arr = new bytes32[](4);
     // Push current tier expiration time, current tier index, and current tier tokens remaining storage locations to calldata buffer
@@ -426,7 +426,7 @@ library MintedCappedIdx {
     tier_name = bytes32(read_values[0]);
     tier_price = read_values[1];
     duration_is_modifiable = (read_values[2] == 0 ? false : true);
-    whitelist_enabled = (read_values[3] == 0 ? false : true);
+    is_whitelisted = (read_values[3] == 0 ? false : true);
     tier_min = read_values[4];
   }
 
@@ -442,10 +442,10 @@ library MintedCappedIdx {
   @return tier_min: The minimum amount of tokens that much be purchased by an investor this tier
   @return tier_duration: The duration of the given tier
   @return duration_is_modifiable: Whether the crowdsale admin can change the duration of this tier prior to its start time
-  @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
+  @return is_whitelisted: Whether an address must be whitelisted to participate in this tier
   */
   function getCrowdsaleTier(address _storage, bytes32 _exec_id, uint _index) external view
-  returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_min, uint tier_duration, bool duration_is_modifiable, bool whitelist_enabled) {
+  returns (bytes32 tier_name, uint tier_sell_cap, uint tier_price, uint tier_min, uint tier_duration, bool duration_is_modifiable, bool is_whitelisted) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](7);
@@ -468,7 +468,7 @@ library MintedCappedIdx {
     tier_price = uint(read_values[2]);
     tier_duration = uint(read_values[3]);
     duration_is_modifiable = (read_values[4] == 0 ? false : true);
-    whitelist_enabled = (read_values[5] == 0 ? false : true);
+    is_whitelisted = (read_values[5] == 0 ? false : true);
     tier_min = uint(read_values[6]);
   }
 
