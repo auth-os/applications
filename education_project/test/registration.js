@@ -217,9 +217,23 @@ contract('#TestRegistryInit', function(accounts) {
 
       })
 
-      it('', async () => {
+      describe('#getTestVersions', async () => {
+        let testVersions
+
+        beforeEach(async () => {
+          testVersions = await testIdx.getTestVersions.call(storage.address, executionID, name).should.be.fulfilled
+        })
+
+        it('should return 1 test version', async () => {
+          testVersions.length.should.be.eq(1)
+        })
+
+        it('should return the initial version', async () => {
+          testVersions[0].should.be.eq(initial)
+        })
 
       })
+
 
     })
 
