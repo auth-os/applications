@@ -155,7 +155,8 @@ contract('#TestRegistryInit', function(accounts) {
 
   describe('#registerTest', async () => {
 
-    let name = 'Test'
+    // The hash of 'Test'
+    let name = web3.sha3('Test') 
     // FIXME - This test should eventually use real test versions
     let initial
 
@@ -227,7 +228,7 @@ contract('#TestRegistryInit', function(accounts) {
 
     })
 
-    describe('valid registration', async () => {
+    describe('the valid registration', async () => {
 
       let events
       
@@ -260,7 +261,7 @@ contract('#TestRegistryInit', function(accounts) {
         })
 
         it('should return the test that was registered', async () => {
-          hexStrEquals(registeredTests[0], 'Test')
+          registeredTests[0].should.be.eq(name)
         })
 
       })
@@ -298,149 +299,97 @@ contract('#TestRegistryInit', function(accounts) {
 
       })
 
-      describe('multiple registration', async () => {
+    })
 
-        describe('with the same test name', async () => {
+    describe('multiple registration', async () => {
 
-          let invalidCalldata
+      let events
+      let calldata
 
-          beforeEach(async () => {
-            let invalidCalldata = await testUtils.registerTest.call(name, exec).should.be.fulfilled 
-          })
+      before(async () => {
 
-          it('should throw', async () => {
-            await storage.exec(
-              exec, executionID, invalidCalldata,
-              { from: exec }
-            ).should.not.be.fulfilled
-          })
+        calldata = await testUtils.registerTest.call(name, initial).should.be.fulfilled
+        calldata.should.not.eq('0x')
 
+        events = await storage.exec(
+          exec, executionID, calldata,
+          { from: exec }
+        ).should.be.fulfilled.then((tx) => {
+          return tx.logs
+        })
+        events.length.should.be.eq(1)
+        events[0].event.should.be.eq('ApplicationExecution')
+      })
+
+      describe('with the same test name', async () => {
+
+        let invalidCalldata
+
+        beforeEach(async () => {
+          let invalidCalldata = await testUtils.registerTest.call(name, exec).should.be.fulfilled 
         })
 
-        describe('with the same initial address', async () => {
-
-          let cd 
-          let _events
-          let otherName = web3.sha3('Test2')
-
-          beforeEach(async () => {
-            let cd = await testUtils.registerTest.call(otherName, initial).should.be.fulfilled 
-
-            _events = await storage.exec(
-              exec, executionID, cd,
-              { from: exec }
-            ).should.be.fulfilled.then((tx) => {
-              return tx.logs
-            })
-            _events.length.should.be.eq(1)
-          })
-
-          it('should emit an ApplicationExecution event', async () => {
-            _events[0].event.should.be.eq('ApplicationExecution')
-          })
-
+        it('should throw', async () => {
+          await storage.exec(
+            exec, executionID, calldata,
+            { from: exec }
+          ).should.not.be.fulfilled
         })
 
-        describe('with the same test name and initial address', async () => {
+      })
 
-          let invalidCalldata
+      describe('with the same initial address', async () => {
 
-          beforeEach(async () => {
-            let invalidCalldata = await testUtils.registerTest.call(name, initial).should.be.fulfilled 
-          })
+        let cd 
+        let _events
+        let otherName = web3.sha3('Test2')
 
-          it('should throw', async () => {
-            await storage.exec(
-              exec, executionID, invalidCalldata,
-              { from: exec }
-            ).should.not.be.fulfilled
-          })
+        beforeEach(async () => {
+          let cd = await testUtils.registerTest.call(otherName, initial).should.be.fulfilled 
 
+          _events = await storage.exec(
+            exec, executionID, calldata,
+            { from: exec }
+          ).should.be.fulfilled
+          _events.length.should.be.eq(1)
         })
 
-        describe('with new information', async () => {
-          
-          let cd 
-          let _events
-          let otherInitial = exec
-          let otherName = web3.sha3('Test3')
-          
-          before(async () => {
-            let cd = await testUtils.registerTest.call(otherName, otherInitial).should.be.fulfilled 
-
-            _events = await storage.exec(
-              exec, executionID, cd,
-              { from: exec }
-            ).should.be.fulfilled.then((tx) => {
-              return tx.logs
-            })
-            _events.length.should.be.eq(1)
-          })
-
-          it('should emit an ApplicationExecution event', async () => {
-            _events[0].event.should.be.eq('ApplicationExecution')
-          })
-
-          describe('#getRegisteredTests', async() => {
-            let registeredTests
-
-            beforeEach(async() => {
-              registeredTests = await testIdx.getRegisteredTests.call(storage.address, executionID).should.be.fulfilled
-            })
-
-            it('should return 3 registered tests', async () => {
-              registeredTests.length.should.be.eq(3)
-            })
-
-            it('should return the correct first test', async () => {
-              hexStrEquals(registeredTests[0], 'Test')
-            })
-
-            it('should return the correct second test', async () => {
-              hexStrEquals(registeredTests[1], 'Test2')
-            })
-
-            it('should return the correct first test', async () => {
-              hexStrEquals(registeredTests[2], 'Test3')
-            })
-
-          })
-
+        it('should emit an ApplicationExecution event', async () => {
+          _events[0].event.should.be.eq('ApplicationExecution')
         })
+
+      })
+
+      describe('with the same test name and initial address', async () => {
+
+        let invalidCalldata
+
+        beforeEach(async () => {
+          let invalidCalldata = calldata
+        })
+
+        it('should throw', async () => {
+          await storage.exec(
+            exec, executionID, invalidCalldata,
+            { from: exec }
+          ).should.not.be.fulfilled
+        })
+
+      })
+
+      describe('with new information', async () => {
+        
+        let cd 
+        let otherInitial = exec
+        let otherName = web3.sha3('Test2')
+        
 
 
       })
+
+
     })
 
-
-
-  })
-
-  describe('#registerVersion', async () => {
-
-    let test = 'Test'
-    let version
-
-    before(async () => {
-      // Get valid init calldata
-      initCalldata = await testUtils.init.call().should.be.fulfilled
-      initCalldata.should.not.be.eq('0x')
-      events = await storage.createInstance(
-        exec, appName, exec, regExecID, initCalldata,
-        { from: exec }
-      ).should.be.fulfilled.then((tx) => {
-        return tx.logs
-      })
-      events.should.not.eq(null)
-      events.length.should.be.eq(1)
-      initEvent = events[0]
-      executionID = events[0].args['execution_id']
-      web3.toDecimal(executionID).should.not.eq(0)
-    })
-
-    describe('', async () => {
-
-    })
 
   })
   
