@@ -17,8 +17,8 @@ contract TestRegistryUtils {
   }
 
   // Selectors
-  function registerTest(bytes32, address, bytes memory) public pure returns (bytes) { return msg.data; } 
-  function registerVersion(bytes32, address, bytes memory) public pure returns (bytes) { return msg.data; } 
+  function registerTest(bytes32, address) public pure returns (bytes) { return msg.data; } 
+  function registerVersion(bytes32, address) public pure returns (bytes) { return msg.data; } 
   function updateTestCompletion(address, bytes32) public pure returns (bytes) { return msg.data; } 
   function updateVersionCompletion(address, address, bytes32) public pure returns (bytes) { return msg.data; } 
 

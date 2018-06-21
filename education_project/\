@@ -153,10 +153,9 @@ contract('#TestRegistryInit', function(accounts) {
 
   })
 
-  describe('#registerTest', async () => {
+  describe('registration', async () => {
 
-    // The hash of 'Test'
-    let name = web3.sha3('Test') 
+    let name = 'Test'
     // FIXME - This test should eventually use real test versions
     let initial
 
@@ -183,9 +182,11 @@ contract('#TestRegistryInit', function(accounts) {
 
       let events
       
-      before(async () => {
+      it('should have emitted two events', async () => {
         let calldata = await testUtils.registerTest.call(name, initial).should.be.fulfilled
         calldata.should.not.eq('0x')
+
+        console.log(calldata)
 
         events = await storage.exec(
           exec, executionID, calldata,
@@ -193,81 +194,21 @@ contract('#TestRegistryInit', function(accounts) {
         ).should.be.fulfilled.then((tx) => {
           return tx.logs
         })
-        events.length.should.be.eq(1)
-      })
-      
-      it('should have emitted an ApplicationExecution event', async () => {
-        events[0].event.should.be.eq('ApplicationExecution')
-      })
-
-      describe('#getRegisteredTests', async() => {
-        let registeredTests
-
-        beforeEach(async() => {
-          registeredTests = await testIdx.getRegisteredTests.call(storage.address, executionID).should.be.fulfilled
-        })
-
-        it('should return 1 registered test', async () => {
-          registeredTests.length.should.be.eq(1)
-        })
-
-        it('should return the test that was registered', async () => {
-          registeredTests[0].should.be.eq(name)
-        })
-
-      })
-
-      it('', async () => {
-
       })
 
     })
 
-    describe('invalid name', async () => {
-
-      let invalidName = Utils.BYTES32_EMPTY 
-
-      it('should throw', async () => {
-        let invalidCalldata = await testUtils.registerTest.call(invalidName, storage.address).should.be.fulfilled
-        invalidCalldata.should.not.eq('0x')
-
-        events = await storage.exec(
-          exec, executionID, invalidCalldata,
-          { from: exec }
-        ).should.not.be.fulfilled
-      })
-
-    })
-
-    describe('invalid initial', async () => {
-
-      let invalidInitial = Utils.ADDRESS_0x
-
-      it('should throw', async () => {
-        let invalidCalldata = await testUtils.registerTest.call(name, invalidInitial).should.be.fulfilled
-        invalidCalldata.should.not.eq('0x')
-
-        events = await storage.exec(
-          exec, executionID, invalidCalldata,
-          { from: exec }
-        ).should.not.be.fulfilled
-      })
-
-    })
-
-    describe('invalid name and invalid initial', async () => {
+    describe('the invalid registration', async () => {
 
       let invalidName = Utils.BYTES32_EMPTY 
       let invalidInitial = Utils.ADDRESS_0x
 
-      it('should throw', async () => {
-        let invalidCalldata = await testUtils.registerTest.call(invalidName, invalidInitial).should.be.fulfilled
-        invalidCalldata.should.not.eq('0x')
+      it('should throw with \'invalid test name\'', async () => {
+        ///FIXME
+      })
 
-        events = await storage.exec(
-          exec, executionID, invalidCalldata,
-          { from: exec }
-        ).should.not.be.fulfilled
+      it('should throw with \'invalid initial\'', async () => {
+        ///FIXME
       })
 
     })

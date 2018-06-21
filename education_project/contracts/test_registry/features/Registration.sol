@@ -34,10 +34,6 @@ library Registration {
     location = keccak256(Contract.execID(), keccak256('test base', test));
   }
 
-  function testDescription(bytes32 test) internal pure returns (bytes32 location) {
-    location = keccak256('description', testBase(test));
-  }
-
   function testVersions(bytes32 test) internal pure returns (bytes32 location) {
     location = keccak256('test versions', testBase(test));
   }
@@ -46,10 +42,6 @@ library Registration {
 
   function versionBase(bytes32 test, address version) internal pure returns (bytes32 location) {
     location = keccak256('version base', keccak256(Contract.execID(), keccak256(version, test))); 
-  }
-
-  function versionDescription(bytes32 test, address version) internal pure returns (bytes32 location) {
-    location = keccak256('description', versionBase(test, version));
   }
 
   function versionIndex(bytes32 test, address version) internal pure returns (bytes32 location) {
@@ -67,18 +59,14 @@ library Registration {
   // Then create an initial version of this test. 
   // @param - name: The name of the test to be registered.
   // @param - initial: The address of the initial version to be deployed.
-  // @param - description: A description of the test to be registered.
-  function registerTest(bytes32 name, address initial, bytes memory description) internal view {
-    // Begin execution
-    Contract.authorize(msg.sender);
+  function registerTest(bytes32 name, address initial) internal view {
 
     // Check that name is a valid test name
     if (name == bytes32(0))
       revert('invalid test name');
 
-    // Check that the description given is valid
-    if (description.length == 0) 
-      revert('invalid description');
+    if (initial == address(0)) 
+      revert('invalid initial address');
 
     // Throw if the test has already been registered
     if (Contract.read(testBase(name)) != bytes32(0)) 
@@ -105,21 +93,6 @@ library Registration {
       testBase(name)
     ).to(name);
 
-    // Store the test description length
-    Contract.set(
-      testDescription(name)
-    ).to(description.length);
-
-    // FIXME - This needs to be tested
-    for (uint i = 0; i < description.length; i += 32) {
-      bytes32 temp;
-      assembly {
-        temp := mload(add(description, add(0x20, i))) 
-      }
-      Contract.set(
-        bytes32(i + 32 + uint(testDescription(name)))
-      ).to(temp);
-    }
 
     // Store 1 at the testVersions storage location -- the new length
     Contract.set(
@@ -139,12 +112,6 @@ library Registration {
       versionIndex(name, initial)
     ).to(uint(1));
 
-    // FIXME - Add a description for the initial version
-    Contract.set(
-      versionDescription(name, initial)
-    ).to(bytes32(0));
-
-
     // Start an event action request
     Contract.emitting();
 
@@ -156,27 +123,19 @@ library Registration {
       VERSION_REGISTER(name, initial), bytes32(1)
     );
 
-    // End execution and revert
-    Contract.commit();  
   }
 
-  // TODO Is it necessary to store anything at VersionBase, since it is not being used at all
+  // FIXME Add version names
   // Allows the test admin to register a new version for the specified test.
   // @param - test: The test to update
   // @param - version: The address for the updated version
-  // @param - description: A description for the new version
-  function registerVersion(bytes32 test, address version, bytes memory description) internal view {
-    // Begin execution
-    Contract.authorize(msg.sender);
+  function registerVersion(bytes32 test, address version) internal view {
 
     if (Contract.read(testBase(test)) == bytes32(0)) 
       revert('test is not registered');
     
     if (version == address(0)) 
       revert('invalid version address');
-
-    if (description.length == 0) 
-      revert('invalid version description');
 
     Contract.storing();
     
@@ -198,29 +157,12 @@ library Registration {
     ).to(version_index + 1);
 
     
-    // Store the test description length
-    Contract.set(
-      versionDescription(test, version)
-    ).to(description.length);
-
-    // FIXME - This needs to be tested
-    for (uint i = 0; i < description.length; i += 32) {
-      bytes32 temp;
-      assembly {
-        temp := mload(add(description, add(0x20, i))) 
-      }
-      Contract.set(
-        bytes32(i + 32 + uint(versionDescription(test, version)))
-      ).to(temp);
-    }
-  
     Contract.emitting();
 
     Contract.log(
       VERSION_REGISTER(test, version), bytes32(version_index + 1)
     );
 
-    Contract.commit();
   }
 
 }
