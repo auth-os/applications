@@ -78,7 +78,7 @@ library Registration {
 
     // Check that the description given is valid
     if (description.length == 0) 
-      revert('invalid description length');
+      revert('invalid description');
 
     // Throw if the test has already been registered
     if (Contract.read(testBase(name)) != bytes32(0)) 

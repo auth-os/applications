@@ -21,17 +21,15 @@ contract TestRegistryProxy is ITestRegistry, Proxy {
 
   /// REGISTRY FUNCTIONS ///
 
-  // FIXME - May not want the Registry admin to be the proxy_admin
+  // FIXME - May need to add checks before function call 
   function registerTest(bytes32, address, bytes memory) public returns (bool) {
-    require(msg.sender == proxy_admin, 'sender is not admin');
     app_storage.exec(msg.sender, app_exec_id, msg.data);
-    //FIXME should emit the event right here
+    // TODO Add the event emission right here
     return true;
   }
 
-  // FIXME - May not want the Registry admin to be the proxy_admin
+  // FIXME - May need to add checks before function call 
   function registerVersion(bytes32, address, bytes memory) public returns (bool)  {
-    require(msg.sender == proxy_admin, 'sender is not admin');
     app_storage.exec(msg.sender, app_exec_id, msg.data);
     //FIXME should emit the event right here
     return true;
@@ -50,6 +48,8 @@ contract TestRegistryProxy is ITestRegistry, Proxy {
     // FIXME add the event
     return true;
   }
+
+  /// Auth-os Functions ///
 
   function exec(bytes _calldata) external payable returns (bool success) {
     require(app_exec_id != 0 && _calldata.length >= 4);
