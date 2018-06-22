@@ -12,6 +12,8 @@
 
 A crowdsale contract in which tokens are minted for each purchase, towards a maximum sell cap. The sale additionally supports the initialization of several tiers - each with customized parameters (name, duration, price, sell cap, whitelisting, and more).
 
+- `MintedCappedProxy`: Instead of a `ScriptExec` variant, this contract acts as a solitary interface through which the application can be interacted with. This interface is ERC20-compatible.
+
 - `MintedCappedIdx`: Contains the sale's `init` function, as well as all of the relevant getters for the sale. As with all auth_os apps, the `init` function is called once upon creation of the application instance, after which this contract serves primarily to hold getters.
 
 - `SaleManager`: Implements functionality to allow the sale `admin` to configure various aspects of the sale before it starts. Additionally, allows the `admin` to 'lock' configuration by initializing the sale, as well as 'finalize' the sale, releasing tokens for transfer.
