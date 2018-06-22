@@ -301,7 +301,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
           })
 
           it('should have an empty data field', async () => {
-            eventData.should.be.eq('0x0')
+            eventData.should.be.eq('0x00')
           })
         })
 
@@ -2682,7 +2682,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -2710,7 +2710,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
         })
@@ -2933,7 +2933,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -2961,7 +2961,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
         })
@@ -3232,7 +3232,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -3260,7 +3260,7 @@ contract('#MintedCappedTokenManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
         })

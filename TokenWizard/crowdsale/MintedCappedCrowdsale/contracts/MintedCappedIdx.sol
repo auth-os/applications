@@ -596,10 +596,10 @@ library MintedCappedIdx {
   @param _tier_index: The index of the tier about which the whitelist information will be pulled
   @param _buyer: The address of the user whose whitelist status will be returned
   @return minimum_purchase_amt: The minimum ammount of tokens the buyer must purchase
-  @return max_purchase_remaining: The maximum amount of tokens able to be purchased by the user in this tier
+  @return max_tokens_remaining: The maximum amount of tokens able to be purchased by the user in this tier
   */
   function getWhitelistStatus(address _storage, bytes32 _exec_id, uint _tier_index, address _buyer) external view
-  returns (uint minimum_purchase_amt, uint max_purchase_remaining) {
+  returns (uint minimum_purchase_amt, uint max_tokens_remaining) {
     GetterInterface target = GetterInterface(_storage);
 
     bytes32[] memory arr_indices = new bytes32[](2);
@@ -614,7 +614,7 @@ library MintedCappedIdx {
     assert(read_values.length == 2);
 
     minimum_purchase_amt = read_values[0];
-    max_purchase_remaining = read_values[1];
+    max_tokens_remaining = read_values[1];
   }
 
   /*

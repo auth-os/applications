@@ -1,0 +1,17 @@
+{
+  "name": "DutchCrowdsale",
+  "version": "0.0.9",
+  "private": "yes",
+  "scripts": {
+    "test": "./node_modules/.bin/truffle test"
+  },
+  "files": [
+    "contracts",
+    "test",
+    "truffle.js",
+    "truffle-config.js"
+  ],
+  "dependencies": {
+    "authos-solidity": "^1.0.4"
+  }
+}

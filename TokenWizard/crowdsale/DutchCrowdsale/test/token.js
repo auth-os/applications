@@ -340,7 +340,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -530,7 +530,7 @@ contract('#LockableToken', function (accounts) {
               })
 
               it('should have an empty data field', async () => {
-                eventData.should.be.eq('0x0')
+                eventData.should.be.eq('0x00')
               })
             })
 
@@ -693,7 +693,7 @@ contract('#LockableToken', function (accounts) {
           })
 
           it('should have an empty data field', async () => {
-            eventData.should.be.eq('0x0')
+            eventData.should.be.eq('0x00')
           })
         })
 
@@ -814,7 +814,7 @@ contract('#LockableToken', function (accounts) {
           })
 
           it('should have an empty data field', async () => {
-            eventData.should.be.eq('0x0')
+            eventData.should.be.eq('0x00')
           })
         })
 
@@ -961,7 +961,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -1082,7 +1082,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -1299,7 +1299,7 @@ contract('#LockableToken', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x0')
+              eventData.should.be.eq('0x00')
             })
           })
 
@@ -1552,7 +1552,7 @@ contract('#LockableToken', function (accounts) {
                 })
 
                 it('should have an empty data field', async () => {
-                  eventData.should.be.eq('0x0')
+                  eventData.should.be.eq('0x00')
                 })
               })
 
