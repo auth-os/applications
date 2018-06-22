@@ -1,4 +1,14 @@
-### MintedCappedCrowdsale: 
+### MintedCappedCrowdsale:
+
+##### Install:
+
+`npm install`
+
+##### Test: 
+
+`npm test`
+
+##### About:
 
 A crowdsale contract in which tokens are minted for each purchase, towards a maximum sell cap. The sale additionally supports the initialization of several tiers - each with customized parameters (name, duration, price, sell cap, whitelisting, and more).
 
