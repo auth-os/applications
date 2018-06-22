@@ -418,8 +418,12 @@ contract('#TestRegistryInit', function(accounts) {
 
   describe('#registerVersion', async () => {
 
+    let events
     let test = 'Test'
-    let version
+    let initial
+    let version = exec
+    let testCalldata
+    let versionCalldata
 
     before(async () => {
       // Get valid init calldata
@@ -436,9 +440,127 @@ contract('#TestRegistryInit', function(accounts) {
       initEvent = events[0]
       executionID = events[0].args['execution_id']
       web3.toDecimal(executionID).should.not.eq(0)
+
+      initial = storage.address
     })
 
-    describe('', async () => {
+    describe('invalid test', async () => {
+
+      let invalidVersionCalldata
+
+      beforeEach(async () => {
+        invalidVersionCalldata = await testUtils.registerVersion.call(test, version).should.be.fulfilled 
+      })
+
+      it('should throw', async () => {
+        await storage.exec(
+          exec, executionID, invalidVersionCalldata,
+          { from: exec }
+        ).should.not.be.fulfilled
+      })
+
+    })
+
+
+    describe('invalid version', async () => {
+      let invalidVersion = Utils.ADDRESS_0x
+      let invalidVersionCalldata
+
+      /// FIXME - Should versions be able to be duplicated?
+      before(async () => {
+        testCalldata = await testUtils.registerTest.call(test, initial).should.be.fulfilled
+
+        events = await storage.exec(
+          exec, executionID, testCalldata, 
+          { from: exec } 
+        ).should.be.fulfilled.then((tx) => {
+          return tx.logs
+        })
+        events.length.should.be.eq(1)
+        events[0].event.should.be.equal('ApplicationExecution')
+      })
+
+      beforeEach(async () => {
+        invalidVersionCalldata = await testUtils.registerVersion.call(test, invalidVersion).should.be.fulfilled 
+      })
+
+      it('should throw', async () => {
+        await storage.exec(
+          exec, executionID, invalidVersionCalldata,
+          { from: exec }
+        ).should.not.be.fulfilled
+      })
+
+    })
+
+    describe('valid test', async () => {
+
+    
+      before(async () => {
+        versionCalldata = await testUtils.registerVersion(test, version).should.be.fulfilled
+
+        events = await storage.exec(
+          exec, executionID, versionCalldata,
+          { from: exec }
+        ).should.be.fulfilled.then((tx) => {
+          return tx.logs
+        })
+        events.length.should.be.eq(1)
+      })
+
+      it('should emit an ApplicationExecution event', async () => {
+        events[0].event.should.be.equal('ApplicationExecution')
+      })
+
+      describe('#getTestVersions', async () => {
+
+        let testVersions
+
+        beforeEach(async () => {
+          testVersions = await testIdx.getTestVersions.call(storage.address, executionID, test)
+        })
+
+        it('should return two registered versions', async () => {
+          testVersions.length.should.be.eq(2)
+        })
+
+        it('should return the correct first version', async () => {
+          testVersions[0].should.be.eq(initial)
+        })
+
+        it('should return the correct second version', async () => {
+          testVersions[1].should.be.eq(version)
+        })
+
+      })
+
+      describe('#getVersionIndex', async () => {
+
+        let index
+
+        beforeEach(async () => {
+          index = await testIdx.getVersionIndex.call(storage.address, executionID, test, version)
+        })
+
+        it('should return an index of 2', async () => {
+          index.toNumber().should.be.eq(2)
+        })
+
+      })
+
+      describe('#getPreviousVersion', async () => {
+
+        let previous
+
+        beforeEach(async () => {
+          previous = await testIdx.getVersionIndex.call(storage.address, executionID, test, version)
+        })
+
+        it('should return the initial version', async () => {
+          hexStrEquals(previous.toString(), initial)
+        })
+
+      })
 
     })
 

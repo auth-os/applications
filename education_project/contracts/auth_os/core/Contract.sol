@@ -404,6 +404,22 @@ library Contract {
     );
   }
 
+  // FIXME
+  // Sets a previously-passed-in initial destination in storage to the length of the bytes array, and then adds appropriate destination
+  function to(bytes32 _field, bytes memory _val) internal pure {
+    // Sets _field to the length of the bytes array in storage
+    to(_field, _val.length);
+    for (uint i = 0; i < _val.length; i+=32) {
+      bytes32 _val32;
+      assembly {
+        // Get the chunk of _val that starts at position i in _val
+        _val32 := mload(add(_val, add(0x20, i)))
+      }
+      bytes32 location = set(bytes32(uint(_field) + i + 32));
+      to(location, _val32);
+    }
+  }
+
   function increase(bytes32 _field) conditions(validStoreDest, validStoreVal) internal view returns (bytes32 val) {
     // Read value stored at the location in storage -
     val = keccak256(_field, execID());
