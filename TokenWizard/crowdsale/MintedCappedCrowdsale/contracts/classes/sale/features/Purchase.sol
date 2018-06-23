@@ -95,9 +95,6 @@ library Purchase {
     // Update purchaser's token balance -
     Contract.increase(Sale.balances(Contract.sender())).by(amount_purchased);
 
-    // Update current tier tokens remaining for sale -
-    Contract.decrease(Sale.currentTokensRemaining()).by(amount_purchased);
-
     // Update total tokens sold during the sale -
     Contract.increase(Sale.tokensSold()).by(amount_purchased);
 
@@ -130,6 +127,9 @@ library Purchase {
     if (updated_tier) {
       Contract.set(Sale.currentTier()).to(current_tier.add(1));
       Contract.set(Sale.currentEndsAt()).to(tier_ends_at);
+      Contract.set(Sale.currentTokensRemaining()).to(tokens_remaining.sub(amount_purchased));
+    } else {
+      Contract.decrease(Sale.currentTokensRemaining()).by(amount_purchased);
     }
 
     // Move buffer to logging events -
