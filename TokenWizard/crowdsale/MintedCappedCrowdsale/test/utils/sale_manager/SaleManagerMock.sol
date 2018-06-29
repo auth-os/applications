@@ -207,45 +207,12 @@ library ConfigureSaleMock {
 
   // Checks input and then creates storage buffer to update a tier's minimum cap
   function updateTierMinimum(uint _tier_index, uint _new_minimum) internal view {
-    // Get current tier -
-    uint current_tier = uint(Contract.read(SaleManagerMock.currentTier()));
-    // Get the time at which the current tier will end -
-    uint cur_ends_at = uint(Contract.read(SaleManagerMock.currentEndsAt()));
-    // Get sale start time -
-    uint starts_at = uint(Contract.read(SaleManagerMock.startTime()));
-
-    // Normalize returned current tier index
-    current_tier = current_tier.sub(1);
-
     // Ensure passed-in index is within range -
     if (uint(Contract.read(SaleManagerMock.saleTierList())) <= _tier_index)
       revert('tier does not exist');
     // Ensure tier was marked as modifiable -
     if (Contract.read(SaleManagerMock.tierModifiable(_tier_index)) == 0)
       revert('tier mincap not modifiable');
-    // Ensure current tier to update has not already passed -
-    if (current_tier > _tier_index)
-      revert('tier has already completed');
-
-    if (_tier_index == 0) {
-      if (TimeMock.getTime() >= starts_at)
-        revert('cannot modify initial tier once sale has started');
-    } else if (_tier_index != 0 && _tier_index > current_tier) {
-      // If the end time has passed, and we are trying to update the next tier, the tier
-      // is already in progress and cannot be updated
-      if (_tier_index - current_tier == 1 && TimeMock.getTime() >= cur_ends_at)
-        revert("cannot modify tier after it has begun");
-
-      // Loop over tiers in storage and increment end time -
-      for (uint i = current_tier + 1; i < _tier_index; i++)
-        cur_ends_at = cur_ends_at.add(uint(Contract.read(SaleManagerMock.tierDuration(i))));
-
-      if (cur_ends_at < TimeMock.getTime())
-        revert("cannot modify current tier");
-    } else {
-      // Not a valid state to update - throw
-      revert('cannot update tier');
-    }
 
     Contract.storing();
 
