@@ -44,6 +44,10 @@ contract DutchCrowdsaleIdxMock {
   function isFinished() internal pure returns (bytes32)
     { return keccak256("sale_is_completed"); }
 
+  // Whether the unsold tokens will be burnt on finalization, or be sent to the team wallet
+  function burnExcess() internal pure returns (bytes32)
+    { return keccak256("burn_excess_unsold"); }
+
   // Storage location of the crowdsale's start time
   function startTime() internal pure returns (bytes32)
     { return keccak256("sale_start_time"); }
@@ -163,11 +167,12 @@ contract DutchCrowdsaleIdxMock {
   @param _start_time: The time after which purchases will be enabled
   @param _sale_is_whitelisted: Whether the sale will be configured with a whitelist
   @param _admin: The address given permissions to complete configuration of the sale
+  @param _burn_excess: Whether the unpurchased tokens in the sale will be burned, or sent to the team wallet
   */
   function init(
     address _wallet, uint _total_supply, uint _max_amount_to_sell, uint _starting_rate,
     uint _ending_rate, uint _duration, uint _start_time, bool _sale_is_whitelisted,
-    address _admin
+    address _admin, bool _burn_excess
   ) external view {
     // Ensure valid input
     if (
@@ -202,6 +207,7 @@ contract DutchCrowdsaleIdxMock {
     // Set sale whitelist status and admin initial balance (difference bw totalSupply and maxSellCap)
     Contract.set(isWhitelisted()).to(_sale_is_whitelisted);
     Contract.set(balances(_admin)).to(_total_supply - _max_amount_to_sell);
+    Contract.set(burnExcess()).to(_burn_excess);
 
     // Commit state changes to storage -
     Contract.commit();
@@ -225,9 +231,9 @@ contract DutchCrowdsaleIdxMock {
   @return is_finalized: Whether or not the crowdsale has been completely finalized by the admin
   */
   function getCrowdsaleInfo(address _storage, bytes32 _exec_id) external view
-  returns (uint wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized) {
+  returns (uint wei_raised, address team_wallet, uint minimum_contribution, bool is_initialized, bool is_finalized, bool burn_excess) {
     // Set up bytes32 array to store storage seeds
-    bytes32[] memory seed_arr = new bytes32[](5);
+    bytes32[] memory seed_arr = new bytes32[](6);
 
     //Assign each location of seed_arr to its respective seed
     seed_arr[0] = totalWeiRaised();
@@ -235,6 +241,7 @@ contract DutchCrowdsaleIdxMock {
     seed_arr[2] = globalMinPurchaseAmt();
     seed_arr[3] = isConfigured();
     seed_arr[4] = isFinished();
+    seed_arr[5] = burnExcess();
 
     //Read and return all wei_raised, wallet address, min_contribution, and init/finalization status
     bytes32[] memory values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr);
@@ -245,10 +252,11 @@ contract DutchCrowdsaleIdxMock {
     minimum_contribution = uint(values_arr[2]);
     is_initialized = (values_arr[3] != 0 ? true : false);
     is_finalized = (values_arr[4] != 0 ? true : false);
+    burn_excess = values_arr[5] != 0 ? true : false;
   }
 
   /*
-  Returns true if the all tokens have been sold
+  Returns true if the all tokens have been sold, or if 1 wei is not enough to purchase a token
 
   @param _storage: The address where application storage is located
   @param _exec_id: The application execution id under which storage for this instance is located
@@ -267,6 +275,25 @@ contract DutchCrowdsaleIdxMock {
     // Assign return values
     is_crowdsale_full = (values_arr[0] == 0 ? true : false);
     max_sellable = values_arr[1];
+
+    // If there are still tokens remaining, calculate the amount that can be purchased by 1 wei
+    seed_arr = new bytes32[](5);
+    seed_arr[0] = startTime();
+    seed_arr[1] = startRate();
+    seed_arr[2] = totalDuration();
+    seed_arr[3] = endRate();
+    seed_arr[4] = tokenDecimals();
+
+    uint num_remaining = values_arr[0];
+    // Read information from storage
+    values_arr = GetterInterface(_storage).readMulti(_exec_id, seed_arr).toUintArr();
+
+    uint current_rate;
+    (current_rate, ) = getRateAndTimeRemaining(values_arr[0], values_arr[2], values_arr[1], values_arr[3]);
+
+    // If the current rate and tokens remaining cannot be purchased using 1 wei, return 'true' for is_crowdsale_full
+    if (current_rate.mul(num_remaining).div(10 ** values_arr[4]) == 0)
+      return (true, max_sellable);
   }
 
   // Returns the number of unique contributors to a crowdsale

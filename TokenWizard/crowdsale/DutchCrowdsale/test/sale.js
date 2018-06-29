@@ -63,6 +63,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
   let endPrice = 100 // 100 wei per token
   let duration = 3600 // 1 hour
   let isWhitelisted = true
+  let burnExcess = true
 
   let tokenName = 'Token'
   let tokenSymbol = 'TOK'
@@ -148,7 +149,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrice, endPrice,
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
@@ -193,13 +194,14 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
       let saleInfo = await saleIdx.getCrowdsaleInfo.call(
         storage.address, executionID
       ).should.be.fulfilled
-      saleInfo.length.should.be.eq(5)
+      saleInfo.length.should.be.eq(6)
 
       saleInfo[0].toNumber().should.be.eq(0)
       saleInfo[1].should.be.eq(teamWallet)
       saleInfo[2].toNumber().should.be.eq(0)
       saleInfo[3].should.be.eq(false)
       saleInfo[4].should.be.eq(false)
+      saleInfo[5].should.be.eq(burnExcess)
     })
 
     it('should have a correctly initialized token', async () => {
@@ -582,7 +584,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(0)
         })
       })
@@ -912,7 +914,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(
               initialSpends[0] + initialSpends[1]
             )
@@ -1158,7 +1160,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
                 storage.address, executionID
               ).should.be.fulfilled
-              crowdsaleInfo.length.should.be.eq(5)
+              crowdsaleInfo.length.should.be.eq(6)
               crowdsaleInfo[0].toNumber().should.be.eq(
                 initialSpends[0] + initialSpends[1] + maxSpendAmount
               )
@@ -1472,7 +1474,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(spendAmount * 2)
           })
 
@@ -1628,7 +1630,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(spendAmount * 2)
           })
 
@@ -1805,7 +1807,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(spendAmount - startPrice)
         })
 
@@ -1871,6 +1873,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
   let endPrice = deepToNumber(web3.toWei('0.000999', 'ether')) // 9.99e14 wei per token (1 token = [10 ** decimals] units)
   let duration = 3600 // 1 hour
   let isWhitelisted = true
+  let burnExcess = true
 
   let tokenName = 'Token'
   let tokenSymbol = 'TOK'
@@ -1959,7 +1962,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrice, endPrice,
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
@@ -2004,13 +2007,14 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
       let saleInfo = await saleIdx.getCrowdsaleInfo.call(
         storage.address, executionID
       ).should.be.fulfilled
-      saleInfo.length.should.be.eq(5)
+      saleInfo.length.should.be.eq(6)
 
       saleInfo[0].toNumber().should.be.eq(0)
       saleInfo[1].should.be.eq(teamWallet)
       saleInfo[2].toNumber().should.be.eq(0)
       saleInfo[3].should.be.eq(false)
       saleInfo[4].should.be.eq(false)
+      saleInfo[5].should.be.eq(burnExcess)
     })
 
     it('should have a correctly initialized token', async () => {
@@ -2403,7 +2407,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(0)
         })
       })
@@ -2733,7 +2737,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(
               initialSpends[0] + initialSpends[1]
             )
@@ -3004,7 +3008,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
                 storage.address, executionID
               ).should.be.fulfilled
-              crowdsaleInfo.length.should.be.eq(5)
+              crowdsaleInfo.length.should.be.eq(6)
               crowdsaleInfo[0].toNumber().should.be.eq(
                 initialSpends[0] + initialSpends[1] + maxSpendAmount
               )
@@ -3331,7 +3335,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].should.be.bignumber.eq(spendAmount.times(2))
           })
 
@@ -3494,7 +3498,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
             let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
               storage.address, executionID
             ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+            crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].should.be.bignumber.eq(spendAmount.times(2))
           })
 
@@ -3692,7 +3696,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(spendAmount.minus(startPrice))
         })
 
@@ -3767,6 +3771,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
   ]
   let duration = 36000 // 10 hours
   let isWhitelisted = false
+  let burnExcess = true
 
   let purchaseTimes
 
@@ -3867,7 +3872,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrices[0], endPrices[0],
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
@@ -3919,13 +3924,14 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
       let saleInfo = await saleIdx.getCrowdsaleInfo.call(
         storage.address, executionID
       ).should.be.fulfilled
-      saleInfo.length.should.be.eq(5)
+      saleInfo.length.should.be.eq(6)
 
       saleInfo[0].toNumber().should.be.eq(0)
       saleInfo[1].should.be.eq(teamWallet)
       saleInfo[2].toNumber().should.be.eq(0)
       saleInfo[3].should.be.eq(true)
       saleInfo[4].should.be.eq(false)
+      saleInfo[5].should.be.eq(burnExcess)
     })
 
     it('should have a correctly initialized token', async () => {
@@ -4301,7 +4307,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -4714,7 +4720,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -5122,7 +5128,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -5561,7 +5567,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -5974,7 +5980,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -6389,7 +6395,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -6828,7 +6834,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -7241,7 +7247,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -7656,7 +7662,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 0 decimals)', f
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].toNumber().should.be.eq(
             amounts[0] + amounts[1]
           )
@@ -7779,6 +7785,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
   ]
   let duration = 36000 // 10 hours
   let isWhitelisted = false
+  let burnExcess = true
 
   let purchaseTimes
 
@@ -7880,7 +7887,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrices[0], endPrices[0],
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
@@ -7932,13 +7939,14 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
       let saleInfo = await saleIdx.getCrowdsaleInfo.call(
         storage.address, executionID
       ).should.be.fulfilled
-      saleInfo.length.should.be.eq(5)
+      saleInfo.length.should.be.eq(6)
 
       saleInfo[0].toNumber().should.be.eq(0)
       saleInfo[1].should.be.eq(teamWallet)
       saleInfo[2].toNumber().should.be.eq(0)
       saleInfo[3].should.be.eq(true)
       saleInfo[4].should.be.eq(false)
+      saleInfo[5].should.be.eq(burnExcess)
     })
 
     it('should have a correctly initialized token', async () => {
@@ -8448,7 +8456,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -9007,7 +9015,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -9571,7 +9579,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -10156,7 +10164,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -10715,7 +10723,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -11279,7 +11287,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -11864,7 +11872,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -12423,7 +12431,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )
@@ -12987,7 +12995,7 @@ contract('#DutchBuyTokens: price change tests - (various prices, 18 decimals)', 
           let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
             storage.address, executionID
           ).should.be.fulfilled
-          crowdsaleInfo.length.should.be.eq(5)
+          crowdsaleInfo.length.should.be.eq(6)
           crowdsaleInfo[0].should.be.bignumber.eq(
             amounts[0].plus(amounts[1]).plus(amounts[2])
           )

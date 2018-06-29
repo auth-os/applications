@@ -182,13 +182,14 @@ contract('DutchCrowdsale', function (accounts) {
       let startTime
       let isWhitelisted = true
       let admin = execAdmin
+      let burnExcess = true
 
       beforeEach(async () => {
         startTime = getTime() + 3600
 
         initCrowdsaleCalldata = await saleUtils.init.call(
           teamWallet, totalSupply, sellAmount, startRate,
-          endRate, duration, startTime, isWhitelisted, admin
+          endRate, duration, startTime, isWhitelisted, admin, burnExcess
         ).should.be.fulfilled
         initCrowdsaleCalldata.should.not.eq('0x')
       })

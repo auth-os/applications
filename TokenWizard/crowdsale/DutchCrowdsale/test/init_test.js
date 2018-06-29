@@ -60,6 +60,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
   let endPrice = 100 // 100 wei per token
   let duration = 3600 // 1 hour
   let isWhitelisted = true
+  let burnExcess = true
 
   before(async () => {
     storage = await AbstractStorage.new().should.be.fulfilled
@@ -129,7 +130,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get valid init calldata
       initCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       initCalldata.should.not.be.eq('0x')
 
@@ -182,7 +183,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
 
       beforeEach(async () => {
         crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(storage.address, executionID).should.be.fulfilled
-        crowdsaleInfo.length.should.be.eq(5)
+        crowdsaleInfo.length.should.be.eq(6)
       })
 
       it('should not have any wei raised', async () => {
@@ -200,6 +201,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       it('should not be initialized or finalized', async () => {
         crowdsaleInfo[3].should.be.eq(false)
         crowdsaleInfo[4].should.be.eq(false)
+        crowdsaleInfo[5].should.be.eq(burnExcess)
       })
     })
 
@@ -377,7 +379,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         invalidWallet, totalSupply, sellCap, startPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -398,7 +400,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
     beforeEach(async () => {
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
-        duration, invalidStartTime, isWhitelisted, crowdsaleAdmin
+        duration, invalidStartTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -420,7 +422,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
-        invalidDuration, startTime, isWhitelisted, crowdsaleAdmin
+        invalidDuration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -444,7 +446,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, invalidSellCap, startPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -468,7 +470,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, invalidSellCap, startPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -492,7 +494,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -516,7 +518,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -540,7 +542,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, invalidPrice, endPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -564,7 +566,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -588,7 +590,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -612,7 +614,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init.call(
         teamWallet, totalSupply, sellCap, startPrice, invalidPrice,
-        duration, startTime, isWhitelisted, crowdsaleAdmin
+        duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })
@@ -636,7 +638,7 @@ contract('#DutchCrowdsaleInit', function (accounts) {
       // Get invalid init calldata
       invalidInitCalldata = await saleUtils.init(
         teamWallet, totalSupply, sellCap, startPrice, endPrice,
-        duration, startTime, isWhitelisted, invalidAdmin
+        duration, startTime, isWhitelisted, invalidAdmin, burnExcess
       ).should.be.fulfilled
       invalidInitCalldata.should.not.be.eq('0x')
     })

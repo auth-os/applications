@@ -62,6 +62,7 @@ contract('#LockableToken', function (accounts) {
   let endPrice = 100 // 100 wei per token
   let duration = 3600 // 1 hour
   let isWhitelisted = true
+  let burnExcess = true
 
   let tokenName = 'Token'
   let tokenSymbol = 'TOK'
@@ -144,7 +145,7 @@ contract('#LockableToken', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrice, endPrice,
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 

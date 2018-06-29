@@ -64,6 +64,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
   let endPrice = 100 // 100 wei per token
   let duration = 3600 // 1 hour
   let isWhitelisted = true
+  let burnExcess = true
 
   let tokenName = 'Token'
   let tokenSymbol = 'TOK'
@@ -148,7 +149,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
 
     initCalldata = await saleUtils.init.call(
       teamWallet, totalSupply, sellCap, startPrice, endPrice,
-      duration, startTime, isWhitelisted, crowdsaleAdmin
+      duration, startTime, isWhitelisted, crowdsaleAdmin, burnExcess
     ).should.be.fulfilled
     initCalldata.should.not.eq('0x')
 
@@ -190,13 +191,14 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
         let saleInfo = await saleIdx.getCrowdsaleInfo.call(
           storage.address, executionID
         ).should.be.fulfilled
-        saleInfo.length.should.be.eq(5)
+        saleInfo.length.should.be.eq(6)
 
         saleInfo[0].toNumber().should.be.eq(0)
         saleInfo[1].should.be.eq(teamWallet)
         saleInfo[2].toNumber().should.be.eq(0)
         saleInfo[3].should.be.eq(false)
         saleInfo[4].should.be.eq(false)
+        saleInfo[5].should.be.eq(burnExcess)
       })
     })
 
@@ -612,7 +614,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
                 storage.address, executionID
               ).should.be.fulfilled
               crowdsaleInfo.should.not.eq(null)
-              crowdsaleInfo.length.should.be.eq(5)
+              crowdsaleInfo.length.should.be.eq(6)
             })
 
             it('should not have any wei raised', async () => {
@@ -630,6 +632,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
             it('should not be initialized or finalized', async () => {
               crowdsaleInfo[3].should.be.eq(false)
               crowdsaleInfo[4].should.be.eq(false)
+              crowdsaleInfo[5].should.be.eq(burnExcess)
             })
           })
         })
@@ -749,7 +752,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
                 storage.address, executionID
               ).should.be.fulfilled
               crowdsaleInfo.should.not.eq(null)
-              crowdsaleInfo.length.should.be.eq(5)
+              crowdsaleInfo.length.should.be.eq(6)
             })
 
             it('should not have any wei raised', async () => {
@@ -767,6 +770,7 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
             it('should not be initialized or finalized', async () => {
               crowdsaleInfo[3].should.be.eq(false)
               crowdsaleInfo[4].should.be.eq(false)
+              crowdsaleInfo[5].should.be.eq(burnExcess)
             })
           })
         })
@@ -1769,13 +1773,14 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
               let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
                 storage.address, executionID
               ).should.be.fulfilled
-              crowdsaleInfo.length.should.be.eq(5)
+              crowdsaleInfo.length.should.be.eq(6)
 
               crowdsaleInfo[0].toNumber().should.be.eq(0)
               crowdsaleInfo[1].should.be.eq(teamWallet)
               crowdsaleInfo[2].toNumber().should.be.eq(0)
               crowdsaleInfo[3].should.be.eq(true)
               crowdsaleInfo[4].should.be.eq(false)
+              crowdsaleInfo[5].should.be.eq(burnExcess)
             })
           })
         })
@@ -1913,133 +1918,381 @@ contract('#DutchCrowdsaleConsole', function (accounts) {
 
       context('and the sender is the admin', async () => {
 
-        beforeEach(async () => {
-          finalizeCalldata = await saleUtils.finalizeCrowdsale.call().should.be.fulfilled
-          finalizeCalldata.should.not.eq('0x')
+        context('and unsold tokens should be burned', async () => {
 
-          finalizeReturn = await storage.exec.call(
-            crowdsaleAdmin, executionID, finalizeCalldata,
-            { from: exec }
-          ).should.be.fulfilled
+          let tempExecID
+          let tempCalldata
 
-          finalizeEvents = await storage.exec(
-            crowdsaleAdmin, executionID, finalizeCalldata,
-            { from: exec }
-          ).then((tx) => {
-            return tx.receipt.logs
-          })
-        })
-
-        describe('returned data', async () => {
-
-          it('should return a tuple with 3 fields', async () => {
-            finalizeReturn.length.should.be.eq(3)
-          })
-
-          it('should return the correct number of events emitted', async () => {
-            finalizeReturn[0].toNumber().should.be.eq(1)
-          })
-
-          it('should return the correct number of addresses paid', async () => {
-            finalizeReturn[1].toNumber().should.be.eq(0)
-          })
-
-          it('should return the correct number of storage slots written to', async () => {
-            finalizeReturn[2].toNumber().should.be.eq(1)
-          })
-        })
-
-        describe('events', async () => {
-
-          it('should have emitted 2 events total', async () => {
-            finalizeEvents.length.should.be.eq(2)
-          })
-
-          describe('the ApplicationExecution event', async () => {
-
-            let eventTopics
-            let eventData
-
-            beforeEach(async () => {
-              eventTopics = finalizeEvents[1].topics
-              eventData = finalizeEvents[1].data
-            })
-
-            it('should have the correct number of topics', async () => {
-              eventTopics.length.should.be.eq(3)
-            })
-
-            it('should list the correct event signature in the first topic', async () => {
-              let sig = eventTopics[0]
-              web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
-            })
-
-            it('should have the target app address and execution id as the other 2 topics', async () => {
-              let emittedAddr = eventTopics[2]
-              let emittedExecId = eventTopics[1]
-              web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(admin.address))
-              web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
-            })
-
-            it('should have an empty data field', async () => {
-              web3.toDecimal(eventData).should.be.eq(0)
-            })
-          })
-
-          describe('the other event', async () => {
-
-            let eventTopics
-            let eventData
-
-            beforeEach(async () => {
-              eventTopics = finalizeEvents[0].topics
-              eventData = finalizeEvents[0].data
-            })
-
-            it('should have the correct number of topics', async () => {
-              eventTopics.length.should.be.eq(2)
-            })
-
-            it('should match the event signature for the first topic', async () => {
-              let sig = eventTopics[0]
-              web3.toDecimal(sig).should.be.eq(web3.toDecimal(finalSaleHash))
-            })
-
-            it('should match the exec id for the other topic', async () => {
-              web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(executionID))
-            })
-
-            it('should have an empty data field', async () => {
-              web3.toDecimal(eventData).should.be.eq(0)
-            })
-          })
-        })
-
-        describe('storage', async () => {
-
-          it('should have an initialized token', async () => {
-            let tokenInfo = await saleIdx.getTokenInfo.call(
-              storage.address, executionID
+          beforeEach(async () => {
+            tempCalldata = await saleUtils.init.call(
+              teamWallet, totalSupply, sellCap, startPrice, endPrice,
+              duration, startTime, isWhitelisted, crowdsaleAdmin, true
             ).should.be.fulfilled
-            tokenInfo.length.should.be.eq(4)
+            initCalldata.should.not.eq('0x')
 
-            hexStrEquals(tokenInfo[0], tokenName).should.be.eq(true)
-            hexStrEquals(tokenInfo[1], tokenSymbol).should.be.eq(true)
-            tokenInfo[2].toNumber().should.be.eq(tokenDecimals)
-            tokenInfo[3].toNumber().should.be.eq(totalSupply)
+            let events = await storage.createInstance(
+              exec, appName, exec, regExecID, tempCalldata,
+              { from: exec }
+            ).should.be.fulfilled.then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            tempExecID = events[0].args['execution_id']
+            web3.toDecimal(tempExecID).should.not.eq(0)
+
+            await storage.resetTime().should.be.fulfilled
+
+            let initTokenCalldata = await saleUtils.initCrowdsaleToken.call(
+              tokenName, tokenSymbol, tokenDecimals
+            ).should.be.fulfilled
+            initTokenCalldata.should.not.eq('0x')
+
+            let initCrCalldata = await saleUtils.initializeCrowdsale.call().should.be.fulfilled
+            initCrCalldata.should.not.eq('0x')
+
+            events = await storage.exec(
+              crowdsaleAdmin, tempExecID, initTokenCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            events[0].event.should.be.eq('ApplicationExecution')
+
+            events = await storage.exec(
+              crowdsaleAdmin, tempExecID, initCrCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            events[0].event.should.be.eq('ApplicationExecution')
+
+            finalizeCalldata = await saleUtils.finalizeCrowdsale.call().should.be.fulfilled
+            finalizeCalldata.should.not.eq('0x')
+
+            finalizeReturn = await storage.exec.call(
+              crowdsaleAdmin, tempExecID, finalizeCalldata,
+              { from: exec }
+            ).should.be.fulfilled
+
+            finalizeEvents = await storage.exec(
+              crowdsaleAdmin, tempExecID, finalizeCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.receipt.logs
+            })
           })
 
-          it('should have an initialized and finalized crowdsale', async () => {
-            let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
-              storage.address, executionID
-            ).should.be.fulfilled
-            crowdsaleInfo.length.should.be.eq(5)
+          describe('returned data', async () => {
 
-            crowdsaleInfo[0].toNumber().should.be.eq(0)
-            crowdsaleInfo[1].should.be.eq(teamWallet)
-            crowdsaleInfo[2].toNumber().should.be.eq(0)
-            crowdsaleInfo[3].should.be.eq(true)
-            crowdsaleInfo[4].should.be.eq(true)
+            it('should return a tuple with 3 fields', async () => {
+              finalizeReturn.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              finalizeReturn[0].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              finalizeReturn[1].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              finalizeReturn[2].toNumber().should.be.eq(3)
+            })
+          })
+
+          describe('events', async () => {
+
+            it('should have emitted 2 events total', async () => {
+              finalizeEvents.length.should.be.eq(2)
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = finalizeEvents[1].topics
+                eventData = finalizeEvents[1].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+              })
+
+              it('should have the target app address and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(admin.address))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(tempExecID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+
+            describe('the other event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = finalizeEvents[0].topics
+                eventData = finalizeEvents[0].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(2)
+              })
+
+              it('should match the event signature for the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(finalSaleHash))
+              })
+
+              it('should match the exec id for the other topic', async () => {
+                web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(tempExecID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+          })
+
+          describe('storage', async () => {
+
+            it('should have an initialized token with 0 supply', async () => {
+              let tokenInfo = await saleIdx.getTokenInfo.call(
+                storage.address, tempExecID
+              ).should.be.fulfilled
+              tokenInfo.length.should.be.eq(4)
+
+              hexStrEquals(tokenInfo[0], tokenName).should.be.eq(true)
+              hexStrEquals(tokenInfo[1], tokenSymbol).should.be.eq(true)
+              tokenInfo[2].toNumber().should.be.eq(tokenDecimals)
+              tokenInfo[3].toNumber().should.be.eq(totalSupply - sellCap)
+            })
+
+            it('should have an initialized and finalized crowdsale', async () => {
+              let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
+                storage.address, tempExecID
+              ).should.be.fulfilled
+              crowdsaleInfo.length.should.be.eq(6)
+
+              crowdsaleInfo[0].toNumber().should.be.eq(0)
+              crowdsaleInfo[1].should.be.eq(teamWallet)
+              crowdsaleInfo[2].toNumber().should.be.eq(0)
+              crowdsaleInfo[3].should.be.eq(true)
+              crowdsaleInfo[4].should.be.eq(true)
+              crowdsaleInfo[5].should.be.eq(true)
+            })
+
+            it('should have an empty team wallet token balance', async () => {
+              let balInfo = await saleIdx.balanceOf.call(storage.address, tempExecID, teamWallet)
+              balInfo.toNumber().should.be.eq(0)
+            })
+          })
+        })
+
+        context('and unsold tokens should be sent to the team wallet', async () => {
+
+          let tempExecID
+          let tempCalldata
+
+          beforeEach(async () => {
+            tempCalldata = await saleUtils.init.call(
+              teamWallet, totalSupply, sellCap, startPrice, endPrice,
+              duration, startTime, isWhitelisted, crowdsaleAdmin, false
+            ).should.be.fulfilled
+            initCalldata.should.not.eq('0x')
+
+            let events = await storage.createInstance(
+              exec, appName, exec, regExecID, tempCalldata,
+              { from: exec }
+            ).should.be.fulfilled.then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            tempExecID = events[0].args['execution_id']
+            web3.toDecimal(tempExecID).should.not.eq(0)
+
+            await storage.resetTime().should.be.fulfilled
+
+            let initTokenCalldata = await saleUtils.initCrowdsaleToken.call(
+              tokenName, tokenSymbol, tokenDecimals
+            ).should.be.fulfilled
+            initTokenCalldata.should.not.eq('0x')
+
+            let initCrCalldata = await saleUtils.initializeCrowdsale.call().should.be.fulfilled
+            initCrCalldata.should.not.eq('0x')
+
+            events = await storage.exec(
+              crowdsaleAdmin, tempExecID, initTokenCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            events[0].event.should.be.eq('ApplicationExecution')
+
+            events = await storage.exec(
+              crowdsaleAdmin, tempExecID, initCrCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.logs
+            })
+            events.should.not.eq(null)
+            events.length.should.be.eq(1)
+            events[0].event.should.be.eq('ApplicationExecution')
+
+            finalizeCalldata = await saleUtils.finalizeCrowdsale.call().should.be.fulfilled
+            finalizeCalldata.should.not.eq('0x')
+
+            finalizeReturn = await storage.exec.call(
+              crowdsaleAdmin, tempExecID, finalizeCalldata,
+              { from: exec }
+            ).should.be.fulfilled
+
+            finalizeEvents = await storage.exec(
+              crowdsaleAdmin, tempExecID, finalizeCalldata,
+              { from: exec }
+            ).then((tx) => {
+              return tx.receipt.logs
+            })
+          })
+
+          describe('returned data', async () => {
+
+            it('should return a tuple with 3 fields', async () => {
+              finalizeReturn.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              finalizeReturn[0].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              finalizeReturn[1].toNumber().should.be.eq(0)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              finalizeReturn[2].toNumber().should.be.eq(3)
+            })
+          })
+
+          describe('events', async () => {
+
+            it('should have emitted 2 events total', async () => {
+              finalizeEvents.length.should.be.eq(2)
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = finalizeEvents[1].topics
+                eventData = finalizeEvents[1].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+              })
+
+              it('should have the target app address and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(admin.address))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(tempExecID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+
+            describe('the other event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = finalizeEvents[0].topics
+                eventData = finalizeEvents[0].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(2)
+              })
+
+              it('should match the event signature for the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(finalSaleHash))
+              })
+
+              it('should match the exec id for the other topic', async () => {
+                web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(tempExecID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+          })
+
+          describe('storage', async () => {
+
+            it('should have an initialized token with 0 supply', async () => {
+              let tokenInfo = await saleIdx.getTokenInfo.call(
+                storage.address, tempExecID
+              ).should.be.fulfilled
+              tokenInfo.length.should.be.eq(4)
+
+              hexStrEquals(tokenInfo[0], tokenName).should.be.eq(true)
+              hexStrEquals(tokenInfo[1], tokenSymbol).should.be.eq(true)
+              tokenInfo[2].toNumber().should.be.eq(tokenDecimals)
+              tokenInfo[3].toNumber().should.be.eq(totalSupply)
+            })
+
+            it('should have an initialized and finalized crowdsale', async () => {
+              let crowdsaleInfo = await saleIdx.getCrowdsaleInfo.call(
+                storage.address, tempExecID
+              ).should.be.fulfilled
+              crowdsaleInfo.length.should.be.eq(6)
+
+              crowdsaleInfo[0].toNumber().should.be.eq(0)
+              crowdsaleInfo[1].should.be.eq(teamWallet)
+              crowdsaleInfo[2].toNumber().should.be.eq(0)
+              crowdsaleInfo[3].should.be.eq(true)
+              crowdsaleInfo[4].should.be.eq(true)
+              crowdsaleInfo[5].should.be.eq(false)
+            })
+
+            it('should have an empty team wallet token balance', async () => {
+              let balInfo = await saleIdx.balanceOf.call(storage.address, tempExecID, teamWallet)
+              balInfo.toNumber().should.be.eq(sellCap)
+            })
           })
         })
       })

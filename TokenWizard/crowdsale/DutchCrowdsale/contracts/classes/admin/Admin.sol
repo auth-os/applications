@@ -23,6 +23,18 @@ library Admin {
   function isFinished() internal pure returns (bytes32)
     { return keccak256("sale_is_completed"); }
 
+  // Whether the unsold tokens will be burnt on finalization, or be sent to the team wallet
+  function burnExcess() internal pure returns (bytes32)
+    { return keccak256("burn_excess_unsold"); }
+
+  // Storage location of team funds wallet
+  function wallet() internal pure returns (bytes32)
+    { return keccak256("sale_destination_wallet"); }
+
+  // Returns the storage location of number of tokens remaining in crowdsale
+  function tokensRemaining() internal pure returns (bytes32)
+    { return keccak256("sale_tokens_remaining"); }
+
   // Storage location of the crowdsale's start time
   function startTime() internal pure returns (bytes32)
     { return keccak256("sale_start_time"); }
@@ -62,6 +74,16 @@ library Admin {
   // Storage location for token decimals
   function tokenDecimals() internal pure returns (bytes32)
     { return keccak256("token_decimals"); }
+
+  // Storage location for token totalSupply
+  function tokenTotalSupply() internal pure returns (bytes32)
+    { return keccak256("token_total_supply"); }
+
+  // Storage seed for user balances mapping
+  bytes32 internal constant TOKEN_BALANCES = keccak256("token_balances");
+
+  function balances(address _owner) internal pure returns (bytes32)
+    { return keccak256(_owner, TOKEN_BALANCES); }
 
   // Storage seed for token 'transfer agent' status for any address
   // Transfer agents can transfer tokens, even if the crowdsale has not yet been finalized

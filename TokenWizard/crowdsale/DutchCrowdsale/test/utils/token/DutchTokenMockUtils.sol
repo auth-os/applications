@@ -51,7 +51,7 @@ contract DutchTokenMockUtils {
   function decreaseApproval(address, uint) public pure returns (bytes) { return msg.data; }
 
   function init(
-    address, uint, uint, uint, uint, uint, uint, bool, address
+    address, uint, uint, uint, uint, uint, uint, bool, address, bool
   ) public pure returns (bytes memory) {
     return msg.data;
   }

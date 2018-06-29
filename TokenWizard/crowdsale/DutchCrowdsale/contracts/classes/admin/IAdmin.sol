@@ -2,7 +2,7 @@ pragma solidity ^0.4.23;
 
 interface IAdmin {
   function getAdmin() external view returns (address);
-  function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool);
+  function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool, bool);
   function isCrowdsaleFull() external view returns (bool, uint);
   function getCrowdsaleStartAndEndTimes() external view returns (uint, uint);
   function getCrowdsaleStatus() external view returns (uint, uint, uint, uint, uint, uint, bool);
@@ -13,7 +13,7 @@ interface IAdmin {
 
 interface AdminIdx {
   function getAdmin(address, bytes32) external view returns (address);
-  function getCrowdsaleInfo(address, bytes32) external view returns (uint, address, uint, bool, bool);
+  function getCrowdsaleInfo(address, bytes32) external view returns (uint, address, uint, bool, bool, bool);
   function isCrowdsaleFull(address, bytes32) external view returns (bool, uint);
   function getCrowdsaleStartAndEndTimes(address, bytes32) external view returns (uint, uint);
   function getCrowdsaleStatus(address, bytes32) external view returns (uint, uint, uint, uint, uint, uint, bool);

@@ -35,13 +35,15 @@ contract AdminProxy is IAdmin, SaleProxy {
   @return uint: The minimum number of tokens a purchaser must buy
   @return bool: Whether the sale is finished configuring
   @return bool: Whether the sale has completed
+  @return bool: Whether the unsold tokens at the end of the sale are burnt (if false, they are sent to the team wallet)
   */
-  function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool) {
+  function getCrowdsaleInfo() external view returns (uint, address, uint, bool, bool, bool) {
     return AdminIdx(app_index).getCrowdsaleInfo(app_storage, app_exec_id);
   }
 
   /*
   Returns whether or not the sale is full, as well as the maximum number of sellable tokens
+  If the current rate is such that no more tokens can be purchased, returns true
 
   @return bool: Whether or not the sale is sold out
   @return uint: The total number of tokens for sale
@@ -183,7 +185,7 @@ contract DutchProxy is IDutchCrowdsale, TokenProxy {
     Proxy(_storage, _registry_exec_id, _provider, _app_name) { }
 
   // Constructor - creates a new instance of the application in storage, and sets this proxy's exec id
-  function init(address, uint, uint, uint, uint, uint, uint, bool, address) public {
+  function init(address, uint, uint, uint, uint, uint, uint, bool, address, bool) public {
     require(msg.sender == proxy_admin && app_exec_id == 0 && app_name != 0);
     (app_exec_id, app_version) = app_storage.createInstance(
       msg.sender, app_name, provider, registry_exec_id, msg.data

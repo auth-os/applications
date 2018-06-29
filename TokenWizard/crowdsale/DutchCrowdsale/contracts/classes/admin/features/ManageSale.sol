@@ -50,10 +50,24 @@ library ManageSale {
     if (Contract.read(Admin.isConfigured()) == 0)
       revert('crowdsale has not been configured');
 
+    // Get team wallet and unsold tokens remaining -
+    address team_wallet = address(Contract.read(Admin.wallet()));
+    uint num_remaining = uint(Contract.read(Admin.tokensRemaining()));
+
     Contract.storing();
 
     // Store updated crowdsale finalization status
     Contract.set(Admin.isFinished()).to(true);
+
+    // If the unsold tokens are to be burnt, decrease the tokens remaining and total supply
+    // Otherwise, send the unsold tokens to the team wallet
+    if (Contract.read(Admin.burnExcess()) == 0)
+      Contract.increase(Admin.balances(team_wallet)).by(num_remaining); // sent to team
+    else
+      Contract.decrease(Admin.tokenTotalSupply()).by(num_remaining); // burn unsold
+
+    // Set tokens remaining to 0
+    Contract.decrease(Admin.tokensRemaining()).by(num_remaining);
 
     // Set up EMITS action requests -
     Contract.emitting();
