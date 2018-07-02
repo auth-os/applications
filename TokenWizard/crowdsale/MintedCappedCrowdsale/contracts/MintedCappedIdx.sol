@@ -410,24 +410,26 @@ library MintedCappedIdx {
     if (tier_index >= num_tiers)
       return (0, 0, 0, 0, 0, 0, false, false);
 
-    initial_arr = new bytes32[](5);
+    initial_arr = new bytes32[](6);
     initial_arr[0] = tierName(tier_index);
     initial_arr[1] = tierPrice(tier_index);
     initial_arr[2] = tierModifiable(tier_index);
     initial_arr[3] = tierWhitelisted(tier_index);
     initial_arr[4] = tierMin(tier_index);
+    initial_arr[5] = tierCap(tier_index);
 
     // Read from storage and get return values
     read_values = GetterInterface(_storage).readMulti(_exec_id, initial_arr).toUintArr();
 
     // Ensure correct return length
-    assert(read_values.length == 5);
+    assert(read_values.length == 6);
 
     tier_name = bytes32(read_values[0]);
     tier_price = read_values[1];
     duration_is_modifiable = (read_values[2] == 0 ? false : true);
     is_whitelisted = (read_values[3] == 0 ? false : true);
     tier_min = read_values[4];
+    tier_tokens_remaining = read_values[5];
   }
 
   /*

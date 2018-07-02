@@ -387,10 +387,10 @@ contract MintedCappedIdxMock {
   @return tier_price: The price of each token purchased this tier, in wei
   @return tier_min: The minimum amount of tokens that much be purchased by an investor this tier
   @return duration_is_modifiable: Whether the crowdsale admin can update the duration of this tier before it starts
-  @return whitelist_enabled: Whether an address must be whitelisted to participate in this tier
+  @return is_whitelisted: Whether an address must be whitelisted to participate in this tier
   */
   function getCurrentTierInfo(address _storage, bytes32 _exec_id) external view
-  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, uint tier_min, bool duration_is_modifiable, bool whitelist_enabled) {
+  returns (bytes32 tier_name, uint tier_index, uint tier_ends_at, uint tier_tokens_remaining, uint tier_price, uint tier_min, bool duration_is_modifiable, bool is_whitelisted) {
 
     bytes32[] memory initial_arr = new bytes32[](4);
     // Push current tier expiration time, current tier index, and current tier tokens remaining storage locations to calldata buffer
@@ -424,24 +424,26 @@ contract MintedCappedIdxMock {
     if (tier_index >= num_tiers)
       return (0, 0, 0, 0, 0, 0, false, false);
 
-    initial_arr = new bytes32[](5);
+    initial_arr = new bytes32[](6);
     initial_arr[0] = tierName(tier_index);
     initial_arr[1] = tierPrice(tier_index);
     initial_arr[2] = tierModifiable(tier_index);
     initial_arr[3] = tierWhitelisted(tier_index);
     initial_arr[4] = tierMin(tier_index);
+    initial_arr[5] = tierCap(tier_index);
 
     // Read from storage and get return values
     read_values = GetterInterface(_storage).readMulti(_exec_id, initial_arr).toUintArr();
 
     // Ensure correct return length
-    assert(read_values.length == 5);
+    assert(read_values.length == 6);
 
     tier_name = bytes32(read_values[0]);
     tier_price = read_values[1];
     duration_is_modifiable = (read_values[2] == 0 ? false : true);
-    whitelist_enabled = (read_values[3] == 0 ? false : true);
+    is_whitelisted = (read_values[3] == 0 ? false : true);
     tier_min = read_values[4];
+    tier_tokens_remaining = read_values[5];
   }
 
   /*
