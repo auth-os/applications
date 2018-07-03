@@ -399,11 +399,12 @@ library MintedCappedIdx {
     tier_index = read_values[1] - 1;
     tier_tokens_remaining = read_values[2];
     uint num_tiers = read_values[3];
+    bool updated_tier;
 
     // If it is beyond the tier's end time, loop through tiers until the current one is found
     while (now >= tier_ends_at && ++tier_index < num_tiers) {
-      uint tier_duration = uint(GetterInterface(_storage).read(_exec_id, tierDuration(tier_index)));
-      tier_ends_at += tier_duration;
+      tier_ends_at += uint(GetterInterface(_storage).read(_exec_id, tierDuration(tier_index)));
+      updated_tier = true;
     }
 
     // If we have passed the last tier, return default values
@@ -429,7 +430,8 @@ library MintedCappedIdx {
     duration_is_modifiable = (read_values[2] == 0 ? false : true);
     is_whitelisted = (read_values[3] == 0 ? false : true);
     tier_min = read_values[4];
-    tier_tokens_remaining = read_values[5];
+    if (updated_tier)
+      tier_tokens_remaining = read_values[5];
   }
 
   /*

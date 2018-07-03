@@ -1,8 +1,135 @@
 pragma solidity ^0.4.23;
 
-import "./features/Transfer.sol";
-import "./features/Approve.sol";
 import "authos-solidity/contracts/core/Contract.sol";
+
+library Transfer {
+
+  using Contract for *;
+
+  // 'Transfer' event topic signature
+  bytes32 private constant TRANSFER_SIG = keccak256('Transfer(address,address,uint256)');
+
+  // Returns the topics for a Transfer event -
+  function TRANSFER (address _owner, address _dest) private pure returns (bytes32[3] memory)
+    { return [TRANSFER_SIG, bytes32(_owner), bytes32(_dest)]; }
+
+  // Ensures the sender is a transfer agent, or that the tokens are unlocked
+  function canTransfer() internal view {
+    if (
+      Contract.read(Token.transferAgents(Contract.sender())) == 0 &&
+      Contract.read(Token.tokensUnlocked()) == 0
+    ) revert('transfers are locked');
+  }
+
+  // Implements the logic for a token transfer -
+  function transfer(address _dest, uint _amt) internal view {
+    // Ensure valid input -
+    if (_dest == 0)
+      revert('invalid recipient');
+
+    // Ensure the sender can currently transfer tokens
+    Contract.checks(canTransfer);
+
+    // Begin updating balances -
+    Contract.storing();
+    // Update sender token balance - reverts in case of underflow
+    Contract.decrease(Token.balances(Contract.sender())).by(_amt);
+    // Update recipient token balance - reverts in case of overflow
+    Contract.increase(Token.balances(_dest)).by(_amt);
+
+    // Finish updating balances: log event -
+    Contract.emitting();
+    // Log 'Transfer' event
+    Contract.log(
+      TRANSFER(Contract.sender(), _dest), bytes32(_amt)
+    );
+  }
+
+  // Implements the logic for a token transferFrom -
+  function transferFrom(address _owner, address _dest, uint _amt) internal view {
+    // Ensure valid input -
+    if (_dest == 0)
+      revert('invalid recipient');
+    if (_owner == 0)
+      revert('invalid owner');
+
+    // Owner must be able to transfer tokens -
+    if (
+      Contract.read(Token.transferAgents(_owner)) == 0 &&
+      Contract.read(Token.tokensUnlocked()) == 0
+    ) revert('transfers are locked');
+
+    // Begin updating balances -
+    Contract.storing();
+    // Update spender token allowance - reverts in case of underflow
+    Contract.decrease(Token.allowed(_owner, Contract.sender())).by(_amt);
+    // Update owner token balance - reverts in case of underflow
+    Contract.decrease(Token.balances(_owner)).by(_amt);
+    // Update recipient token balance - reverts in case of overflow
+    Contract.increase(Token.balances(_dest)).by(_amt);
+
+    // Finish updating balances: log event -
+    Contract.emitting();
+    // Log 'Transfer' event
+    Contract.log(
+      TRANSFER(_owner, _dest), bytes32(_amt)
+    );
+  }
+}
+
+library Approve {
+
+  using Contract for *;
+
+  // event Approval(address indexed owner, address indexed spender, uint tokens)
+  bytes32 internal constant APPROVAL_SIG = keccak256('Approval(address,address,uint256)');
+
+  // Returns the events and data for an 'Approval' event -
+  function APPROVAL (address _owner, address _spender) private pure returns (bytes32[3] memory)
+    { return [APPROVAL_SIG, bytes32(_owner), bytes32(_spender)]; }
+
+  // Implements the logic to create the storage buffer for a Token Approval
+  function approve(address _spender, uint _amt) internal pure {
+    // Begin storing values -
+    Contract.storing();
+    // Store the approved amount at the sender's allowance location for the _spender
+    Contract.set(Token.allowed(Contract.sender(), _spender)).to(_amt);
+    // Finish storing, and begin logging events -
+    Contract.emitting();
+    // Log 'Approval' event -
+    Contract.log(
+      APPROVAL(Contract.sender(), _spender), bytes32(_amt)
+    );
+  }
+
+  // Implements the logic to create the storage buffer for a Token Approval
+  function increaseApproval(address _spender, uint _amt) internal view {
+    // Begin storing values -
+    Contract.storing();
+    // Store the approved amount at the sender's allowance location for the _spender
+    Contract.increase(Token.allowed(Contract.sender(), _spender)).by(_amt);
+    // Finish storing, and begin logging events -
+    Contract.emitting();
+    // Log 'Approval' event -
+    Contract.log(
+      APPROVAL(Contract.sender(), _spender), bytes32(_amt)
+    );
+  }
+
+  // Implements the logic to create the storage buffer for a Token Approval
+  function decreaseApproval(address _spender, uint _amt) internal view {
+    // Begin storing values -
+    Contract.storing();
+    // Decrease the spender's approval by _amt to a minimum of 0 -
+    Contract.decrease(Token.allowed(Contract.sender(), _spender)).byMaximum(_amt);
+    // Finish storing, and begin logging events -
+    Contract.emitting();
+    // Log 'Approval' event -
+    Contract.log(
+      APPROVAL(Contract.sender(), _spender), bytes32(_amt)
+    );
+  }
+}
 
 library Token {
 
