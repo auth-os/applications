@@ -3,7 +3,7 @@ pragma solidity ^0.4.23;
 interface IToken {
   function name() external view returns (string);
   function symbol() external view returns (string);
-  function decimals() external view returns (uint);
+  function decimals() external view returns (uint8);
   function totalSupply() external view returns (uint);
   function balanceOf(address) external view returns (uint);
   function allowance(address, address) external view returns (uint);
