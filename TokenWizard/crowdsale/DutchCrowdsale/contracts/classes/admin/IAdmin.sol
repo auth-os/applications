@@ -9,6 +9,7 @@ interface IAdmin {
   function getTokensSold() external view returns (uint);
   function getCrowdsaleWhitelist() external view returns (uint, address[]);
   function getWhitelistStatus(address) external view returns (uint, uint);
+  function getCrowdsaleUniqueBuyers() external view returns (uint);
 }
 
 interface AdminIdx {
@@ -20,4 +21,5 @@ interface AdminIdx {
   function getTokensSold(address, bytes32) external view returns (uint);
   function getCrowdsaleWhitelist(address, bytes32) external view returns (uint, address[]);
   function getWhitelistStatus(address, bytes32, address) external view returns (uint, uint);
+  function getCrowdsaleUniqueBuyers(address, bytes32) external view returns (uint);
 }

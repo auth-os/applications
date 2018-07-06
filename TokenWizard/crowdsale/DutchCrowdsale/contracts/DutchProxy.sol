@@ -106,6 +106,15 @@ contract AdminProxy is IAdmin, SaleProxy {
   function getWhitelistStatus(address _buyer) external view returns (uint, uint) {
     return AdminIdx(app_index).getWhitelistStatus(app_storage, app_exec_id, _buyer);
   }
+
+  /*
+  Returns the number of unique addresses that have participated in the crowdsale
+
+  @return uint: The number of unique addresses that have participated in the crowdsale
+  */
+  function getCrowdsaleUniqueBuyers() external view returns (uint) {
+    return AdminIdx(app_index).getCrowdsaleUniqueBuyers(app_storage, app_exec_id);
+  }
 }
 
 contract TokenProxy is IToken, AdminProxy {
