@@ -2,6 +2,7 @@ pragma solidity ^0.4.23;
 
 import "authos-solidity/contracts/core/Proxy.sol";
 import "authos-solidity/contracts/lib/StringUtils.sol";
+import "authos-solidity/contracts/interfaces/RegistryInterface.sol";
 import "./IMintedCapped.sol";
 
 contract SaleProxy is ISale, Proxy {
@@ -265,6 +266,10 @@ contract MintedCappedProxy is IMintedCapped, TokenProxy {
   constructor (address _storage, bytes32 _registry_exec_id, address _provider, bytes32 _app_name) public
     Proxy(_storage, _registry_exec_id, _provider, _app_name) { }
 
+  // Function selectors for updates -
+  bytes4 internal constant UPDATE_INST_SEL = bytes4(keccak256('updateInstance(bytes32,bytes32,bytes32)'));
+  bytes4 internal constant UPDATE_EXEC_SEL = bytes4(keccak256('updateExec(address)'));
+
   // Constructor - creates a new instance of the application in storage, and sets this proxy's exec id
   function init(address, uint, bytes32, uint, uint, uint, uint, bool, bool, address) external {
     require(msg.sender == proxy_admin && app_exec_id == 0 && app_name != 0);
@@ -274,9 +279,73 @@ contract MintedCappedProxy is IMintedCapped, TokenProxy {
     app_index = app_storage.getIndex(app_exec_id);
   }
 
+  // Allows the deployer to migrate to a new script exec address -
+  function updateAppExec(address _new_exec_addr) external returns (bool success) {
+    // Ensure sender is proxy admin and new address is nonzero
+    require(msg.sender == proxy_admin && _new_exec_addr != 0);
+
+    if (address(app_storage).call(
+      abi.encodeWithSelector(EXEC_SEL,
+        msg.sender,
+        app_exec_id,
+        abi.encodeWithSelector(UPDATE_EXEC_SEL, _new_exec_addr)
+      )
+    ) == false) {
+      // Call failed - emit error message from storage and return 'false'
+      checkErrors();
+      return false;
+    }
+    // Check returned data to ensure state was correctly changed in AbstractStorage -
+    success = checkReturn();
+    // If execution failed, revert state and return an error message -
+    require(success, 'Execution failed');
+  }
+
+  // Allows the deployer to update to the latest version of the application in the registry -
+  function updateAppInstance() external returns (bool success) {
+    // Ensure sender is proxy admin
+    require(msg.sender == proxy_admin);
+
+    if (address(app_storage).call(
+      abi.encodeWithSelector(EXEC_SEL,
+        provider,
+        app_exec_id,
+        abi.encodeWithSelector(UPDATE_INST_SEL,
+          app_name,
+          app_version,
+          registry_exec_id
+        )
+      )
+    ) == false) {
+      // Call failed - emit error message from storage and return 'false'
+      checkErrors();
+      return false;
+    }
+    // Check returned data to ensure state was correctly changed in AbstractStorage -
+    success = checkReturn();
+    // If execution failed, revert state and return an error message -
+    require(success, 'Execution failed');
+
+    // If execution was successful, the version was updated. Get the latest version and update here -
+    address registry_idx = StorageInterface(app_storage).getIndex(registry_exec_id);
+    bytes32 latest_version = RegistryInterface(registry_idx).getLatestVersion(
+      app_storage,
+      registry_exec_id,
+      provider,
+      app_name
+    );
+    // Ensure nonzero latest version -
+    require(latest_version != 0, 'invalid latest version');
+    // Set app version -
+    app_version = latest_version;
+  }
+
   // Executes an arbitrary function in this application
   function exec(bytes _calldata) external payable returns (bool success) {
     require(app_exec_id != 0 && _calldata.length >= 4);
+    // Ensure update functions are not being called -
+    bytes4 sel = getSelector(_calldata);
+    require(sel != UPDATE_INST_SEL && sel != UPDATE_EXEC_SEL);
     // Call 'exec' in AbstractStorage, passing in the sender's address, the app exec id, and the calldata to forward -
     app_storage.exec.value(msg.value)(msg.sender, app_exec_id, _calldata);
 

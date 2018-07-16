@@ -12,6 +12,6 @@
     "truffle-config.js"
   ],
   "dependencies": {
-    "authos-solidity": "^1.0.4"
+    "authos-solidity": "^1.1.0"
   }
 }
