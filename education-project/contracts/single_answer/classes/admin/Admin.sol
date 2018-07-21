@@ -45,10 +45,6 @@ library Admin {
     location = keccak256(index, answers());
   }
 
-  function answerChoices() internal pure returns (bytes32 location) {
-    location = keccak256(Contract.execID(), 'answer choices');
-  }
-  
   /// Preconditions ///
 
   function first() private pure {
@@ -65,7 +61,7 @@ library Admin {
 
   ///FIXME Need to add init changing functions
 
-  function finalizeTest() internal view {
+  function finalizeTest() external view {
     // Begin execution - read the executionID and the sender address from storage
     Contract.authorize(msg.sender);
     ///FIXME
@@ -80,7 +76,12 @@ library Admin {
 
   /// Question Functions ///
 
-  function addQuestion(bytes memory question, uint answer) internal view {
+  /**
+   * @dev This function allows the admin of the contract to add a question and a hash of the correct answer to the question
+   * @param question The question to add
+   * @param answer The answer of the question being added
+   */
+  function addQuestion(bytes question, bytes32 answer) external view {
     // Begin execution - read the executionID and the sender address from storage
     Contract.authorize(msg.sender);
     ///FIXME
@@ -93,7 +94,7 @@ library Admin {
     Contract.commit();
   }
 
-  function changeQuestion(uint questionNumber, bytes memory newQuestion, uint newAnswer) internal view {
+  function changeQuestion(uint questionNumber, bytes newQuestion, bytes32 newAnswer) external view {
     // Begin execution - read the executionID and the sender address from storage
     Contract.authorize(msg.sender);
     ///FIXME
@@ -106,7 +107,7 @@ library Admin {
     Contract.commit();
   }
 
-  function removeQuestion(uint questionNumber) internal view {
+  function removeQuestion(uint questionNumber) external view {
     // Begin execution - read the executionID and the sender address from storage
     Contract.authorize(msg.sender);
     ///FIXME
@@ -121,20 +122,7 @@ library Admin {
 
   /// Answer Key Functions ///
 
-  function addAnswerChoice() internal view {
-    // Begin execution - read the executionID and the sender address from storage
-    Contract.authorize(msg.sender);
-    ///FIXME
-    Contract.checks(first);
-    // Execute add question function
-    AnswerKey.addAnswerChoice();
-    ///FIXME
-    Contract.checks(last);
-    // Commit state changes to storage
-    Contract.commit();
-  }
-
-  function changeAnswerKey(uint questionNumber, uint newAnswer) internal view {
+  function changeAnswerKey(uint questionNumber, bytes32 newAnswer) external view {
     // Begin execution - read the executionID and the sender address from storage
     Contract.authorize(msg.sender);
     ///FIXME

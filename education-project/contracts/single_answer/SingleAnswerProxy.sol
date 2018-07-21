@@ -1,5 +1,5 @@
 pragma solidity ^0.4.23;
 
-library MultipleChoiceIdx {
+library SingleAnswerProxy {
 
 }

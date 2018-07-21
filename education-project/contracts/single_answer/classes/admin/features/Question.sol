@@ -32,7 +32,7 @@ library Question {
   // Allows the admin to add a question to the end of the test before the test is finalized
   // @param - question: The bytes array that represents the question to be asked 
   // @param - answer: The answer choice number that correctly answers this question 
-  function addQuestion(bytes memory question, uint answer) internal view {
+  function addQuestion(bytes memory question, bytes32 answer) internal view {
     // Revert if the sender is not the admin 
     if (Contract.sender() != address(Contract.read(Admin.admin())))
       revert('Sender is not admin');
@@ -42,9 +42,6 @@ library Question {
     // Revert if question is empty
     if (question.length == 0)
       revert('Invalid question');
-    // Revert if the answer choice is invalid 
-    if (answer == 0 || answer > uint(Contract.read(Admin.answerChoices())))
-      revert('Invalid answer');
 
     
     // Add the Store action request to the storage buffer
@@ -78,11 +75,10 @@ library Question {
 
   }
 
-  // Allows the test admin to change a question that has already been created before the test is finalized.
-  // @param - questionNumber: The index of the question to be changed 
-  // @param - newQuestion: The replacement question 
-  // @param - newAnswer: The correct answer choice for the updated question. If zero, the answer choice will not be changed
-  function changeQuestion(uint questionNumber, bytes memory newQuestion, uint newAnswer) internal view {
+  /**
+   * COMMENTME
+   */
+  function changeQuestion(uint questionNumber, bytes memory newQuestion, bytes32 newAnswer) internal view {
     // Revert if the sender is not the admin 
     if (Contract.sender() != address(Contract.read(Admin.admin())))
       revert('Sender is not admin');
@@ -95,9 +91,6 @@ library Question {
     // Revert if the replacement question is invalid
     if (newQuestion.length == 0) 
       revert('Invalid replacement question');
-    // Revert if the new answer is invalid
-    if (uint(Contract.read(Admin.answerChoices())) < newAnswer)
-      revert('Invalid answer choice');
 
     // Add the Store action request to the storage buffer
     Contract.storing();
