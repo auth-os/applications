@@ -494,7 +494,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
       // Each whitelisted address must purchase minimum 10 tokens initially
       let purchaserMinimums = [10, 10, 10]
       // Maximum amounts each address may purchase (tokens) over the course of the sale:
-      let purchaserMaximums = [1000, 100, 9]
+      let purchaserMaximums = [1000, 100, 11]
 
       beforeEach(async () => {
         let whitelistCalldata = await saleUtils.whitelistMulti.call(
@@ -635,15 +635,22 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
           })
           paymentEvents.push(events)
 
-          paymentEvents.length.should.be.eq(2)
-          paymentReturns.length.should.be.eq(2)
-        })
-
-        it ('should throw on the third purchase', async () => {
-          await storage.exec(
+          returnValues = await storage.exec.call(
             purchaserList[2], executionID, purchaseCalldata,
             { from: exec, value: initialSpends[2] }
-          ).should.not.be.fulfilled
+          ).should.be.fulfilled
+          paymentReturns.push(returnValues)
+
+          events = await storage.exec(
+            purchaserList[2], executionID, purchaseCalldata,
+            { from: exec, value: initialSpends[2] }
+          ).then((tx) => {
+            return tx.receipt.logs
+          })
+          paymentEvents.push(events)
+
+          paymentEvents.length.should.be.eq(3)
+          paymentReturns.length.should.be.eq(3)
         })
 
         describe('returned data', async () => {
@@ -677,6 +684,29 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
 
             beforeEach(async () => {
               returnedData = paymentReturns[1]
+            })
+
+            it('should return a tuple with 3 fields', async () => {
+              returnedData.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              returnedData[0].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              returnedData[1].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              returnedData[2].toNumber().should.be.eq(8)
+            })
+          })
+
+          describe('payment (#3)', async () => {
+
+            beforeEach(async () => {
+              returnedData = paymentReturns[2]
             })
 
             it('should return a tuple with 3 fields', async () => {
@@ -906,6 +936,109 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               })
             })
           })
+
+          describe('event (#3)', async () => {
+
+            beforeEach(async () => {
+              emittedEvents = paymentEvents[2]
+            })
+
+            it('should emit a total of 3 events', async () => {
+              emittedEvents.length.should.be.eq(3)
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[2].topics
+                eventData = emittedEvents[2].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+              })
+
+              it('should have the target app address and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(sale.address))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+
+            describe('the DeliveredPayment event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[0].topics
+                eventData = emittedEvents[0].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(payHash))
+              })
+
+              it('should have the payment destination and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(teamWallet))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+              })
+
+              it('should have a data field containing the amount sent', async () => {
+                web3.toDecimal(eventData).should.be.eq(initialSpends[2])
+              })
+            })
+
+            describe('the other event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[1].topics
+                eventData = emittedEvents[1].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(4)
+              })
+
+              it('should match the event signature for the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(purchaseHash))
+              })
+
+              it('should match the exec id, current sale rate, and current time for the other topics', async () => {
+                web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(executionID))
+                web3.toDecimal(eventTopics[2]).should.be.eq(startPrice)
+                web3.toDecimal(eventTopics[3]).should.be.eq(startTime)
+              })
+
+              it('should contain the number of tokens purchased in the data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(purchaserMinimums[2])
+              })
+            })
+          })
         })
 
         describe('storage', async () => {
@@ -916,15 +1049,15 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
             ).should.be.fulfilled
             crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(
-              initialSpends[0] + initialSpends[1]
+              initialSpends[0] + initialSpends[1] + initialSpends[2]
             )
           })
 
-          it('should have 2 unique buyers', async () => {
+          it('should have 3 unique buyers', async () => {
             let uniqueInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(
               storage.address, executionID
             ).should.be.fulfilled
-            uniqueInfo.toNumber().should.be.eq(2)
+            uniqueInfo.toNumber().should.be.eq(3)
           })
 
           describe('token balances', async () => {
@@ -947,7 +1080,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               let balanceInfo = await saleIdx.balanceOf.call(
                 storage.address, executionID, purchaserList[2]
               ).should.be.fulfilled
-              balanceInfo.toNumber().should.be.eq(0)
+              balanceInfo.toNumber().should.be.eq(initialSpends[2] / startPrice)
             })
           })
 
@@ -971,13 +1104,13 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - (initialSpends[1] / startPrice))
             })
 
-            it('should not update the third purchaser\'s whitelist information', async () => {
+            it('should correctly update the third purchaser\'s whitelist information', async () => {
               let whitelistInfo = await saleIdx.getWhitelistStatus.call(
                 storage.address, executionID, purchaserList[2]
               ).should.be.fulfilled
               whitelistInfo.length.should.be.eq(2)
-              whitelistInfo[0].toNumber().should.be.eq(purchaserMinimums[0])
-              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2])
+              whitelistInfo[0].toNumber().should.be.eq(0)
+              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2] - (initialSpends[2] / startPrice))
             })
           })
 
@@ -1162,15 +1295,15 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
               ).should.be.fulfilled
               crowdsaleInfo.length.should.be.eq(6)
               crowdsaleInfo[0].toNumber().should.be.eq(
-                initialSpends[0] + initialSpends[1] + maxSpendAmount
+                initialSpends[0] + initialSpends[1] + initialSpends[2] + maxSpendAmount
               )
             })
 
-            it('should have 2 unique buyers', async () => {
+            it('should have 3 unique buyers', async () => {
               let uniqueInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(
                 storage.address, executionID
               ).should.be.fulfilled
-              uniqueInfo.toNumber().should.be.eq(2)
+              uniqueInfo.toNumber().should.be.eq(3)
             })
 
             describe('token balances', async () => {
@@ -1195,7 +1328,7 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
                 let balanceInfo = await saleIdx.balanceOf.call(
                   storage.address, executionID, purchaserList[2]
                 ).should.be.fulfilled
-                balanceInfo.toNumber().should.be.eq(0)
+                balanceInfo.toNumber().should.be.eq(initialSpends[2] / startPrice)
               })
             })
 
@@ -1224,8 +1357,8 @@ contract('#DutchBuyTokens - (standard price, 0 decimals)', function (accounts) {
                   storage.address, executionID, purchaserList[2]
                 ).should.be.fulfilled
                 whitelistInfo.length.should.be.eq(2)
-                whitelistInfo[0].toNumber().should.be.eq(purchaserMinimums[2])
-                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2])
+                whitelistInfo[0].toNumber().should.be.eq(0)
+                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2] - (initialSpends[2] / startPrice))
               })
             })
 
@@ -2311,7 +2444,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
       // Each whitelisted address must purchase minimum 10 tokens
       let purchaserMinimums = [tenTokens, tenTokens, tenTokens]
 
-      let purchaserMaximums = [tenTokens * 2, tenTokens, oneToken * 9]
+      let purchaserMaximums = [tenTokens * 2, tenTokens, oneToken * 11]
 
       beforeEach(async () => {
         let whitelistCalldata = await saleUtils.whitelistMulti.call(
@@ -2458,15 +2591,22 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
           })
           paymentEvents.push(events)
 
-          paymentEvents.length.should.be.eq(2)
-          paymentReturns.length.should.be.eq(2)
-        })
-
-        it ('should throw on the third purchase', async () => {
-          await storage.exec(
+          returnValues = await storage.exec.call(
             purchaserList[2], executionID, purchaseCalldata,
             { from: exec, value: initialSpends[2] }
-          ).should.not.be.fulfilled
+          ).should.be.fulfilled
+          paymentReturns.push(returnValues)
+
+          events = await storage.exec(
+            purchaserList[2], executionID, purchaseCalldata,
+            { from: exec, value: initialSpends[2] }
+          ).then((tx) => {
+            return tx.receipt.logs
+          })
+          paymentEvents.push(events)
+
+          paymentEvents.length.should.be.eq(3)
+          paymentReturns.length.should.be.eq(3)
         })
 
         describe('returned data', async () => {
@@ -2500,6 +2640,29 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
 
             beforeEach(async () => {
               returnedData = paymentReturns[1]
+            })
+
+            it('should return a tuple with 3 fields', async () => {
+              returnedData.length.should.be.eq(3)
+            })
+
+            it('should return the correct number of events emitted', async () => {
+              returnedData[0].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of addresses paid', async () => {
+              returnedData[1].toNumber().should.be.eq(1)
+            })
+
+            it('should return the correct number of storage slots written to', async () => {
+              returnedData[2].toNumber().should.be.eq(8)
+            })
+          })
+
+          describe('payment (#3)', async () => {
+
+            beforeEach(async () => {
+              returnedData = paymentReturns[2]
             })
 
             it('should return a tuple with 3 fields', async () => {
@@ -2729,6 +2892,109 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               })
             })
           })
+
+          describe('event (#3)', async () => {
+
+            beforeEach(async () => {
+              emittedEvents = paymentEvents[2]
+            })
+
+            it('should emit a total of 3 events', async () => {
+              emittedEvents.length.should.be.eq(3)
+            })
+
+            describe('the ApplicationExecution event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[2].topics
+                eventData = emittedEvents[2].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(execHash))
+              })
+
+              it('should have the target app address and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(sale.address))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+              })
+
+              it('should have an empty data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(0)
+              })
+            })
+
+            describe('the DeliveredPayment event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[0].topics
+                eventData = emittedEvents[0].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(3)
+              })
+
+              it('should list the correct event signature in the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(payHash))
+              })
+
+              it('should have the payment destination and execution id as the other 2 topics', async () => {
+                let emittedAddr = eventTopics[2]
+                let emittedExecId = eventTopics[1]
+                web3.toDecimal(emittedAddr).should.be.eq(web3.toDecimal(teamWallet))
+                web3.toDecimal(emittedExecId).should.be.eq(web3.toDecimal(executionID))
+              })
+
+              it('should have a data field containing the amount sent', async () => {
+                web3.toDecimal(eventData).should.be.eq(initialSpends[2])
+              })
+            })
+
+            describe('the other event', async () => {
+
+              let eventTopics
+              let eventData
+
+              beforeEach(async () => {
+                eventTopics = emittedEvents[1].topics
+                eventData = emittedEvents[1].data
+              })
+
+              it('should have the correct number of topics', async () => {
+                eventTopics.length.should.be.eq(4)
+              })
+
+              it('should match the event signature for the first topic', async () => {
+                let sig = eventTopics[0]
+                web3.toDecimal(sig).should.be.eq(web3.toDecimal(purchaseHash))
+              })
+
+              it('should match the exec id, current sale rate, and current time for the other topics', async () => {
+                web3.toDecimal(eventTopics[1]).should.be.eq(web3.toDecimal(executionID))
+                web3.toDecimal(eventTopics[2]).should.be.eq(startPrice)
+                web3.toDecimal(eventTopics[3]).should.be.eq(startTime)
+              })
+
+              it('should contain the number of tokens purchased in the data field', async () => {
+                web3.toDecimal(eventData).should.be.eq(purchaserMinimums[2])
+              })
+            })
+          })
         })
 
         describe('storage', async () => {
@@ -2739,15 +3005,15 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
             ).should.be.fulfilled
             crowdsaleInfo.length.should.be.eq(6)
             crowdsaleInfo[0].toNumber().should.be.eq(
-              initialSpends[0] + initialSpends[1]
+              initialSpends[0] + initialSpends[1] + initialSpends[2]
             )
           })
 
-          it('should have 2 unique buyers', async () => {
+          it('should have 3 unique buyers', async () => {
             let uniqueInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(
               storage.address, executionID
             ).should.be.fulfilled
-            uniqueInfo.toNumber().should.be.eq(2)
+            uniqueInfo.toNumber().should.be.eq(3)
           })
 
           describe('token balances', async () => {
@@ -2770,11 +3036,11 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               )
             })
 
-            it('should have a 0 balance for the third purchaser', async () => {
+            it('should correctly store the third purchaser\'s balance', async () => {
               let balanceInfo = await saleIdx.balanceOf.call(
                 storage.address, executionID, purchaserList[2]
               ).should.be.fulfilled
-              balanceInfo.toNumber().should.be.eq(0)
+              balanceInfo.toNumber().should.be.eq((initialSpends[2] / startPrice) * (10 ** tokenDecimals))
             })
           })
 
@@ -2798,13 +3064,13 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - purchaserMinimums[1])
             })
 
-            it('should not have updated the third purchaser\'s whitelist information', async () => {
+            it('should correctly update the third purchaser\'s whitelist information', async () => {
               let whitelistInfo = await saleIdx.getWhitelistStatus.call(
                 storage.address, executionID, purchaserList[2]
               ).should.be.fulfilled
               whitelistInfo.length.should.be.eq(2)
-              whitelistInfo[0].toNumber().should.be.eq(purchaserMinimums[2])
-              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2])
+              whitelistInfo[0].toNumber().should.be.eq(0)
+              whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2] - purchaserMinimums[2])
             })
           })
 
@@ -2820,7 +3086,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               storage.address, executionID
             ).should.be.fulfilled
             soldInfo.toNumber().should.be.eq(
-              ((initialSpends[0] + initialSpends[1]) / startPrice) * (10 ** tokenDecimals)
+              ((initialSpends[0] + initialSpends[1] + initialSpends[2]) / startPrice) * (10 ** tokenDecimals)
             )
           })
         })
@@ -3010,15 +3276,15 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
               ).should.be.fulfilled
               crowdsaleInfo.length.should.be.eq(6)
               crowdsaleInfo[0].toNumber().should.be.eq(
-                initialSpends[0] + initialSpends[1] + maxSpendAmount
+                initialSpends[0] + initialSpends[1] + initialSpends[2] + maxSpendAmount
               )
             })
 
-            it('should have 2 unique buyers', async () => {
+            it('should have 3 unique buyers', async () => {
               let uniqueInfo = await saleIdx.getCrowdsaleUniqueBuyers.call(
                 storage.address, executionID
               ).should.be.fulfilled
-              uniqueInfo.toNumber().should.be.eq(2)
+              uniqueInfo.toNumber().should.be.eq(3)
             })
 
             describe('token balances', async () => {
@@ -3041,11 +3307,11 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
                 )
               })
 
-              it('should have a 0 balance for the third purchaser', async () => {
+              it('should correctly store the third purchaser\s balance', async () => {
                 let balanceInfo = await saleIdx.balanceOf.call(
                   storage.address, executionID, purchaserList[2]
                 ).should.be.fulfilled
-                balanceInfo.toNumber().should.be.eq(0)
+                balanceInfo.toNumber().should.be.eq((initialSpends[2] / startPrice) * (10 ** tokenDecimals))
               })
             })
 
@@ -3069,13 +3335,13 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
                 whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[1] - purchaserMinimums[1])
               })
 
-              it('should not have updated the third purchaser\'s whitelist information', async () => {
+              it('should correctly update the third purchaser\'s whitelist information', async () => {
                 let whitelistInfo = await saleIdx.getWhitelistStatus.call(
                   storage.address, executionID, purchaserList[2]
                 ).should.be.fulfilled
                 whitelistInfo.length.should.be.eq(2)
-                whitelistInfo[0].toNumber().should.be.eq(purchaserMinimums[2])
-                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2])
+                whitelistInfo[0].toNumber().should.be.eq(0)
+                whitelistInfo[1].toNumber().should.be.eq(purchaserMaximums[2] - purchaserMinimums[2])
               })
             })
 
@@ -3091,7 +3357,7 @@ contract('#DutchBuyTokens - (flat price, 18 decimals)', function (accounts) {
                 storage.address, executionID
               ).should.be.fulfilled
               soldInfo.toNumber().should.be.eq(
-                ((initialSpends[0] + initialSpends[1] + maxSpendAmount) / startPrice) * (10 ** tokenDecimals)
+                ((initialSpends[0] + initialSpends[1] + initialSpends[2] + maxSpendAmount) / startPrice) * (10 ** tokenDecimals)
               )
             })
           })

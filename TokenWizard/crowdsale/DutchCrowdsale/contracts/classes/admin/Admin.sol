@@ -77,6 +77,9 @@ library ConfigureSale {
     Contract.storing();
     // For loop to update all inputted address in whitelist
     for (uint i = 0; i < _to_whitelist.length; i++) {
+      // Ensure maximum token purchase is at least equal to minimum token purchase -
+      require(_max_token_purchase[i] >= _min_token_purchase[i], "Invalid whitelist entry");
+
       // Get storage location for address[i]
       Contract.set(Admin.whitelistMinTok(_to_whitelist[i])).to(_min_token_purchase[i]);
       Contract.set(Admin.whitelistMaxTok(_to_whitelist[i])).to(_max_token_purchase[i]);
@@ -319,8 +322,7 @@ library Admin {
 
   // Ensures that the sender is the admin address, and the sale is not initialized
   function onlyAdminAndNotInit() internal view {
-    if (address(Contract.read(admin())) != Contract.sender())
-      revert('sender is not admin');
+    onlyAdmin();
 
     if (Contract.read(isConfigured()) != 0)
       revert('sale has already been initialized');
@@ -328,8 +330,7 @@ library Admin {
 
   // Ensures that the sender is the admin address, and the sale is not finalized
   function onlyAdminAndNotFinal() internal view {
-    if (address(Contract.read(admin())) != Contract.sender())
-      revert('sender is not admin');
+    onlyAdmin();
 
     if (Contract.read(isFinished()) != 0)
       revert('sale has already been finalized');
@@ -364,7 +365,7 @@ library Admin {
     Contract.checks(onlyAdmin);
     // Execute function -
     ConfigureSale.updateGlobalMinContribution(_new_minimum);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -375,17 +376,17 @@ library Admin {
 
   @param _to_whitelist: An array of addresses that will be whitelisted
   @param _min_token_purchase: Each address' minimum purchase amount
-  @param _max_wei_spend: Each address' maximum wei spend amount
+  @param _max_token_purchase: Each address' maximum token purchase amount
   */
   function whitelistMulti(
-    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_wei_spend
+    address[] _to_whitelist, uint[] _min_token_purchase, uint[] _max_token_purchase
   ) external view {
     // Begin execution - reads execution id and original sender address from storage
     Contract.authorize(msg.sender);
     // Check that the sender is the sale admin -
     Contract.checks(onlyAdmin);
     // Execute function -
-    ConfigureSale.whitelistMulti(_to_whitelist, _min_token_purchase, _max_wei_spend);
+    ConfigureSale.whitelistMulti(_to_whitelist, _min_token_purchase, _max_token_purchase);
     // Ensures state change will only affect storage -
     Contract.checks(onlyStores);
     // Commit state changes to storage -
@@ -406,7 +407,7 @@ library Admin {
     Contract.checks(onlyAdminAndNotInit);
     // Execute decreaseApproval function -
     ConfigureSale.initCrowdsaleToken(_name, _symbol, _decimals);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -426,7 +427,7 @@ library Admin {
     Contract.checks(onlyAdminAndNotInit);
     // Execute decreaseApproval function -
     ConfigureSale.setCrowdsaleStartandDuration(_start_time, _duration);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -445,7 +446,7 @@ library Admin {
     Contract.checks(onlyAdmin);
     // Execute decreaseApproval function -
     ManageTokens.setTransferAgentStatus(_agent, _is_agent);
-    // Ensures state change will only affect storage and log events -
+    // Ensures state change will affect storage and log events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -459,7 +460,7 @@ library Admin {
     Contract.checks(onlyAdminAndNotInit);
     // Execute function -
     ManageSale.initializeCrowdsale();
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -473,7 +474,7 @@ library Admin {
     Contract.checks(onlyAdminAndNotFinal);
     // Execute function -
     ManageSale.finalizeCrowdsale();
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();

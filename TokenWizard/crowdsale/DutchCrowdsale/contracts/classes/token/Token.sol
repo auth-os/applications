@@ -195,7 +195,7 @@ library Token {
     Contract.checks(tokenInit);
     // Execute transfer function -
     Transfer.transfer(_to, _amount);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -215,7 +215,7 @@ library Token {
     Contract.checks(tokenInit);
     // Execute transfer function -
     Transfer.transferFrom(_owner, _recipient, _amount);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -234,7 +234,7 @@ library Token {
     Contract.checks(tokenInit);
     // Execute approval function -
     Approve.approve(_spender, _amount);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -253,7 +253,7 @@ library Token {
     Contract.checks(tokenInit);
     // Execute approval function -
     Approve.increaseApproval(_spender, _amount);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
@@ -272,7 +272,7 @@ library Token {
     Contract.checks(tokenInit);
     // Execute approval function -
     Approve.decreaseApproval(_spender, _amount);
-    // Ensures state change will only affect storage and events -
+    // Ensures state change will affect storage and events -
     Contract.checks(emitAndStore);
     // Commit state changes to storage -
     Contract.commit();
