@@ -350,7 +350,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
             })
 
             it('should have an empty data field', async () => {
-              eventData.should.be.eq('0x00')
+              web3.toDecimal(eventData).should.be.eq(0)
             })
           })
 
@@ -1758,7 +1758,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 })
 
                 it('should have an empty data field', async () => {
-                  eventData.should.be.eq('0x00')
+                  web3.toDecimal(eventData).should.be.eq(0)
                 })
               })
 
@@ -1921,7 +1921,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                 })
 
                 it('should have an empty data field', async () => {
-                  eventData.should.be.eq('0x00')
+                  web3.toDecimal(eventData).should.be.eq(0)
                 })
               })
 
@@ -2260,7 +2260,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   })
 
                   it('should have an empty data field', async () => {
-                    eventData.should.be.eq('0x00')
+                    web3.toDecimal(eventData).should.be.eq(0)
                   })
                 })
 
@@ -2326,7 +2326,7 @@ contract('#MintedCappedSaleManager', function (accounts) {
                   })
 
                   it('should have an empty data field', async () => {
-                    eventData.should.be.eq('0x00')
+                    web3.toDecimal(eventData).should.be.eq(0)
                   })
                 })
 
